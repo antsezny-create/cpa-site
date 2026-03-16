@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Account — Anthony Sesny</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="login.css">
+  <link rel="stylesheet" href="register.css">
+</head>
+<body>
+
+<div class="login-page">
+
+  <!-- Left side: Branding -->
+  <div class="login-brand">
+    <div class="login-brand-content">
+      <a href="index.html" class="login-back">← Back to site</a>
+      <div class="login-brand-main">
+        <h1>Anthony Sesny</h1>
+        <p class="login-tagline">Create your secure client portal account to get started with tax preparation.</p>
+        <div class="login-features">
+          <div class="login-feature">
+            <span class="login-feature-icon">◆</span>
+            <div>
+              <strong>Quick Setup</strong>
+              <span>Create your account in under 2 minutes</span>
+            </div>
+          </div>
+          <div class="login-feature">
+            <span class="login-feature-icon">◆</span>
+            <div>
+              <strong>Upload Documents</strong>
+              <span>Securely submit W-2s, 1099s, and more</span>
+            </div>
+          </div>
+          <div class="login-feature">
+            <span class="login-feature-icon">◆</span>
+            <div>
+              <strong>Bank-Level Security</strong>
+              <span>Your data is encrypted end-to-end</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="login-brand-footer">256-bit encrypted · Your information is never shared</p>
+    </div>
+  </div>
+
+  <!-- Right side: Registration Form -->
+  <div class="login-form-side">
+    <div class="login-form-container register-container">
+
+      <!-- Step indicator -->
+      <div class="step-indicator">
+        <div class="step-dot-reg active" id="step-dot-1">1</div>
+        <div class="step-line active" id="step-line-1"></div>
+        <div class="step-dot-reg" id="step-dot-2">2</div>
+        <div class="step-line" id="step-line-2"></div>
+        <div class="step-dot-reg" id="step-dot-3">3</div>
+      </div>
+
+      <!-- Step 1: Personal Info -->
+      <div class="register-step" id="step-1">
+        <div class="login-form-header">
+          <h2>Personal information</h2>
+          <p>Let's start with the basics.</p>
+        </div>
+
+        <div class="login-form">
+          <div class="form-row-split">
+            <div class="form-group">
+              <label for="firstName">First name</label>
+              <input type="text" id="firstName" placeholder="Sarah">
+            </div>
+            <div class="form-group">
+              <label for="lastName">Last name</label>
+              <input type="text" id="lastName" placeholder="Mitchell">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="reg-email">Email address</label>
+            <input type="email" id="reg-email" placeholder="you@example.com">
+          </div>
+
+          <div class="form-group">
+            <label for="phone">Phone number</label>
+            <input type="tel" id="phone" placeholder="(555) 123-4567">
+          </div>
+
+          <button class="btn-login" onclick="nextStep(2)">Continue</button>
+
+          <p class="login-help">Already have an account? <a href="login.html" class="register-link">Sign in</a></p>
+        </div>
+      </div>
+
+      <!-- Step 2: Security -->
+      <div class="register-step" id="step-2" style="display: none;">
+        <div class="login-form-header">
+          <h2>Create your password</h2>
+          <p>Choose a strong password to protect your account.</p>
+        </div>
+
+        <div class="login-form">
+          <div class="form-group">
+            <label for="reg-password">Password</label>
+            <input type="password" id="reg-password" placeholder="At least 8 characters">
+            <div class="password-requirements">
+              <div class="req" id="req-length">At least 8 characters</div>
+              <div class="req" id="req-number">Contains a number</div>
+              <div class="req" id="req-upper">Contains an uppercase letter</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="reg-confirm">Confirm password</label>
+            <input type="password" id="reg-confirm" placeholder="Re-enter your password">
+          </div>
+
+          <div class="form-buttons">
+            <button class="btn-back" onclick="prevStep(1)">Back</button>
+            <button class="btn-login" onclick="nextStep(3)">Continue</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Verification -->
+      <div class="register-step" id="step-3" style="display: none;">
+        <div class="login-form-header">
+          <h2>Identity verification</h2>
+          <p>This helps us securely link your tax records to your account.</p>
+        </div>
+
+        <div class="login-form">
+          <div class="form-group">
+            <label for="ssn">Social Security Number or Tax ID</label>
+            <input type="password" id="ssn" placeholder="XXX-XX-XXXX">
+            <div class="field-note">Your SSN is encrypted and never stored in plain text. It is only used for account verification purposes.</div>
+          </div>
+
+          <div class="form-group">
+            <label for="ssn-confirm">Confirm SSN / Tax ID</label>
+            <input type="password" id="ssn-confirm" placeholder="Re-enter to confirm">
+          </div>
+
+          <label class="checkbox-label" style="margin-bottom: 24px;">
+            <input type="checkbox" id="terms">
+            <span></span>
+            I agree to the <a href="#" class="register-link">Terms of Service</a> and <a href="#" class="register-link">Privacy Policy</a>
+          </label>
+
+          <div class="form-buttons">
+            <button class="btn-back" onclick="prevStep(2)">Back</button>
+            <button class="btn-login" onclick="createAccount()">Create Account</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Success Screen -->
+      <div class="register-step" id="step-success" style="display: none;">
+        <div class="login-form-header" style="text-align: center;">
+          <div class="success-check">✓</div>
+          <h2>You're all set!</h2>
+          <p>Your account has been created. Redirecting to your portal...</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script src="register.js"></script>
+</body>
+</html>

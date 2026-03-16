@@ -1,0 +1,171 @@
+/* ── Register-specific overrides ── */
+.register-container {
+  max-width: 420px;
+}
+
+/* ── Step Indicator ── */
+.step-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 36px;
+}
+
+.step-dot-reg {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #E5E4E0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #999;
+  background: transparent;
+  transition: all 0.3s;
+  flex-shrink: 0;
+}
+
+.step-dot-reg.active {
+  border-color: #0A66C2;
+  background: #0A66C2;
+  color: white;
+}
+
+.step-dot-reg.done {
+  border-color: #22C55E;
+  background: #22C55E;
+  color: white;
+}
+
+.step-line {
+  width: 48px;
+  height: 2px;
+  background: #E5E4E0;
+  transition: background 0.3s;
+}
+
+.step-line.active {
+  background: #0A66C2;
+}
+
+.step-line.done {
+  background: #22C55E;
+}
+
+/* ── Split row for first/last name ── */
+.form-row-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* ── Password Requirements ── */
+.password-requirements {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.req {
+  font-size: 12px;
+  color: #999;
+  font-weight: 500;
+  padding-left: 18px;
+  position: relative;
+}
+
+.req::before {
+  content: "○";
+  position: absolute;
+  left: 0;
+  font-size: 10px;
+}
+
+.req.met {
+  color: #22C55E;
+}
+
+.req.met::before {
+  content: "●";
+  color: #22C55E;
+}
+
+/* ── Field Note ── */
+.field-note {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #999;
+  line-height: 1.5;
+  padding: 10px 12px;
+  background: #F5F5F3;
+  border-radius: 8px;
+  border: 1px solid #E5E4E0;
+}
+
+/* ── Form Buttons Row ── */
+.form-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-back {
+  padding: 14px 24px;
+  background: transparent;
+  color: #6B6B6B;
+  border: 1.5px solid #E5E4E0;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-back:hover {
+  border-color: #1A1A1A;
+  color: #1A1A1A;
+}
+
+.form-buttons .btn-login {
+  flex: 1;
+}
+
+/* ── Register Link ── */
+.register-link {
+  color: #0A66C2;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.register-link:hover {
+  opacity: 0.7;
+}
+
+/* ── Success Check (reuse from login) ── */
+.success-check {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #E6F9ED;
+  color: #22A355;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  margin: 0 auto 20px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .form-row-split {
+    grid-template-columns: 1fr;
+  }
+
+  .step-line {
+    width: 32px;
+  }
+}
