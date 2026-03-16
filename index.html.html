@@ -1,0 +1,74 @@
+<div class="hero">
+  <h1>Anthony Sesny</h1>
+  <p>Tax preparation, bookkeeping, and advisory services for individuals and small businesses.</p>
+</div>
+
+<div class="content">
+
+  <div class="card">
+    <div class="label">What I Offer</div>
+    <h2>Services</h2>
+    <p style="color: #FFFFFF; font-weight: 600; margin-top: 16px;">Tax Filing</p>
+    <span class="service-item">Individual</span>
+    <span class="service-item">Partnership</span>
+    <span class="service-item">Corporation</span>
+    <span class="service-item">Small Business</span>
+    <p style="color: #FFFFFF; font-weight: 600; margin-top: 20px;">Bookkeeping</p>
+    <span class="service-item">Monthly Bookkeeping</span>
+    <span class="service-item">Financial Statements</span>
+    <p style="color: #FFFFFF; font-weight: 600; margin-top: 20px;">Advisory</p>
+    <span class="service-item">Tax Planning</span>
+    <span class="service-item">Business Formation</span>
+    <span class="service-item">IRS Representation</span>
+    <br>
+    <button class="btn" onclick="showServices()">Get Started</button>
+  </div>
+
+  <!-- THIS IS THE NEW SECTION - hidden until you click Get Started -->
+  <div class="card" id="service-detail" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div class="label">Service Breakdown</div>
+      <button class="btn-close" onclick="hideServices()">✕ Close</button>
+    </div>
+    <h2>What's Included</h2>
+
+    <p style="color: #FFFFFF; font-weight: 700; font-size: 18px; margin-top: 20px;">Individual Tax Filing</p>
+    <p>Personal 1040 preparation, W-2 and 1099 income reporting, deduction optimization, Schedule A itemization, and state returns. I handle simple and complex returns alike.</p>
+
+    <p style="color: #FFFFFF; font-weight: 700; font-size: 18px; margin-top: 20px;">Partnership Returns</p>
+    <p>Form 1065 preparation, partner K-1 distribution, profit and loss allocation, and guaranteed payment reporting. Every partner's share calculated correctly.</p>
+
+    <p style="color: #FFFFFF; font-weight: 700; font-size: 18px; margin-top: 20px;">Corporation Tax Filing</p>
+    <p>Form 1120 and 1120-S preparation for C-Corps and S-Corps. Includes shareholder basis tracking, reasonable compensation analysis, and quarterly estimated tax planning.</p>
+
+    <p style="color: #FFFFFF; font-weight: 700; font-size: 18px; margin-top: 20px;">Small Business Services</p>
+    <p>End-to-end support — from entity selection and formation to monthly bookkeeping, payroll processing, sales tax compliance, and year-end tax strategy.</p>
+  </div>
+
+  <div class="card">
+    <div class="label">Client Portal</div>
+    <h2>Already a Client?</h2>
+    <p>Log in to upload documents, check your filing status, and message me directly.</p>
+    <a href="login.html" class="btn-outline">Client Login</a>
+  </div>
+
+  <div class="card">
+    <div class="label">About</div>
+    <h2>Meet Anthony</h2>
+    <p>Hi, I'm Anthony Sesny — an accounting professional currently pursuing my CPA license. With a degree in accounting and a passion for helping people take control of their finances, I'm building a practice centered on making tax season less stressful.</p>
+    <p>I believe every client deserves clear communication, attention to detail, and a CPA who actually picks up the phone.</p>
+  </div>
+
+  <div class="card">
+  <div class="label">Contact</div>
+  <h2>Schedule Consultation</h2>
+  <p>sesnyanthony@gmail.com</p>
+  <p>(718) 612-5911</p>
+  <button class="btn" onclick="copyEmail()">Copy Email</button>
+</div>
+
+</div>
+
+<div class="footer">
+  © 2026 Anthony Sesny. All rights reserved.
+</div>
