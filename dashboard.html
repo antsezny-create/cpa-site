@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Anthony Sesny CPA</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+
+<!-- Top Bar -->
+<nav class="dash-nav">
+  <div class="dash-nav-inner">
+    <div class="dash-nav-left">
+      <span class="dash-logo">AS</span>
+      <span class="dash-title">TaxPro</span>
+      <span class="dash-subtitle">Practitioner Dashboard</span>
+    </div>
+    <div class="dash-nav-right">
+      <input type="text" class="dash-search" placeholder="Search clients, forms..." id="global-search" oninput="handleGlobalSearch(this.value)">
+      <span class="dash-user">Anthony Sesny</span>
+    </div>
+  </div>
+</nav>
+
+<!-- Layout -->
+<div class="dash-layout">
+
+  <!-- Sidebar -->
+  <aside class="dash-sidebar">
+    <div class="dash-sidebar-nav">
+      <button class="dash-nav-btn active" onclick="switchDashTab('overview')">
+        <span class="nav-icon">◫</span> Overview
+      </button>
+      <button class="dash-nav-btn" onclick="switchDashTab('clients')">
+        <span class="nav-icon">◉</span> Clients
+      </button>
+      <button class="dash-nav-btn" onclick="switchDashTab('forms')">
+        <span class="nav-icon">❐</span> Forms & Schedules
+      </button>
+      <button class="dash-nav-btn" onclick="switchDashTab('documents')">
+        <span class="nav-icon">◧</span> Documents
+      </button>
+    </div>
+    <div class="dash-sidebar-footer">
+      <a href="index.html" class="sidebar-link">← Back to Site</a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="dash-main">
+
+    <!-- ==================== OVERVIEW ==================== -->
+    <div class="dash-tab" id="tab-overview">
+      <div class="dash-header">
+        <h1>Dashboard</h1>
+        <p>Tax Year 2025 · Filing Season</p>
+      </div>
+
+      <!-- Stat Cards -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span class="stat-label">Total Clients</span>
+          <span class="stat-value blue">12</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">In Progress</span>
+          <span class="stat-value cyan">5</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Needs Review</span>
+          <span class="stat-value orange">3</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Filed</span>
+          <span class="stat-value green">4</span>
+        </div>
+      </div>
+
+      <div class="overview-grid">
+        <!-- Recent Clients -->
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <h2>Recent Clients</h2>
+            <button class="link-btn" onclick="switchDashTab('clients')">View All →</button>
+          </div>
+          <div class="client-mini-list">
+            <div class="client-mini" onclick="openClient('Sarah Mitchell')">
+              <div class="client-avatar blue">SM</div>
+              <div class="client-mini-info">
+                <strong>Sarah Mitchell</strong>
+                <span>Individual · 5 docs</span>
+              </div>
+              <span class="status-pill progress">In Progress</span>
+            </div>
+            <div class="client-mini" onclick="openClient('James & Linda Park')">
+              <div class="client-avatar purple">JP</div>
+              <div class="client-mini-info">
+                <strong>James & Linda Park</strong>
+                <span>Joint · 12 docs</span>
+              </div>
+              <span class="status-pill review">Review</span>
+            </div>
+            <div class="client-mini" onclick="openClient('Rivera Holdings LLC')">
+              <div class="client-avatar orange">RH</div>
+              <div class="client-mini-info">
+                <strong>Rivera Holdings LLC</strong>
+                <span>Business · 18 docs</span>
+              </div>
+              <span class="status-pill progress">In Progress</span>
+            </div>
+            <div class="client-mini" onclick="openClient('Aisha Patel')">
+              <div class="client-avatar green">AP</div>
+              <div class="client-mini-info">
+                <strong>Aisha Patel</strong>
+                <span>Individual · 7 docs</span>
+              </div>
+              <span class="status-pill review">Review</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Access Forms -->
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <h2>Quick Access</h2>
+            <button class="link-btn" onclick="switchDashTab('forms')">All Forms →</button>
+          </div>
+          <div class="quick-forms">
+            <div class="quick-form" onclick="openFormEditor('1040')">
+              <span class="form-num">1040</span>
+              <span>Individual Income Tax</span>
+            </div>
+            <div class="quick-form" onclick="openFormEditor('1120-S')">
+              <span class="form-num">1120-S</span>
+              <span>S-Corp Return</span>
+            </div>
+            <div class="quick-form" onclick="openFormEditor('1065')">
+              <span class="form-num">1065</span>
+              <span>Partnership Return</span>
+            </div>
+            <div class="quick-form" onclick="switchDashTab('forms')">
+              <span class="form-num">Sch C</span>
+              <span>Business Profit/Loss</span>
+            </div>
+            <div class="quick-form" onclick="switchDashTab('forms')">
+              <span class="form-num">Sch D</span>
+              <span>Capital Gains</span>
+            </div>
+            <div class="quick-form" onclick="switchDashTab('forms')">
+              <span class="form-num">W-2</span>
+              <span>Wage Statement</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== CLIENTS ==================== -->
+    <div class="dash-tab" id="tab-clients" style="display:none;">
+      <div class="dash-header">
+        <h1>Client Management</h1>
+        <p>All clients for Tax Year 2025</p>
+      </div>
+
+      <!-- Filters -->
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterClients('all', this)">All</button>
+        <button class="filter-btn" onclick="filterClients('pending', this)">Pending</button>
+        <button class="filter-btn" onclick="filterClients('in-progress', this)">In Progress</button>
+        <button class="filter-btn" onclick="filterClients('review', this)">Review</button>
+        <button class="filter-btn" onclick="filterClients('filed', this)">Filed</button>
+      </div>
+
+      <!-- Client Table -->
+      <div class="dash-card" style="padding: 0; overflow: hidden;">
+        <div class="table-header">
+          <span class="col-client">Client</span>
+          <span class="col-type">Type</span>
+          <span class="col-status">Status</span>
+          <span class="col-docs">Docs</span>
+          <span class="col-year">Year</span>
+          <span class="col-action"></span>
+        </div>
+        <div id="client-table-body">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== FORMS & SCHEDULES ==================== -->
+    <div class="dash-tab" id="tab-forms" style="display:none;">
+      <div class="dash-header">
+        <h1>Forms & Schedules</h1>
+        <p>Complete IRS form library</p>
+      </div>
+
+      <div class="form-categories">
+        <button class="filter-btn active" onclick="switchFormCategory('individual', this)">Individual</button>
+        <button class="filter-btn" onclick="switchFormCategory('schedules', this)">Schedules</button>
+        <button class="filter-btn" onclick="switchFormCategory('w-forms', this)">W-Forms</button>
+        <button class="filter-btn" onclick="switchFormCategory('1099', this)">1099 Series</button>
+        <button class="filter-btn" onclick="switchFormCategory('business', this)">Business</button>
+      </div>
+
+      <div class="forms-grid" id="forms-grid">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+
+    <!-- ==================== DOCUMENTS ==================== -->
+    <div class="dash-tab" id="tab-documents" style="display:none;">
+      <div class="dash-header">
+        <h1>Document Review</h1>
+        <p>Client-uploaded documents awaiting your review</p>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <h2>Pending Review</h2>
+          <span class="card-count">4 documents</span>
+        </div>
+        <div class="doc-review-list">
+          <div class="doc-review-item">
+            <div class="doc-icon">PDF</div>
+            <div class="doc-review-info">
+              <strong>W-2_Employer_2025.pdf</strong>
+              <span>Sarah Mitchell · Uploaded Mar 2 · 245 KB</span>
+            </div>
+            <div class="doc-actions">
+              <button class="action-btn approve" onclick="reviewDoc(this, 'approved')">Approve</button>
+              <button class="action-btn flag" onclick="reviewDoc(this, 'flagged')">Flag</button>
+            </div>
+          </div>
+          <div class="doc-review-item">
+            <div class="doc-icon">PDF</div>
+            <div class="doc-review-info">
+              <strong>1099-NEC_Freelance_2025.pdf</strong>
+              <span>James & Linda Park · Uploaded Mar 3 · 128 KB</span>
+            </div>
+            <div class="doc-actions">
+              <button class="action-btn approve" onclick="reviewDoc(this, 'approved')">Approve</button>
+              <button class="action-btn flag" onclick="reviewDoc(this, 'flagged')">Flag</button>
+            </div>
+          </div>
+          <div class="doc-review-item">
+            <div class="doc-icon">PDF</div>
+            <div class="doc-review-info">
+              <strong>1099-INT_Chase_2025.pdf</strong>
+              <span>Sarah Mitchell · Uploaded Mar 5 · 156 KB</span>
+            </div>
+            <div class="doc-actions">
+              <button class="action-btn approve" onclick="reviewDoc(this, 'approved')">Approve</button>
+              <button class="action-btn flag" onclick="reviewDoc(this, 'flagged')">Flag</button>
+            </div>
+          </div>
+          <div class="doc-review-item">
+            <div class="doc-icon">ZIP</div>
+            <div class="doc-review-info">
+              <strong>Receipts_Q4_2025.zip</strong>
+              <span>Rivera Holdings LLC · Uploaded Mar 6 · 2.1 MB</span>
+            </div>
+            <div class="doc-actions">
+              <button class="action-btn approve" onclick="reviewDoc(this, 'approved')">Approve</button>
+              <button class="action-btn flag" onclick="reviewDoc(this, 'flagged')">Flag</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-card" style="margin-top: 20px;">
+        <div class="dash-card-header">
+          <h2>All Documents</h2>
+          <span class="card-count">8 total</span>
+        </div>
+        <div class="doc-review-list">
+          <div class="doc-review-item">
+            <div class="doc-icon approved-icon">✓</div>
+            <div class="doc-review-info">
+              <strong>1099-DIV_Fidelity_2025.pdf</strong>
+              <span>Sarah Mitchell · Approved Mar 6 · 156 KB</span>
+            </div>
+            <span class="doc-status-badge approved">Approved</span>
+          </div>
+          <div class="doc-review-item">
+            <div class="doc-icon approved-icon">✓</div>
+            <div class="doc-review-info">
+              <strong>K-1_Partnership_2025.pdf</strong>
+              <span>James & Linda Park · Approved Mar 4 · 89 KB</span>
+            </div>
+            <span class="doc-status-badge approved">Approved</span>
+          </div>
+          <div class="doc-review-item">
+            <div class="doc-icon flagged-icon">!</div>
+            <div class="doc-review-info">
+              <strong>W-2_Unclear_Scan.pdf</strong>
+              <span>Aisha Patel · Flagged Mar 5 · 312 KB</span>
+            </div>
+            <span class="doc-status-badge flagged">Flagged</span>
+          </div>
+          <div class="doc-review-item">
+            <div class="doc-icon approved-icon">✓</div>
+            <div class="doc-review-info">
+              <strong>Business_License_Rivera.pdf</strong>
+              <span>Rivera Holdings LLC · Approved Mar 3 · 445 KB</span>
+            </div>
+            <span class="doc-status-badge approved">Approved</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== FORM EDITOR ==================== -->
+    <div class="dash-tab" id="tab-form-editor" style="display:none;">
+      <div class="dash-header">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button class="back-btn" onclick="switchDashTab('forms')">←</button>
+          <div>
+            <h1 id="editor-form-title">Form 1040</h1>
+            <p id="editor-form-desc">U.S. Individual Income Tax Return</p>
+          </div>
+        </div>
+        <div class="editor-actions">
+          <button class="ghost-btn" onclick="alert('Draft saved!')">Save Draft</button>
+          <button class="ghost-btn" onclick="window.print()">Print</button>
+          <button class="primary-btn" onclick="alert('Select a client to attach this form to.')">Attach to Client</button>
+        </div>
+      </div>
+
+      <div id="form-editor-content">
+        <!-- Filled by JS when a form is opened -->
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script src="dashboard.js"></script>
+</body>
+</html>
