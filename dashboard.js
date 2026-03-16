@@ -417,6 +417,183 @@ function handleGlobalSearch(query) {
 
 
 // ══════════════════════════════════════
+//  MESSAGES
+// ══════════════════════════════════════
+
+let conversations = {
+  sarah: {
+    name: "Sarah Mitchell",
+    type: "Individual · 2025 Return",
+    avatar: "SM",
+    color: "blue",
+    messages: [
+      { from: "client", name: "Sarah Mitchell", time: "Mar 4, 9:00 AM", text: "Hi Anthony, I just uploaded my W-2. Should I upload bank statements too or just the 1099-INT?" },
+      { from: "you", name: "You", time: "Mar 4, 9:15 AM", text: "Just the 1099-INT is fine — your bank should have that available for download. I don't need the full bank statements unless you have deductible expenses." },
+      { from: "client", name: "Sarah Mitchell", time: "Mar 4, 11:22 AM", text: "Hi Anthony! I'll get the 1098 from my lender's website this week. For the donations, I have receipts from two organizations — I'll scan and upload them. Should I combine them into one PDF?" },
+      { from: "you", name: "You", time: "Mar 4, 12:15 PM", text: "Either way works — separate files or one combined PDF is fine. No rush, just whenever you get to it. I'll keep working on the rest of your return in the meantime." },
+      { from: "client", name: "Sarah Mitchell", time: "Today, 2:15 PM", text: "Perfect, I just uploaded the 1098. Still working on getting the donation receipts together. Should have them by end of week!" },
+    ]
+  },
+  james: {
+    name: "James & Linda Park",
+    type: "Joint · 2025 Return",
+    avatar: "JP",
+    color: "purple",
+    messages: [
+      { from: "client", name: "James Park", time: "Mar 6, 3:30 PM", text: "Anthony, we got a K-1 from our rental property partnership. Can you explain the K-1 distribution? We're not sure what box 1 vs box 2 means." },
+      { from: "you", name: "You", time: "Mar 6, 4:00 PM", text: "Sure! Box 1 is your share of ordinary business income — that's the profit from the partnership. Box 2 is net rental real estate income. Both flow to your 1040 through Schedule E. Just upload it and I'll handle the rest." },
+      { from: "client", name: "James Park", time: "Yesterday, 10:15 AM", text: "Can you explain the K-1 distribution? We got multiple ones and want to make sure they're all accounted for." },
+    ]
+  },
+  aisha: {
+    name: "Aisha Patel",
+    type: "Individual · 2025 Return",
+    avatar: "AP",
+    color: "green",
+    messages: [
+      { from: "you", name: "You", time: "Mar 10, 11:00 AM", text: "Hi Aisha, I noticed your W-2 scan is a bit blurry — can you re-upload a clearer version? I want to make sure I'm reading the numbers correctly." },
+      { from: "client", name: "Aisha Patel", time: "Mar 11, 9:30 AM", text: "Oh sorry about that! I'll re-scan it today and upload a better copy." },
+      { from: "client", name: "Aisha Patel", time: "Mar 12, 2:00 PM", text: "Thanks Anthony, that makes sense. I just uploaded the clearer version." },
+    ]
+  },
+  rivera: {
+    name: "Rivera Holdings LLC",
+    type: "Business · 2025 Return",
+    avatar: "RH",
+    color: "orange",
+    messages: [
+      { from: "client", name: "Maria Rivera", time: "Mar 8, 1:00 PM", text: "Hi Anthony, I'm uploading all the Q4 receipts now. There's about 45 of them — I put them all into one ZIP file. Is that okay?" },
+      { from: "you", name: "You", time: "Mar 8, 1:30 PM", text: "That works perfectly. One ZIP is much easier to manage than 45 separate files. I'll sort through them on my end." },
+      { from: "client", name: "Maria Rivera", time: "Mar 10, 10:00 AM", text: "I've uploaded all the Q4 receipts. Let me know if anything is missing." },
+    ]
+  },
+  marcus: {
+    name: "Marcus Johnson",
+    type: "Individual · 2025 Return",
+    avatar: "MJ",
+    color: "cyan",
+    messages: [
+      { from: "you", name: "You", time: "Mar 5, 4:00 PM", text: "Great news Marcus — your return is ready to file. Your refund is looking like $1,247. I'll e-file it today unless you want to review anything first." },
+      { from: "client", name: "Marcus Johnson", time: "Mar 5, 4:30 PM", text: "That sounds great! Go ahead and file it. Thanks for being so quick!" },
+      { from: "you", name: "You", time: "Mar 5, 5:00 PM", text: "Done! Filed and accepted. You should see your refund in 10-21 days. I'll send you a copy of the return for your records." },
+      { from: "client", name: "Marcus Johnson", time: "Mar 8, 9:00 AM", text: "Got it, thanks for filing so quickly!" },
+    ]
+  }
+};
+
+let activeConversation = "sarah";
+
+function openConversation(clientId) {
+  activeConversation = clientId;
+  let conv = conversations[clientId];
+  if (!conv) return;
+
+  // Update active state in client list
+  let items = document.querySelectorAll(".msg-client-item");
+  for (let i = 0; i < items.length; i++) {
+    items[i].classList.remove("active");
+  }
+  event.currentTarget.classList.add("active");
+
+  // Remove unread badge
+  let badge = event.currentTarget.querySelector(".msg-unread");
+  if (badge) badge.remove();
+
+  // Update header
+  document.getElementById("msg-conv-header").innerHTML =
+    '<div class="msg-conv-avatar ' + conv.color + '">' + conv.avatar + '</div>' +
+    '<div><strong>' + conv.name + '</strong><span>' + conv.type + '</span></div>';
+
+  // Render messages
+  let thread = document.getElementById("admin-msg-thread");
+  thread.innerHTML = "";
+
+  for (let i = 0; i < conv.messages.length; i++) {
+    let msg = conv.messages[i];
+    let bubble = document.createElement("div");
+    bubble.className = "msg-bubble " + (msg.from === "you" ? "sent" : "received");
+    bubble.innerHTML =
+      '<div class="msg-bubble-meta"><strong>' + msg.name + '</strong> <span>' + msg.time + '</span></div>' +
+      '<div class="msg-bubble-text">' + msg.text + '</div>';
+    thread.appendChild(bubble);
+  }
+
+  // Scroll to bottom
+  thread.scrollTop = thread.scrollHeight;
+
+  // Update input placeholder
+  let firstName = conv.name.split(" ")[0];
+  document.getElementById("admin-msg-input").placeholder = "Type a message to " + firstName + "...";
+
+  // Update badge count
+  updateMessageBadge();
+}
+
+function sendAdminMessage() {
+  let input = document.getElementById("admin-msg-input");
+  let text = input.value.trim();
+  if (text === "") return;
+
+  let now = new Date();
+  let hours = now.getHours();
+  let minutes = now.getMinutes();
+  let ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  if (minutes < 10) minutes = "0" + minutes;
+  let timeText = "Today, " + hours + ":" + minutes + " " + ampm;
+
+  // Add to conversation data
+  if (conversations[activeConversation]) {
+    conversations[activeConversation].messages.push({
+      from: "you",
+      name: "You",
+      time: timeText,
+      text: text
+    });
+  }
+
+  // Add to thread
+  let thread = document.getElementById("admin-msg-thread");
+  let bubble = document.createElement("div");
+  bubble.className = "msg-bubble sent";
+  bubble.innerHTML =
+    '<div class="msg-bubble-meta"><strong>You</strong> <span>' + timeText + '</span></div>' +
+    '<div class="msg-bubble-text">' + text + '</div>';
+  thread.appendChild(bubble);
+
+  input.value = "";
+  thread.scrollTop = thread.scrollHeight;
+}
+
+function filterMessageClients(query) {
+  let items = document.querySelectorAll(".msg-client-item");
+  let lowerQuery = query.toLowerCase();
+
+  for (let i = 0; i < items.length; i++) {
+    let name = items[i].querySelector("strong").textContent.toLowerCase();
+    if (name.includes(lowerQuery)) {
+      items[i].style.display = "flex";
+    } else {
+      items[i].style.display = "none";
+    }
+  }
+}
+
+function updateMessageBadge() {
+  let unreadBadges = document.querySelectorAll(".msg-unread");
+  let total = unreadBadges.length;
+  let badge = document.getElementById("msg-badge");
+  if (badge) {
+    badge.textContent = total;
+    if (total === 0) {
+      badge.style.display = "none";
+    }
+  }
+}
+
+
+// ══════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════
 

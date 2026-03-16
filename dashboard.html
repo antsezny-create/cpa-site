@@ -41,6 +41,10 @@
       <button class="dash-nav-btn" onclick="switchDashTab('documents')">
         <span class="nav-icon">◧</span> Documents
       </button>
+      <button class="dash-nav-btn" onclick="switchDashTab('messages')">
+        <span class="nav-icon">◯</span> Messages
+        <span class="msg-badge" id="msg-badge">4</span>
+      </button>
     </div>
     <div class="dash-sidebar-footer">
       <a href="index.html" class="sidebar-link">← Back to Site</a>
@@ -305,6 +309,107 @@
               <span>Rivera Holdings LLC · Approved Mar 3 · 445 KB</span>
             </div>
             <span class="doc-status-badge approved">Approved</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== MESSAGES ==================== -->
+    <div class="dash-tab" id="tab-messages" style="display:none;">
+      <div class="dash-header">
+        <h1>Messages</h1>
+        <p>Client communications</p>
+      </div>
+
+      <div class="messages-layout">
+        <!-- Client List (left) -->
+        <div class="dash-card msg-client-list">
+          <div class="msg-search-wrap">
+            <input type="text" class="msg-search" placeholder="Search clients..." oninput="filterMessageClients(this.value)">
+          </div>
+          <div id="msg-client-list">
+            <div class="msg-client-item active" onclick="openConversation('sarah')">
+              <div class="msg-client-avatar blue">SM</div>
+              <div class="msg-client-info">
+                <div class="msg-client-top">
+                  <strong>Sarah Mitchell</strong>
+                  <span class="msg-time">2:15 PM</span>
+                </div>
+                <p class="msg-preview">Hi Anthony! I'll get the 1098 from my lender's...</p>
+              </div>
+              <span class="msg-unread">2</span>
+            </div>
+            <div class="msg-client-item" onclick="openConversation('james')">
+              <div class="msg-client-avatar purple">JP</div>
+              <div class="msg-client-info">
+                <div class="msg-client-top">
+                  <strong>James & Linda Park</strong>
+                  <span class="msg-time">Yesterday</span>
+                </div>
+                <p class="msg-preview">Can you explain the K-1 distribution?</p>
+              </div>
+              <span class="msg-unread">1</span>
+            </div>
+            <div class="msg-client-item" onclick="openConversation('aisha')">
+              <div class="msg-client-avatar green">AP</div>
+              <div class="msg-client-info">
+                <div class="msg-client-top">
+                  <strong>Aisha Patel</strong>
+                  <span class="msg-time">Mar 12</span>
+                </div>
+                <p class="msg-preview">Thanks Anthony, that makes sense.</p>
+              </div>
+            </div>
+            <div class="msg-client-item" onclick="openConversation('rivera')">
+              <div class="msg-client-avatar orange">RH</div>
+              <div class="msg-client-info">
+                <div class="msg-client-top">
+                  <strong>Rivera Holdings LLC</strong>
+                  <span class="msg-time">Mar 10</span>
+                </div>
+                <p class="msg-preview">I've uploaded all the Q4 receipts.</p>
+              </div>
+              <span class="msg-unread">1</span>
+            </div>
+            <div class="msg-client-item" onclick="openConversation('marcus')">
+              <div class="msg-client-avatar cyan">MJ</div>
+              <div class="msg-client-info">
+                <div class="msg-client-top">
+                  <strong>Marcus Johnson</strong>
+                  <span class="msg-time">Mar 8</span>
+                </div>
+                <p class="msg-preview">Got it, thanks for filing so quickly!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Conversation (right) -->
+        <div class="dash-card msg-conversation">
+          <div class="msg-conv-header" id="msg-conv-header">
+            <div class="msg-conv-avatar blue">SM</div>
+            <div>
+              <strong>Sarah Mitchell</strong>
+              <span>Individual · 2025 Return</span>
+            </div>
+          </div>
+          <div class="msg-thread" id="admin-msg-thread">
+            <div class="msg-bubble received">
+              <div class="msg-bubble-meta"><strong>Sarah Mitchell</strong> <span>Mar 4, 11:22 AM</span></div>
+              <div class="msg-bubble-text">Hi Anthony! I'll get the 1098 from my lender's website this week. For the donations, I have receipts from two organizations — I'll scan and upload them. Should I combine them into one PDF?</div>
+            </div>
+            <div class="msg-bubble sent">
+              <div class="msg-bubble-meta"><strong>You</strong> <span>Mar 4, 12:15 PM</span></div>
+              <div class="msg-bubble-text">Either way works — separate files or one combined PDF is fine. No rush, just whenever you get to it. I'll keep working on the rest of your return in the meantime.</div>
+            </div>
+            <div class="msg-bubble received">
+              <div class="msg-bubble-meta"><strong>Sarah Mitchell</strong> <span>Today, 2:15 PM</span></div>
+              <div class="msg-bubble-text">Perfect, I just uploaded the 1098. Still working on getting the donation receipts together. Should have them by end of week!</div>
+            </div>
+          </div>
+          <div class="msg-input-bar">
+            <input type="text" id="admin-msg-input" placeholder="Type a message to Sarah..." onkeydown="if(event.key==='Enter')sendAdminMessage()">
+            <button class="msg-send-btn" onclick="sendAdminMessage()">Send</button>
           </div>
         </div>
       </div>
