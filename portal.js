@@ -1,22 +1,54 @@
-// ── Tab Switching ──
+// ══════════════════════════════════════
+//  AUTH CHECK - redirect if not logged in
+// ══════════════════════════════════════
+
+let currentUser = null;
+let currentUserData = null;
+
+auth.onAuthStateChanged(function(user) {
+  if (user) {
+    currentUser = user;
+    loadUserData();
+    loadMessages();
+    loadDocuments();
+  } else {
+    // Not logged in - redirect to login
+    window.location.href = "login.html";
+  }
+});
+
+function loadUserData() {
+  db.collection("clients").doc(currentUser.uid).get()
+    .then(function(doc) {
+      if (doc.exists) {
+        currentUserData = doc.data();
+        // Update welcome message
+        let h1 = document.querySelector("#tab-overview h1");
+        if (h1) h1.textContent = "Welcome back, " + currentUserData.firstName;
+
+        // Update nav user name
+        let userName = document.querySelector(".portal-user");
+        if (userName) userName.textContent = currentUserData.firstName + " " + currentUserData.lastName;
+      }
+    });
+}
+
+
+// ══════════════════════════════════════
+//  TAB SWITCHING
+// ══════════════════════════════════════
+
 function switchTab(tabName) {
-  // Hide all tabs
   let allTabs = document.querySelectorAll(".tab-content");
   for (let i = 0; i < allTabs.length; i++) {
     allTabs[i].style.display = "none";
   }
-
-  // Show the selected tab
   document.getElementById("tab-" + tabName).style.display = "block";
 
-  // Update sidebar buttons
   let allBtns = document.querySelectorAll(".sidebar-btn");
   for (let i = 0; i < allBtns.length; i++) {
     allBtns[i].classList.remove("active");
   }
-
-  // Find the button that was clicked and make it active
-  // We use the onclick attribute to match which button corresponds to which tab
   let buttons = document.querySelectorAll(".sidebar-btn");
   for (let i = 0; i < buttons.length; i++) {
     let onclickValue = buttons[i].getAttribute("onclick");
@@ -26,89 +58,170 @@ function switchTab(tabName) {
   }
 }
 
-// ── File Upload ──
+
+// ══════════════════════════════════════
+//  REAL-TIME MESSAGES (Firebase)
+// ══════════════════════════════════════
+
+function loadMessages() {
+  let thread = document.getElementById("messages-thread");
+
+  // Listen for messages in real time
+  db.collection("messages")
+    .where("clientId", "==", currentUser.uid)
+    .orderBy("timestamp", "asc")
+    .onSnapshot(function(snapshot) {
+      thread.innerHTML = "";
+
+      snapshot.forEach(function(doc) {
+        let msg = doc.data();
+        let isMe = msg.senderId === currentUser.uid;
+
+        let bubble = document.createElement("div");
+        bubble.className = "message " + (isMe ? "sent" : "received");
+
+        let timeText = "";
+        if (msg.timestamp) {
+          let date = msg.timestamp.toDate();
+          let hours = date.getHours();
+          let minutes = date.getMinutes();
+          let ampm = hours >= 12 ? "PM" : "AM";
+          hours = hours % 12;
+          if (hours === 0) hours = 12;
+          if (minutes < 10) minutes = "0" + minutes;
+
+          let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          timeText = months[date.getMonth()] + " " + date.getDate() + ", " + hours + ":" + minutes + " " + ampm;
+        }
+
+        let avatarHTML = "";
+        if (!isMe) {
+          avatarHTML = '<div class="message-avatar">AS</div>';
+        }
+
+        bubble.innerHTML =
+          avatarHTML +
+          '<div class="message-body">' +
+            '<div class="message-meta"><strong>' + msg.senderName + '</strong> <span>' + timeText + '</span></div>' +
+            '<div class="message-text">' + msg.text + '</div>' +
+          '</div>';
+
+        thread.appendChild(bubble);
+      });
+
+      // Scroll to bottom
+      thread.scrollTop = thread.scrollHeight;
+    }, function(error) {
+      // If the query fails (no index), show a helpful message
+      console.log("Messages error:", error);
+    });
+}
+
+function sendMessage() {
+  let input = document.getElementById("message-input");
+  let text = input.value.trim();
+  if (text === "") return;
+
+  let senderName = "Client";
+  if (currentUserData) {
+    senderName = currentUserData.firstName + " " + currentUserData.lastName;
+  }
+
+  // Save message to Firestore
+  db.collection("messages").add({
+    clientId: currentUser.uid,
+    senderId: currentUser.uid,
+    senderName: senderName,
+    senderRole: "client",
+    text: text,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  input.value = "";
+}
+
+
+// ══════════════════════════════════════
+//  DOCUMENT UPLOADS (Firebase Storage)
+// ══════════════════════════════════════
+
+function loadDocuments() {
+  db.collection("documents")
+    .where("clientId", "==", currentUser.uid)
+    .orderBy("uploadedAt", "desc")
+    .onSnapshot(function(snapshot) {
+      let fileList = document.getElementById("file-list");
+      fileList.innerHTML = "";
+
+      let count = 0;
+      snapshot.forEach(function(doc) {
+        let file = doc.data();
+        count++;
+
+        let item = document.createElement("div");
+        item.className = "file-item";
+
+        let ext = file.fileName.split(".").pop().toUpperCase();
+        let statusClass = file.status === "reviewed" ? "reviewed" : "received";
+        let statusText = file.status === "reviewed" ? "Reviewed" : "Received";
+
+        let timeText = "";
+        if (file.uploadedAt) {
+          let date = file.uploadedAt.toDate();
+          let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          timeText = months[date.getMonth()] + " " + date.getDate();
+        }
+
+        item.innerHTML =
+          '<div class="file-icon">' + ext + '</div>' +
+          '<div class="file-info">' +
+            '<strong>' + file.fileName + '</strong>' +
+            '<span>' + file.fileSize + ' · Uploaded ' + timeText + '</span>' +
+          '</div>' +
+          '<span class="file-status ' + statusClass + '">' + statusText + '</span>';
+
+        fileList.appendChild(item);
+      });
+
+      let docCount = document.getElementById("doc-count");
+      if (docCount) docCount.textContent = count + " files";
+    }, function(error) {
+      console.log("Documents error:", error);
+    });
+}
+
 function handleUpload(input) {
   let files = input.files;
 
   for (let i = 0; i < files.length; i++) {
     let file = files[i];
 
-    // Get file size in readable format
+    // Get file size text
     let size = file.size;
     let sizeText = "";
-    if (size < 1024) {
-      sizeText = size + " B";
-    } else if (size < 1024 * 1024) {
-      sizeText = Math.round(size / 1024) + " KB";
-    } else {
-      sizeText = (size / (1024 * 1024)).toFixed(1) + " MB";
-    }
+    if (size < 1024) { sizeText = size + " B"; }
+    else if (size < 1024 * 1024) { sizeText = Math.round(size / 1024) + " KB"; }
+    else { sizeText = (size / (1024 * 1024)).toFixed(1) + " MB"; }
 
-    // Get today's date
-    let today = new Date();
-    let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    let dateText = months[today.getMonth()] + " " + today.getDate();
+    // Upload to Firebase Storage
+    let storageRef = storage.ref("documents/" + currentUser.uid + "/" + Date.now() + "_" + file.name);
 
-    // Get file extension for the icon
-    let extension = file.name.split(".").pop().toUpperCase();
-
-    // Create new file item HTML
-    let newItem = document.createElement("div");
-    newItem.className = "file-item";
-    newItem.innerHTML =
-      '<div class="file-icon">' + extension + "</div>" +
-      '<div class="file-info">' +
-        "<strong>" + file.name + "</strong>" +
-        "<span>" + sizeText + " · Uploaded " + dateText + "</span>" +
-      "</div>" +
-      '<span class="file-status received">Received</span>';
-
-    // Add it to the file list
-    document.getElementById("file-list").appendChild(newItem);
+    storageRef.put(file).then(function(snapshot) {
+      return snapshot.ref.getDownloadURL();
+    }).then(function(downloadURL) {
+      // Save file metadata to Firestore
+      return db.collection("documents").add({
+        clientId: currentUser.uid,
+        fileName: file.name,
+        fileSize: sizeText,
+        fileURL: downloadURL,
+        status: "received",
+        uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }).catch(function(error) {
+      alert("Upload failed: " + error.message);
+    });
   }
 
-  // Update the file count
-  let totalFiles = document.querySelectorAll(".file-item").length;
-  document.getElementById("doc-count").textContent = totalFiles + " files";
-
-  // Reset the input so the same file can be uploaded again if needed
   input.value = "";
-}
-
-// ── Messaging ──
-function sendMessage() {
-  let input = document.getElementById("message-input");
-  let text = input.value.trim();
-
-  // Don't send empty messages
-  if (text === "") return;
-
-  // Get current time
-  let now = new Date();
-  let hours = now.getHours();
-  let minutes = now.getMinutes();
-  let ampm = hours >= 12 ? "PM" : "AM";
-  hours = hours % 12;
-  if (hours === 0) hours = 12;
-  if (minutes < 10) minutes = "0" + minutes;
-  let timeText = "Today at " + hours + ":" + minutes + " " + ampm;
-
-  // Create message element
-  let newMessage = document.createElement("div");
-  newMessage.className = "message sent";
-  newMessage.innerHTML =
-    '<div class="message-body">' +
-      '<div class="message-meta"><strong>You</strong> <span>' + timeText + "</span></div>" +
-      '<div class="message-text">' + text + "</div>" +
-    "</div>";
-
-  // Add to thread
-  document.getElementById("messages-thread").appendChild(newMessage);
-
-  // Clear input
-  input.value = "";
-
-  // Scroll to bottom
-  let thread = document.getElementById("messages-thread");
-  thread.scrollTop = thread.scrollHeight;
 }

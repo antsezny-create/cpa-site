@@ -417,153 +417,130 @@ function handleGlobalSearch(query) {
 
 
 // ══════════════════════════════════════
-//  MESSAGES
+//  MESSAGES (Firebase Real-Time)
 // ══════════════════════════════════════
 
-let conversations = {
-  sarah: {
-    name: "Sarah Mitchell",
-    type: "Individual · 2025 Return",
-    avatar: "SM",
-    color: "blue",
-    messages: [
-      { from: "client", name: "Sarah Mitchell", time: "Mar 4, 9:00 AM", text: "Hi Anthony, I just uploaded my W-2. Should I upload bank statements too or just the 1099-INT?" },
-      { from: "you", name: "You", time: "Mar 4, 9:15 AM", text: "Just the 1099-INT is fine — your bank should have that available for download. I don't need the full bank statements unless you have deductible expenses." },
-      { from: "client", name: "Sarah Mitchell", time: "Mar 4, 11:22 AM", text: "Hi Anthony! I'll get the 1098 from my lender's website this week. For the donations, I have receipts from two organizations — I'll scan and upload them. Should I combine them into one PDF?" },
-      { from: "you", name: "You", time: "Mar 4, 12:15 PM", text: "Either way works — separate files or one combined PDF is fine. No rush, just whenever you get to it. I'll keep working on the rest of your return in the meantime." },
-      { from: "client", name: "Sarah Mitchell", time: "Today, 2:15 PM", text: "Perfect, I just uploaded the 1098. Still working on getting the donation receipts together. Should have them by end of week!" },
-    ]
-  },
-  james: {
-    name: "James & Linda Park",
-    type: "Joint · 2025 Return",
-    avatar: "JP",
-    color: "purple",
-    messages: [
-      { from: "client", name: "James Park", time: "Mar 6, 3:30 PM", text: "Anthony, we got a K-1 from our rental property partnership. Can you explain the K-1 distribution? We're not sure what box 1 vs box 2 means." },
-      { from: "you", name: "You", time: "Mar 6, 4:00 PM", text: "Sure! Box 1 is your share of ordinary business income — that's the profit from the partnership. Box 2 is net rental real estate income. Both flow to your 1040 through Schedule E. Just upload it and I'll handle the rest." },
-      { from: "client", name: "James Park", time: "Yesterday, 10:15 AM", text: "Can you explain the K-1 distribution? We got multiple ones and want to make sure they're all accounted for." },
-    ]
-  },
-  aisha: {
-    name: "Aisha Patel",
-    type: "Individual · 2025 Return",
-    avatar: "AP",
-    color: "green",
-    messages: [
-      { from: "you", name: "You", time: "Mar 10, 11:00 AM", text: "Hi Aisha, I noticed your W-2 scan is a bit blurry — can you re-upload a clearer version? I want to make sure I'm reading the numbers correctly." },
-      { from: "client", name: "Aisha Patel", time: "Mar 11, 9:30 AM", text: "Oh sorry about that! I'll re-scan it today and upload a better copy." },
-      { from: "client", name: "Aisha Patel", time: "Mar 12, 2:00 PM", text: "Thanks Anthony, that makes sense. I just uploaded the clearer version." },
-    ]
-  },
-  rivera: {
-    name: "Rivera Holdings LLC",
-    type: "Business · 2025 Return",
-    avatar: "RH",
-    color: "orange",
-    messages: [
-      { from: "client", name: "Maria Rivera", time: "Mar 8, 1:00 PM", text: "Hi Anthony, I'm uploading all the Q4 receipts now. There's about 45 of them — I put them all into one ZIP file. Is that okay?" },
-      { from: "you", name: "You", time: "Mar 8, 1:30 PM", text: "That works perfectly. One ZIP is much easier to manage than 45 separate files. I'll sort through them on my end." },
-      { from: "client", name: "Maria Rivera", time: "Mar 10, 10:00 AM", text: "I've uploaded all the Q4 receipts. Let me know if anything is missing." },
-    ]
-  },
-  marcus: {
-    name: "Marcus Johnson",
-    type: "Individual · 2025 Return",
-    avatar: "MJ",
-    color: "cyan",
-    messages: [
-      { from: "you", name: "You", time: "Mar 5, 4:00 PM", text: "Great news Marcus — your return is ready to file. Your refund is looking like $1,247. I'll e-file it today unless you want to review anything first." },
-      { from: "client", name: "Marcus Johnson", time: "Mar 5, 4:30 PM", text: "That sounds great! Go ahead and file it. Thanks for being so quick!" },
-      { from: "you", name: "You", time: "Mar 5, 5:00 PM", text: "Done! Filed and accepted. You should see your refund in 10-21 days. I'll send you a copy of the return for your records." },
-      { from: "client", name: "Marcus Johnson", time: "Mar 8, 9:00 AM", text: "Got it, thanks for filing so quickly!" },
-    ]
-  }
-};
+let activeClientId = null;
+let activeClientName = "";
+let messageUnsubscribe = null;
 
-let activeConversation = "sarah";
+// Load client list for messages from Firestore
+function loadFirebaseClients() {
+  db.collection("clients").orderBy("createdAt", "desc").onSnapshot(function(snapshot) {
+    let list = document.getElementById("msg-client-list");
+    if (!list) return;
+    list.innerHTML = "";
 
-function openConversation(clientId) {
-  activeConversation = clientId;
-  let conv = conversations[clientId];
-  if (!conv) return;
+    if (snapshot.empty) {
+      list.innerHTML = '<div style="padding: 20px; text-align: center; color: #6B7280; font-size: 13px;">No clients yet. Clients will appear here when they create accounts.</div>';
+      return;
+    }
 
-  // Update active state in client list
+    snapshot.forEach(function(doc) {
+      let client = doc.data();
+      let name = client.firstName + " " + client.lastName;
+      let initials = client.firstName.charAt(0) + client.lastName.charAt(0);
+      let colors = ["blue", "purple", "green", "orange", "cyan"];
+      let color = colors[Math.abs(name.length) % colors.length];
+
+      let item = document.createElement("div");
+      item.className = "msg-client-item";
+      item.onclick = function() { openFirebaseConversation(doc.id, name, initials, color, client.type || "Individual"); };
+      item.innerHTML =
+        '<div class="msg-client-avatar ' + color + '">' + initials + '</div>' +
+        '<div class="msg-client-info">' +
+          '<div class="msg-client-top">' +
+            '<strong>' + name + '</strong>' +
+          '</div>' +
+          '<p class="msg-preview">' + (client.type || "Individual") + ' · ' + client.email + '</p>' +
+        '</div>';
+
+      list.appendChild(item);
+    });
+  });
+}
+
+function openFirebaseConversation(clientId, name, initials, color, type) {
+  activeClientId = clientId;
+  activeClientName = name;
+
+  // Update active state
   let items = document.querySelectorAll(".msg-client-item");
-  for (let i = 0; i < items.length; i++) {
-    items[i].classList.remove("active");
-  }
+  for (let i = 0; i < items.length; i++) { items[i].classList.remove("active"); }
   event.currentTarget.classList.add("active");
-
-  // Remove unread badge
-  let badge = event.currentTarget.querySelector(".msg-unread");
-  if (badge) badge.remove();
 
   // Update header
   document.getElementById("msg-conv-header").innerHTML =
-    '<div class="msg-conv-avatar ' + conv.color + '">' + conv.avatar + '</div>' +
-    '<div><strong>' + conv.name + '</strong><span>' + conv.type + '</span></div>';
-
-  // Render messages
-  let thread = document.getElementById("admin-msg-thread");
-  thread.innerHTML = "";
-
-  for (let i = 0; i < conv.messages.length; i++) {
-    let msg = conv.messages[i];
-    let bubble = document.createElement("div");
-    bubble.className = "msg-bubble " + (msg.from === "you" ? "sent" : "received");
-    bubble.innerHTML =
-      '<div class="msg-bubble-meta"><strong>' + msg.name + '</strong> <span>' + msg.time + '</span></div>' +
-      '<div class="msg-bubble-text">' + msg.text + '</div>';
-    thread.appendChild(bubble);
-  }
-
-  // Scroll to bottom
-  thread.scrollTop = thread.scrollHeight;
+    '<div class="msg-conv-avatar ' + color + '">' + initials + '</div>' +
+    '<div><strong>' + name + '</strong><span>' + type + ' · 2025 Return</span></div>';
 
   // Update input placeholder
-  let firstName = conv.name.split(" ")[0];
+  let firstName = name.split(" ")[0];
   document.getElementById("admin-msg-input").placeholder = "Type a message to " + firstName + "...";
 
-  // Update badge count
-  updateMessageBadge();
+  // Unsubscribe from previous listener
+  if (messageUnsubscribe) messageUnsubscribe();
+
+  // Listen for messages with this client in real time
+  let thread = document.getElementById("admin-msg-thread");
+  messageUnsubscribe = db.collection("messages")
+    .where("clientId", "==", clientId)
+    .orderBy("timestamp", "asc")
+    .onSnapshot(function(snapshot) {
+      thread.innerHTML = "";
+
+      snapshot.forEach(function(doc) {
+        let msg = doc.data();
+        let isAdmin = msg.senderRole === "admin";
+
+        let timeText = "";
+        if (msg.timestamp) {
+          let date = msg.timestamp.toDate();
+          let hours = date.getHours();
+          let minutes = date.getMinutes();
+          let ampm = hours >= 12 ? "PM" : "AM";
+          hours = hours % 12;
+          if (hours === 0) hours = 12;
+          if (minutes < 10) minutes = "0" + minutes;
+          let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          timeText = months[date.getMonth()] + " " + date.getDate() + ", " + hours + ":" + minutes + " " + ampm;
+        }
+
+        let bubble = document.createElement("div");
+        bubble.className = "msg-bubble " + (isAdmin ? "sent" : "received");
+        bubble.innerHTML =
+          '<div class="msg-bubble-meta"><strong>' + msg.senderName + '</strong> <span>' + timeText + '</span></div>' +
+          '<div class="msg-bubble-text">' + msg.text + '</div>';
+
+        thread.appendChild(bubble);
+      });
+
+      thread.scrollTop = thread.scrollHeight;
+
+      if (snapshot.empty) {
+        thread.innerHTML = '<div style="text-align: center; color: #6B7280; padding: 40px; font-size: 13px;">No messages yet. Start the conversation!</div>';
+      }
+    }, function(error) {
+      console.log("Messages error:", error);
+      thread.innerHTML = '<div style="text-align: center; color: #6B7280; padding: 40px; font-size: 13px;">Could not load messages. You may need to create a Firestore index — check the browser console for a link.</div>';
+    });
 }
 
 function sendAdminMessage() {
   let input = document.getElementById("admin-msg-input");
   let text = input.value.trim();
-  if (text === "") return;
+  if (text === "" || !activeClientId) return;
 
-  let now = new Date();
-  let hours = now.getHours();
-  let minutes = now.getMinutes();
-  let ampm = hours >= 12 ? "PM" : "AM";
-  hours = hours % 12;
-  if (hours === 0) hours = 12;
-  if (minutes < 10) minutes = "0" + minutes;
-  let timeText = "Today, " + hours + ":" + minutes + " " + ampm;
-
-  // Add to conversation data
-  if (conversations[activeConversation]) {
-    conversations[activeConversation].messages.push({
-      from: "you",
-      name: "You",
-      time: timeText,
-      text: text
-    });
-  }
-
-  // Add to thread
-  let thread = document.getElementById("admin-msg-thread");
-  let bubble = document.createElement("div");
-  bubble.className = "msg-bubble sent";
-  bubble.innerHTML =
-    '<div class="msg-bubble-meta"><strong>You</strong> <span>' + timeText + '</span></div>' +
-    '<div class="msg-bubble-text">' + text + '</div>';
-  thread.appendChild(bubble);
+  db.collection("messages").add({
+    clientId: activeClientId,
+    senderId: auth.currentUser.uid,
+    senderName: "Anthony Sesny",
+    senderRole: "admin",
+    text: text,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  });
 
   input.value = "";
-  thread.scrollTop = thread.scrollHeight;
 }
 
 function filterMessageClients(query) {
@@ -586,9 +563,7 @@ function updateMessageBadge() {
   let badge = document.getElementById("msg-badge");
   if (badge) {
     badge.textContent = total;
-    if (total === 0) {
-      badge.style.display = "none";
-    }
+    if (total === 0) { badge.style.display = "none"; }
   }
 }
 
@@ -597,9 +572,25 @@ function updateMessageBadge() {
 //  INIT
 // ══════════════════════════════════════
 
-// Load the clients tab data when page loads (in case someone navigates directly)
 document.addEventListener("DOMContentLoaded", function() {
-  // Pre-render clients so it's ready
   renderClients("all");
   renderForms("individual");
 });
+
+// Wait for Firebase auth, then load real client data
+auth.onAuthStateChanged(function(user) {
+  if (user) {
+    loadFirebaseClients();
+    loadFirebaseDocuments();
+  } else {
+    window.location.href = "admin.html";
+  }
+});
+
+// Load real documents for review
+function loadFirebaseDocuments() {
+  db.collection("documents").orderBy("uploadedAt", "desc").onSnapshot(function(snapshot) {
+    // We could update the documents tab here in the future
+    // For now the static demo data stays in the HTML
+  });
+}
