@@ -1311,3 +1311,99 @@ body {
   .forms-grid { grid-template-columns: 1fr; }
   .messages-layout { grid-template-columns: 1fr; }
 }
+
+/* ── Docs column → Request button ── */
+.docs-request-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.docs-request-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Tighter dropdowns so they don't touch ── */
+.cell-dropdown {
+  max-width: 110px;
+  font-size: 11px !important;
+  padding: 4px 22px 4px 7px !important;
+}
+
+/* ── Document request modal ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+.modal-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-header h2 { font-size: 16px; font-weight: 700; }
+.modal-close {
+  background: none; border: none;
+  color: var(--text-dim); font-size: 16px;
+  cursor: pointer; transition: color 0.15s;
+}
+.modal-close:hover { color: var(--text); }
+.modal-client-name {
+  font-size: 13px; color: var(--accent); font-weight: 600;
+  margin: -8px 0 0;
+}
+.doc-request-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 240px; overflow-y: auto;
+}
+.doc-request-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+}
+.doc-request-name { flex: 1; font-size: 13px; font-weight: 600; }
+.doc-request-status {
+  font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 4px;
+}
+.doc-request-status.pending   { background: var(--orange-light); color: var(--orange); }
+.doc-request-status.fulfilled { background: var(--green-light);  color: var(--green); }
+.modal-input-row {
+  display: flex; gap: 8px;
+}
+.modal-input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.modal-input:focus { border-color: var(--accent); }
+.modal-input::placeholder { color: var(--text-dim); }

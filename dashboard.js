@@ -61,7 +61,7 @@ function renderClients(filter) {
       .map(o => `<option value="${o.value}"${c.status===o.value?" selected":""}>${o.label}</option>`).join("");
     let statusSelect = `<select class="cell-dropdown status-dropdown status-${c.status}" data-uid="${c.uid}" data-field="status" onchange="handleStatusDropdownChange(this)">${statusOpts}</select>`;
 
-    let docsCell = `<span class="cell-docs">${c.docs}</span>`;
+    let docsCell = `<button class="docs-request-btn" onclick="openDocRequestModal('${c.uid}','${c.name}')">Requests</button>`;
 
     let yearOpts = "";
     for (let y = 2020; y <= 2060; y++) yearOpts += `<option value="${y}"${c.year==y?" selected":""}>${y}</option>`;
@@ -659,4 +659,105 @@ function loadAllClientsFromFirebase() {
     let el=document.getElementById("recent-clients-list");
     if(el) el.innerHTML=`<div style="padding:16px;text-align:center;color:#EF4444;font-size:13px;">Error: ${e.message}</div>`;
   });
+}
+
+
+// ══════════════════════════════════════
+//  DOCUMENT REQUESTS
+// ══════════════════════════════════════
+let docRequestClientId   = null;
+let docRequestClientName = null;
+
+function openDocRequestModal(clientId, clientName) {
+  docRequestClientId   = clientId;
+  docRequestClientName = clientName;
+  document.getElementById("doc-request-client-name").textContent = clientName;
+  loadExistingRequests(clientId);
+  document.getElementById("doc-request-modal").style.display = "flex";
+}
+
+function closeDocRequestModal() {
+  document.getElementById("doc-request-modal").style.display = "none";
+  docRequestClientId   = null;
+  docRequestClientName = null;
+}
+
+function loadExistingRequests(clientId) {
+  let list = document.getElementById("doc-request-list");
+  list.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:8px 0;">Loading...</div>';
+  db.collection("documentRequests").where("clientId","==",clientId).get().then(snapshot => {
+    list.innerHTML = "";
+    if (snapshot.empty) {
+      list.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:8px 0;">No requests yet.</div>';
+      return;
+    }
+    snapshot.forEach(doc => {
+      let r = doc.data();
+      let item = document.createElement("div");
+      item.className = "doc-request-item";
+      item.innerHTML =
+        '<span class="doc-request-name">' + r.documentName + '</span>' +
+        '<span class="doc-request-status ' + (r.fulfilled ? "fulfilled" : "pending") + '">' + (r.fulfilled ? "Received" : "Pending") + '</span>' +
+        '<button class="form-action-btn delete" onclick="deleteDocRequest(\'' + doc.id + '\')">✕</button>';
+      list.appendChild(item);
+    });
+  });
+}
+
+function sendDocRequest() {
+  let input = document.getElementById("doc-request-input");
+  let name  = input.value.trim();
+  if (!name || !docRequestClientId) return;
+
+  db.collection("documentRequests").add({
+    clientId:     docRequestClientId,
+    documentName: name,
+    fulfilled:    false,
+    requestedAt:  firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    // Log activity for the client
+    db.collection("activity").add({
+      clientId:  docRequestClientId,
+      type:      "request",
+      text:      "Anthony requested: " + name,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    input.value = "";
+    loadExistingRequests(docRequestClientId);
+  }).catch(e => alert("Failed: " + e.message));
+}
+
+function deleteDocRequest(docId) {
+  if (!confirm("Remove this request?")) return;
+  db.collection("documentRequests").doc(docId).delete().then(() => {
+    loadExistingRequests(docRequestClientId);
+  });
+}
+
+// Also log status changes as activity
+const _origUpdateClientField = updateClientField;
+function updateClientField(uid, field, value) {
+  let update = {}; update[field] = value;
+  db.collection("clients").doc(uid).update(update).then(() => {
+    let c = clients.find(x => x.uid === uid);
+    if (c) c[field] = value;
+    updateOverviewStats();
+    updateRecentClientsList();
+
+    // Log status change as activity
+    if (field === "status") {
+      let textMap = {
+        "pending":     "Anthony is waiting for your documents",
+        "in-progress": "Anthony has started working on your return",
+        "review":      "Your return is under review",
+        "filed":       "Your return has been filed!"
+      };
+      db.collection("activity").add({
+        clientId:  uid,
+        type:      value,
+        text:      textMap[value] || "Status updated",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  }).catch(e => alert("Failed to update: " + e.message));
 }

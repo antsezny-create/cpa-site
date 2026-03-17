@@ -16,7 +16,7 @@
       <span class="portal-title">Client Portal</span>
     </div>
     <div class="portal-nav-right">
-      <span class="portal-user">Sarah Mitchell</span>
+      <span class="portal-user" id="portal-user-name">Loading...</span>
       <a href="index.html" class="portal-logout">Sign Out</a>
     </div>
   </div>
@@ -36,7 +36,7 @@
       </button>
       <button class="sidebar-btn" onclick="switchTab('messages')">
         <span class="sidebar-icon">◯</span> Messages
-        <span class="sidebar-badge">2</span>
+        <span class="sidebar-badge" id="msg-badge" style="display:none;">0</span>
       </button>
       <button class="sidebar-btn" onclick="switchTab('returns')">
         <span class="sidebar-icon">❐</span> My Returns
@@ -55,7 +55,7 @@
     <div class="tab-content" id="tab-overview">
       <div class="portal-header">
         <div>
-          <h1>Welcome back, Sarah</h1>
+          <h1>Welcome back</h1>
           <p class="portal-subtitle">Here's where things stand with your 2025 tax return.</p>
         </div>
       </div>
@@ -63,80 +63,29 @@
       <!-- Status Banner -->
       <div class="status-banner">
         <div class="status-banner-left">
-          <span class="status-dot status-progress"></span>
+          <span class="status-dot status-progress" id="status-dot-main"></span>
           <div>
-            <strong>Your return is in progress</strong>
-            <span>Anthony is reviewing your documents</span>
+            <strong id="status-banner-text">Loading your status...</strong>
+            <span id="status-banner-sub"></span>
           </div>
         </div>
-        <div class="status-steps">
-          <div class="status-step done">
-            <div class="step-dot done"></div>
-            <span>Documents Received</span>
-          </div>
-          <div class="status-step-line done"></div>
-          <div class="status-step active">
-            <div class="step-dot active"></div>
-            <span>Under Review</span>
-          </div>
-          <div class="status-step-line"></div>
-          <div class="status-step">
-            <div class="step-dot"></div>
-            <span>Ready to File</span>
-          </div>
-          <div class="status-step-line"></div>
-          <div class="status-step">
-            <div class="step-dot"></div>
-            <span>Filed</span>
-          </div>
+        <div class="status-steps" id="status-steps">
+          <!-- Rendered dynamically by JS -->
         </div>
       </div>
 
       <!-- Two Column Layout -->
       <div class="portal-grid">
+
         <!-- Document Checklist -->
         <div class="portal-card">
           <div class="card-header">
             <h2>Document Checklist</h2>
-            <span class="card-badge">3 of 5</span>
+            <span class="card-badge" id="checklist-badge">0</span>
           </div>
-          <p class="card-desc">Items I need to complete your return.</p>
-          <div class="checklist">
-            <div class="checklist-item done">
-              <span class="check-box done">✓</span>
-              <div>
-                <strong>W-2 from employer</strong>
-                <span>Received Mar 2</span>
-              </div>
-            </div>
-            <div class="checklist-item done">
-              <span class="check-box done">✓</span>
-              <div>
-                <strong>1099-INT from bank</strong>
-                <span>Received Mar 5</span>
-              </div>
-            </div>
-            <div class="checklist-item done">
-              <span class="check-box done">✓</span>
-              <div>
-                <strong>1099-DIV from brokerage</strong>
-                <span>Received Mar 5</span>
-              </div>
-            </div>
-            <div class="checklist-item pending">
-              <span class="check-box pending">!</span>
-              <div>
-                <strong>Mortgage interest statement (1098)</strong>
-                <span>Still needed</span>
-              </div>
-            </div>
-            <div class="checklist-item pending">
-              <span class="check-box pending">!</span>
-              <div>
-                <strong>Charitable donation receipts</strong>
-                <span>Still needed</span>
-              </div>
-            </div>
+          <p class="card-desc">Documents Anthony has requested from you.</p>
+          <div class="checklist" id="checklist-container">
+            <div style="padding:16px;color:var(--text-dim);font-size:13px;">Loading...</div>
           </div>
         </div>
 
@@ -145,51 +94,11 @@
           <div class="card-header">
             <h2>Recent Activity</h2>
           </div>
-          <div class="activity-list">
-            <div class="activity-item">
-              <div class="activity-dot blue"></div>
-              <div>
-                <strong>Anthony started reviewing your return</strong>
-                <span>Today at 2:15 PM</span>
-              </div>
-            </div>
-            <div class="activity-item">
-              <div class="activity-dot green"></div>
-              <div>
-                <strong>You uploaded 1099-DIV</strong>
-                <span>Mar 5 at 10:30 AM</span>
-              </div>
-            </div>
-            <div class="activity-item">
-              <div class="activity-dot green"></div>
-              <div>
-                <strong>You uploaded 1099-INT</strong>
-                <span>Mar 5 at 10:28 AM</span>
-              </div>
-            </div>
-            <div class="activity-item">
-              <div class="activity-dot orange"></div>
-              <div>
-                <strong>Anthony requested 1098 form</strong>
-                <span>Mar 4 at 9:00 AM</span>
-              </div>
-            </div>
-            <div class="activity-item">
-              <div class="activity-dot green"></div>
-              <div>
-                <strong>You uploaded W-2</strong>
-                <span>Mar 2 at 3:45 PM</span>
-              </div>
-            </div>
-            <div class="activity-item">
-              <div class="activity-dot blue"></div>
-              <div>
-                <strong>Account created</strong>
-                <span>Mar 1 at 11:00 AM</span>
-              </div>
-            </div>
+          <div class="activity-list" id="activity-list">
+            <div style="padding:16px;color:var(--text-dim);font-size:13px;">Loading...</div>
           </div>
         </div>
+
       </div>
     </div>
 
@@ -202,7 +111,6 @@
         </div>
       </div>
 
-      <!-- Upload Zone -->
       <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
         <input type="file" id="file-input" style="display:none;" onchange="handleUpload(this)" multiple>
         <div class="upload-icon">↑</div>
@@ -210,38 +118,12 @@
         <span>PDF, JPG, PNG up to 25MB</span>
       </div>
 
-      <!-- Uploaded Files -->
-      <div class="portal-card" style="margin-top: 20px;">
+      <div class="portal-card" style="margin-top:20px;">
         <div class="card-header">
           <h2>Uploaded Documents</h2>
-          <span class="card-badge" id="doc-count">3 files</span>
+          <span class="card-badge" id="doc-count">0 files</span>
         </div>
-        <div class="file-list" id="file-list">
-          <div class="file-item">
-            <div class="file-icon">PDF</div>
-            <div class="file-info">
-              <strong>W-2_Employer_2025.pdf</strong>
-              <span>245 KB · Uploaded Mar 2</span>
-            </div>
-            <span class="file-status received">Received</span>
-          </div>
-          <div class="file-item">
-            <div class="file-icon">PDF</div>
-            <div class="file-info">
-              <strong>1099-INT_Chase_2025.pdf</strong>
-              <span>128 KB · Uploaded Mar 5</span>
-            </div>
-            <span class="file-status received">Received</span>
-          </div>
-          <div class="file-item">
-            <div class="file-icon">PDF</div>
-            <div class="file-info">
-              <strong>1099-DIV_Fidelity_2025.pdf</strong>
-              <span>156 KB · Uploaded Mar 5</span>
-            </div>
-            <span class="file-status reviewed">Reviewed</span>
-          </div>
-        </div>
+        <div class="file-list" id="file-list"></div>
       </div>
     </div>
 
@@ -253,30 +135,8 @@
           <p class="portal-subtitle">Direct communication with Anthony.</p>
         </div>
       </div>
-
       <div class="portal-card messages-card">
-        <div class="messages-thread" id="messages-thread">
-          <div class="message received">
-            <div class="message-avatar">AS</div>
-            <div class="message-body">
-              <div class="message-meta"><strong>Anthony Sesny</strong> <span>Mar 4, 9:00 AM</span></div>
-              <div class="message-text">Hi Sarah! I've started looking through your documents. Everything looks great so far. I just need your 1098 mortgage interest statement and any charitable donation receipts you have. Can you upload those when you get a chance?</div>
-            </div>
-          </div>
-          <div class="message sent">
-            <div class="message-body">
-              <div class="message-meta"><strong>You</strong> <span>Mar 4, 11:22 AM</span></div>
-              <div class="message-text">Hi Anthony! I'll get the 1098 from my lender's website this week. For the donations, I have receipts from two organizations — I'll scan and upload them. Should I combine them into one PDF?</div>
-            </div>
-          </div>
-          <div class="message received">
-            <div class="message-avatar">AS</div>
-            <div class="message-body">
-              <div class="message-meta"><strong>Anthony Sesny</strong> <span>Mar 4, 12:15 PM</span></div>
-              <div class="message-text">Either way works — separate files or one combined PDF is fine. No rush, just whenever you get to it. I'll keep working on the rest of your return in the meantime.</div>
-            </div>
-          </div>
-        </div>
+        <div class="messages-thread" id="messages-thread"></div>
         <div class="message-input-area">
           <input type="text" id="message-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendMessage()">
           <button class="send-btn" onclick="sendMessage()">Send</button>
@@ -292,7 +152,6 @@
           <p class="portal-subtitle">View and download your completed tax returns.</p>
         </div>
       </div>
-
       <div class="portal-card">
         <div class="returns-list">
           <div class="return-item">

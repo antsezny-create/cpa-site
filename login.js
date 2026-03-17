@@ -29,16 +29,18 @@ function handleLogin() {
 
   auth.signInWithEmailAndPassword(email, password)
     .then(function(userCredential) {
-      document.querySelector(".login-form").style.display = "none";
-      document.querySelector(".login-form-header").innerHTML =
-        '<div class="success-check">✓</div>' +
-        '<h2>Welcome back!</h2>' +
-        '<p>Redirecting to your portal...</p>';
-      document.querySelector(".login-form-header").style.textAlign = "center";
-
-      setTimeout(function() {
-        window.location.href = "portal.html";
-      }, 1500);
+      // Fetch the user's name from Firestore
+      return db.collection("clients").doc(userCredential.user.uid).get()
+        .then(function(doc) {
+          let firstName = doc.exists ? (doc.data().firstName || "") : "";
+          document.querySelector(".login-form").style.display = "none";
+          document.querySelector(".login-form-header").innerHTML =
+            '<div class="success-check">✓</div>' +
+            '<h2>Welcome back' + (firstName ? ', ' + firstName : '') + '!</h2>' +
+            '<p>Redirecting to your portal...</p>';
+          document.querySelector(".login-form-header").style.textAlign = "center";
+          setTimeout(function() { window.location.href = "portal.html"; }, 1500);
+        });
     })
     .catch(function(error) {
       btn.textContent = "Sign In";

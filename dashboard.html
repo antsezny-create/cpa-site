@@ -116,7 +116,7 @@
           <span class="col-client">Client</span>
           <span class="col-type">Type</span>
           <span class="col-status">Status</span>
-          <span class="col-docs">Docs</span>
+          <span class="col-docs">Requests</span>
           <span class="col-year">Year</span>
           <span class="col-action">Case</span>
         </div>
@@ -235,6 +235,22 @@
 </div>
 
 <!-- Firebase -->
+<!-- Document Request Modal -->
+<div id="doc-request-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeDocRequestModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>Document Requests</h2>
+      <button class="modal-close" onclick="closeDocRequestModal()">✕</button>
+    </div>
+    <p class="modal-client-name" id="doc-request-client-name"></p>
+    <div id="doc-request-list" class="doc-request-list"></div>
+    <div class="modal-input-row">
+      <input type="text" id="doc-request-input" class="modal-input" placeholder="e.g. W-2 from employer" onkeydown="if(event.key==='Enter')sendDocRequest()">
+      <button class="primary-btn" onclick="sendDocRequest()">Send Request</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
