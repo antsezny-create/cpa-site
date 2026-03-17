@@ -1,21 +1,8 @@
 // ══════════════════════════════════════
-//  DATA (hardcoded for non-Firebase tabs)
+//  DATA
 // ══════════════════════════════════════
 
-let clients = [
-  { name: "Sarah Mitchell", id: "***-**-4521", status: "in-progress", docs: 5, type: "Individual", year: "2025", color: "blue", initials: "SM" },
-  { name: "James & Linda Park", id: "***-**-8903", status: "review", docs: 12, type: "Joint", year: "2025", color: "purple", initials: "JP" },
-  { name: "Marcus Johnson", id: "***-**-1147", status: "filed", docs: 3, type: "Individual", year: "2025", color: "green", initials: "MJ" },
-  { name: "Rivera Holdings LLC", id: "**-***7782", status: "in-progress", docs: 18, type: "Business", year: "2025", color: "orange", initials: "RH" },
-  { name: "Chen Family Trust", id: "**-***3390", status: "pending", docs: 0, type: "Trust", year: "2025", color: "cyan", initials: "CF" },
-  { name: "Aisha Patel", id: "***-**-6654", status: "review", docs: 7, type: "Individual", year: "2025", color: "red", initials: "AP" },
-  { name: "Tom & Maria Garcia", id: "***-**-2290", status: "filed", docs: 9, type: "Joint", year: "2025", color: "green", initials: "TG" },
-  { name: "Nexus Digital LLC", id: "**-***5561", status: "in-progress", docs: 14, type: "Business", year: "2025", color: "blue", initials: "ND" },
-  { name: "David Kim", id: "***-**-7783", status: "filed", docs: 4, type: "Individual", year: "2025", color: "purple", initials: "DK" },
-  { name: "Priya Sharma", id: "***-**-9901", status: "in-progress", docs: 6, type: "Individual", year: "2025", color: "orange", initials: "PS" },
-  { name: "Oakwood Properties", id: "**-***4412", status: "review", docs: 22, type: "Business", year: "2025", color: "cyan", initials: "OP" },
-  { name: "Lisa Chen", id: "***-**-3345", status: "filed", docs: 5, type: "Individual", year: "2025", color: "red", initials: "LC" },
-];
+let clients = []; // Populated from Firebase
 
 let formLibrary = {
   individual: [
@@ -460,12 +447,88 @@ function testFirebase() {
 // ══════════════════════════════════════
 
 document.addEventListener("DOMContentLoaded", function() {
-  renderClients("all");
   renderForms("individual");
 });
 
 auth.onAuthStateChanged(function(user) {
   if (user) {
-    loadFirebaseClients();
+    loadAllClientsFromFirebase();
+    loadFirebaseClients(); // For messages tab
   }
 });
+
+function loadAllClientsFromFirebase() {
+  db.collection("clients").get()
+    .then(function(snapshot) {
+      clients = [];
+      let colors = ["blue", "purple", "green", "orange", "cyan", "red"];
+
+      snapshot.forEach(function(doc) {
+        let d = doc.data();
+        let name = d.firstName + " " + d.lastName;
+        clients.push({
+          uid: doc.id,
+          name: name,
+          email: d.email || "",
+          phone: d.phone || "",
+          status: d.status || "pending",
+          docs: d.documents || 0,
+          type: d.type || "Individual",
+          year: d.year || "2025",
+          color: colors[clients.length % colors.length],
+          initials: d.firstName.charAt(0) + d.lastName.charAt(0)
+        });
+      });
+
+      // Update stats
+      let total = clients.length;
+      let pending = 0;
+      let progress = 0;
+      let review = 0;
+      let filed = 0;
+      for (let i = 0; i < clients.length; i++) {
+        if (clients[i].status === "pending") pending++;
+        if (clients[i].status === "in-progress") progress++;
+        if (clients[i].status === "review") review++;
+        if (clients[i].status === "filed") filed++;
+      }
+
+      document.getElementById("stat-total").textContent = total;
+      document.getElementById("stat-progress").textContent = progress;
+      document.getElementById("stat-review").textContent = review;
+      document.getElementById("stat-filed").textContent = filed;
+
+      // Update recent clients on overview
+      let recentList = document.getElementById("recent-clients-list");
+      recentList.innerHTML = "";
+
+      if (clients.length === 0) {
+        recentList.innerHTML = '<div style="padding: 16px; text-align: center; color: #6B7280; font-size: 13px;">No clients yet. They\'ll appear here when they register.</div>';
+      } else {
+        let showCount = Math.min(clients.length, 5);
+        for (let i = 0; i < showCount; i++) {
+          let c = clients[i];
+          let statusClass = "pending";
+          let statusLabel = "Pending";
+          if (c.status === "in-progress") { statusClass = "progress"; statusLabel = "In Progress"; }
+          if (c.status === "review") { statusClass = "review"; statusLabel = "Review"; }
+          if (c.status === "filed") { statusClass = "filed"; statusLabel = "Filed"; }
+
+          let item = document.createElement("div");
+          item.className = "client-mini";
+          item.innerHTML =
+            '<div class="client-avatar ' + c.color + '">' + c.initials + '</div>' +
+            '<div class="client-mini-info"><strong>' + c.name + '</strong><span>' + c.type + ' · ' + c.docs + ' docs</span></div>' +
+            '<span class="status-pill ' + statusClass + '">' + statusLabel + '</span>';
+          recentList.appendChild(item);
+        }
+      }
+
+      // Render clients table
+      renderClients("all");
+    })
+    .catch(function(error) {
+      document.getElementById("recent-clients-list").innerHTML =
+        '<div style="padding: 16px; text-align: center; color: #EF4444; font-size: 13px;">Error loading clients: ' + error.message + '</div>';
+    });
+}

@@ -65,19 +65,19 @@
       <div class="stat-grid">
         <div class="stat-card">
           <span class="stat-label">Total Clients</span>
-          <span class="stat-value blue">12</span>
+          <span class="stat-value blue" id="stat-total">0</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">In Progress</span>
-          <span class="stat-value cyan">5</span>
+          <span class="stat-value cyan" id="stat-progress">0</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">Needs Review</span>
-          <span class="stat-value orange">3</span>
+          <span class="stat-value orange" id="stat-review">0</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">Filed</span>
-          <span class="stat-value green">4</span>
+          <span class="stat-value green" id="stat-filed">0</span>
         </div>
       </div>
 
@@ -88,39 +88,8 @@
             <h2>Recent Clients</h2>
             <button class="link-btn" onclick="switchDashTab('clients')">View All →</button>
           </div>
-          <div class="client-mini-list">
-            <div class="client-mini" onclick="openClient('Sarah Mitchell')">
-              <div class="client-avatar blue">SM</div>
-              <div class="client-mini-info">
-                <strong>Sarah Mitchell</strong>
-                <span>Individual · 5 docs</span>
-              </div>
-              <span class="status-pill progress">In Progress</span>
-            </div>
-            <div class="client-mini" onclick="openClient('James & Linda Park')">
-              <div class="client-avatar purple">JP</div>
-              <div class="client-mini-info">
-                <strong>James & Linda Park</strong>
-                <span>Joint · 12 docs</span>
-              </div>
-              <span class="status-pill review">Review</span>
-            </div>
-            <div class="client-mini" onclick="openClient('Rivera Holdings LLC')">
-              <div class="client-avatar orange">RH</div>
-              <div class="client-mini-info">
-                <strong>Rivera Holdings LLC</strong>
-                <span>Business · 18 docs</span>
-              </div>
-              <span class="status-pill progress">In Progress</span>
-            </div>
-            <div class="client-mini" onclick="openClient('Aisha Patel')">
-              <div class="client-avatar green">AP</div>
-              <div class="client-mini-info">
-                <strong>Aisha Patel</strong>
-                <span>Individual · 7 docs</span>
-              </div>
-              <span class="status-pill review">Review</span>
-            </div>
+          <div class="client-mini-list" id="recent-clients-list">
+            <div style="padding: 16px; text-align: center; color: #6B7280; font-size: 13px;">Loading clients...</div>
           </div>
         </div>
 
