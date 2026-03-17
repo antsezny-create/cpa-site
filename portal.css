@@ -818,3 +818,13 @@ body {
     display: none;
   }
 }
+
+/* ── Additional return status classes ── */
+.file-status.in-progress-status {
+  background: rgba(6,182,212,0.12);
+  color: #06B6D4;
+}
+.file-status.filed-status {
+  background: var(--green-light);
+  color: var(--green);
+}

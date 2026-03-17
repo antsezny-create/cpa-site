@@ -1407,3 +1407,72 @@ body {
 }
 .modal-input:focus { border-color: var(--accent); }
 .modal-input::placeholder { color: var(--text-dim); }
+
+/* ── Returns Tab ── */
+.returns-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.returns-table-header {
+  display: grid;
+  grid-template-columns: 80px 1fr 140px 200px;
+  padding: 12px 20px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.return-admin-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 140px 200px;
+  padding: 14px 20px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.return-admin-row:hover { background: var(--bg-hover); }
+.return-admin-row:last-child { border-bottom: none; }
+
+.return-admin-year {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.return-admin-form {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.return-admin-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Return status dropdown colours */
+.status-return-need-docs   { color: var(--orange); background: var(--orange-light); border-color: rgba(245,158,11,0.3); }
+.status-return-in-progress { color: var(--cyan);   background: var(--cyan-light);   border-color: rgba(6,182,212,0.3); }
+.status-return-filed       { color: var(--green);  background: var(--green-light);  border-color: rgba(34,197,94,0.3); }
+
+/* Modal label */
+.modal-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.form-group-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}

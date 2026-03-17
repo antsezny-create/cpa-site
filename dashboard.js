@@ -26,10 +26,12 @@ function switchDashTab(tabName) {
     if (b.getAttribute("onclick") && b.getAttribute("onclick").includes("'" + tabName + "'"))
       b.classList.add("active");
   });
-  if (tabName === "clients")   renderClients("all");
-  if (tabName === "forms")     { currentCategory = "uploaded"; loadFormsFromFirebase(); }
-  if (tabName === "documents") renderDocuments();
-  if (tabName === "messages")  loadFirebaseClients();
+  if (tabName === "clients")     renderClients("all");
+  if (tabName === "forms")       { currentCategory = "uploaded"; loadFormsFromFirebase(); }
+  if (tabName === "documents")   renderDocuments();
+  if (tabName === "messages")    loadFirebaseClients();
+  if (tabName === "saved-forms") loadSavedForms();
+  if (tabName === "returns")     loadReturnsTab();
 }
 
 
@@ -760,4 +762,190 @@ function updateClientField(uid, field, value) {
       });
     }
   }).catch(e => alert("Failed to update: " + e.message));
+}
+
+
+// ══════════════════════════════════════
+//  RETURNS TAB
+// ══════════════════════════════════════
+
+let returnsSelectedClientId = null;
+let allPractitionerForms    = []; // cached from Firestore
+
+function loadReturnsTab() {
+  // Populate client dropdown
+  let sel = document.getElementById("returns-client-select");
+  sel.innerHTML = '<option value="">— Select a client —</option>';
+  clients.forEach(c => {
+    let opt = document.createElement("option");
+    opt.value = c.uid;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+
+  // Cache forms library for the add-form dropdown
+  db.collection("practitionerForms").get().then(snapshot => {
+    allPractitionerForms = [];
+    snapshot.forEach(doc => { let d = doc.data(); d._id = doc.id; allPractitionerForms.push(d); });
+  });
+
+  document.getElementById("returns-client-panel").style.display = "none";
+}
+
+function onReturnsClientChange(sel) {
+  let uid = sel.value;
+  if (!uid) {
+    returnsSelectedClientId = null;
+    document.getElementById("returns-client-panel").style.display = "none";
+    return;
+  }
+  returnsSelectedClientId = uid;
+  document.getElementById("returns-client-panel").style.display = "block";
+  loadClientReturns(uid);
+}
+
+function loadClientReturns(clientId) {
+  let list = document.getElementById("returns-list-admin");
+  list.innerHTML = '<div style="padding:16px;color:var(--text-dim);font-size:13px;">Loading...</div>';
+
+  db.collection("clientReturns")
+    .where("clientId", "==", clientId)
+    .get().then(snapshot => {
+      list.innerHTML = "";
+      if (snapshot.empty) {
+        list.innerHTML = '<div style="padding:16px;color:var(--text-dim);font-size:13px;">No returns yet. Click + to add a form.</div>';
+        return;
+      }
+      let returns = [];
+      snapshot.forEach(doc => { let d = doc.data(); d._id = doc.id; returns.push(d); });
+      returns.sort((a,b) => (b.taxYear||0) - (a.taxYear||0));
+      returns.forEach(r => renderReturnRow(r, list));
+    });
+}
+
+function renderReturnRow(r, container) {
+  let statusColors = { "need-docs": "orange", "in-progress": "cyan", "filed": "green" };
+  let statusLabels = { "need-docs": "Need Docs", "in-progress": "In Progress", "filed": "Filed" };
+  let color = statusColors[r.returnStatus] || "orange";
+  let label = statusLabels[r.returnStatus] || "Need Docs";
+
+  let row = document.createElement("div");
+  row.className = "return-admin-row";
+  row.setAttribute("data-id", r._id);
+  row.innerHTML = `
+    <div class="return-admin-year">${r.taxYear || "—"}</div>
+    <div class="return-admin-form">${r.formName || "Unknown Form"}</div>
+    <select class="cell-dropdown return-status-select status-return-${r.returnStatus||"need-docs"}"
+      data-rid="${r._id}" onchange="updateReturnStatus(this)">
+      <option value="need-docs"   ${r.returnStatus==="need-docs"   ?" selected":""}>Need Docs</option>
+      <option value="in-progress" ${r.returnStatus==="in-progress" ?" selected":""}>In Progress</option>
+      <option value="filed"       ${r.returnStatus==="filed"       ?" selected":""}>Filed</option>
+    </select>
+    <div class="return-admin-actions">
+      ${r.formStorageUrl
+        ? `<button class="action-btn approve" onclick="openReturnFormViewer('${r._id}','${r.formStorageUrl}','${(r.formName||"").replace(/'/g,"\\'")}','')">Edit Form</button>`
+        : '<span style="font-size:11px;color:var(--text-dim);">No PDF linked</span>'}
+      <button class="action-btn-delete" onclick="deleteClientReturn('${r._id}')">Delete</button>
+    </div>`;
+  container.appendChild(row);
+}
+
+function updateReturnStatus(sel) {
+  let rid    = sel.getAttribute("data-rid");
+  let status = sel.value;
+  sel.className = "cell-dropdown return-status-select status-return-" + status;
+  db.collection("clientReturns").doc(rid).update({ returnStatus: status })
+    .catch(e => alert("Failed: " + e.message));
+}
+
+function deleteClientReturn(rid) {
+  if (!confirm("Remove this return entry?")) return;
+  db.collection("clientReturns").doc(rid).delete().then(() => {
+    if (returnsSelectedClientId) loadClientReturns(returnsSelectedClientId);
+  });
+}
+
+function openAddReturnModal() {
+  if (!returnsSelectedClientId) { alert("Please select a client first."); return; }
+
+  // Populate form dropdown from cached practitioner forms
+  let sel = document.getElementById("add-return-form-select");
+  sel.innerHTML = '<option value="">— Select a form —</option>';
+  allPractitionerForms.forEach(f => {
+    let opt = document.createElement("option");
+    opt.value = JSON.stringify({ id: f._id, name: f.name, url: f.storageUrl });
+    opt.textContent = f.name + (f.taxYear ? " (" + f.taxYear + ")" : "");
+    sel.appendChild(opt);
+  });
+
+  // Set tax year default
+  document.getElementById("add-return-year").value = new Date().getFullYear();
+  document.getElementById("add-return-modal").style.display = "flex";
+}
+
+function closeAddReturnModal() {
+  document.getElementById("add-return-modal").style.display = "none";
+}
+
+function saveNewReturn() {
+  let formVal = document.getElementById("add-return-form-select").value;
+  let year    = document.getElementById("add-return-year").value;
+  if (!formVal) { alert("Please select a form."); return; }
+  if (!year)    { alert("Please enter a tax year."); return; }
+
+  let formData = JSON.parse(formVal);
+  let client   = clients.find(c => c.uid === returnsSelectedClientId);
+
+  db.collection("clientReturns").add({
+    clientId:       returnsSelectedClientId,
+    clientName:     client ? client.name : "",
+    formId:         formData.id,
+    formName:       formData.name,
+    formStorageUrl: formData.url || "",
+    taxYear:        parseInt(year),
+    returnStatus:   "need-docs",
+    createdAt:      firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    closeAddReturnModal();
+    loadClientReturns(returnsSelectedClientId);
+  }).catch(e => alert("Failed to save: " + e.message));
+}
+
+// Open form viewer from the Returns tab (back button goes to returns)
+function openReturnFormViewer(rid, formUrl, formName, formDesc) {
+  currentFormId   = rid;
+  currentFormUrl  = formUrl;
+  currentFormName = formName;
+
+  document.querySelectorAll(".dash-tab").forEach(t => t.style.display = "none");
+  document.getElementById("tab-form-viewer").style.display = "block";
+  document.querySelectorAll(".dash-nav-btn").forEach(b => b.classList.remove("active"));
+
+  document.getElementById("viewer-form-title").textContent = formName;
+  document.getElementById("viewer-form-desc").textContent  = formDesc || "";
+  document.getElementById("viewer-back-btn").setAttribute("onclick", "switchDashTab('returns')");
+
+  // Populate assign dropdown
+  let sel = document.getElementById("assign-client-select");
+  sel.innerHTML = '<option value="">— Assign to client —</option>';
+  clients.forEach(c => {
+    let opt = document.createElement("option");
+    opt.value = c.uid; opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+
+  let iframe = document.getElementById("form-pdf-iframe");
+  let status = document.getElementById("viewer-status");
+  status.textContent = "Loading PDF...";
+
+  fetch(formUrl).then(r => {
+    if (!r.ok) throw new Error("Fetch failed");
+    return r.blob();
+  }).then(blob => {
+    iframe.src = URL.createObjectURL(blob);
+    status.textContent = "Fill in the form fields directly, then click Save.";
+  }).catch(() => {
+    status.textContent = "Could not load PDF inline. Use 'Open in New Tab' to view.";
+    iframe.src = "";
+  });
 }

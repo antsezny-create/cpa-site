@@ -441,3 +441,44 @@ function handleUpload(input) {
   }
   input.value = "";
 }
+
+
+// ══════════════════════════════════════
+//  MY RETURNS — real-time from Firestore
+// ══════════════════════════════════════
+let returnsListener = null;
+
+function loadMyReturns() {
+  if (!currentUser) return;
+  if (returnsListener) returnsListener();
+
+  let list = document.getElementById("my-returns-list");
+  list.innerHTML = '<div style="padding:16px;color:var(--text-dim);font-size:13px;">Loading...</div>';
+
+  returnsListener = db.collection("clientReturns")
+    .where("clientId", "==", currentUser.uid)
+    .onSnapshot(function(snapshot) {
+      list.innerHTML = "";
+      if (snapshot.empty) {
+        list.innerHTML = '<div style="padding:24px;color:var(--text-dim);font-size:13px;text-align:center;">No returns on file yet.</div>';
+        return;
+      }
+      let returns = [];
+      snapshot.forEach(doc => { let d = doc.data(); d._id = doc.id; returns.push(d); });
+      returns.sort((a,b) => (b.taxYear||0) - (a.taxYear||0));
+      returns.forEach(r => {
+        let statusClass = { "need-docs":"pending-status", "in-progress":"in-progress-status", "filed":"filed-status" }[r.returnStatus] || "pending-status";
+        let statusLabel = { "need-docs":"Need Docs", "in-progress":"In Progress", "filed":"Filed" }[r.returnStatus] || "Need Docs";
+        let item = document.createElement("div");
+        item.className = "return-item";
+        item.innerHTML =
+          '<div class="return-year">' + (r.taxYear || "—") + '</div>' +
+          '<div class="return-info">' +
+            '<strong>' + (r.formName || "Tax Return") + '</strong>' +
+            '<span>Tax Year ' + (r.taxYear || "") + '</span>' +
+          '</div>' +
+          '<span class="file-status ' + statusClass + '">' + statusLabel + '</span>';
+        list.appendChild(item);
+      });
+    });
+}

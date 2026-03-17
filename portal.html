@@ -38,7 +38,7 @@
         <span class="sidebar-icon">◯</span> Messages
         <span class="sidebar-badge" id="msg-badge" style="display:none;">0</span>
       </button>
-      <button class="sidebar-btn" onclick="switchTab('returns')">
+      <button class="sidebar-btn" onclick="switchTab('returns'); loadMyReturns()">
         <span class="sidebar-icon">❐</span> My Returns
       </button>
     </div>
@@ -149,35 +149,12 @@
       <div class="portal-header">
         <div>
           <h1>My Returns</h1>
-          <p class="portal-subtitle">View and download your completed tax returns.</p>
+          <p class="portal-subtitle">Your tax return forms and filing status.</p>
         </div>
       </div>
       <div class="portal-card">
-        <div class="returns-list">
-          <div class="return-item">
-            <div class="return-year">2025</div>
-            <div class="return-info">
-              <strong>Form 1040 — Individual Tax Return</strong>
-              <span>Status: In Progress</span>
-            </div>
-            <span class="file-status pending-status">In Progress</span>
-          </div>
-          <div class="return-item">
-            <div class="return-year">2024</div>
-            <div class="return-info">
-              <strong>Form 1040 — Individual Tax Return</strong>
-              <span>Filed Apr 10, 2025 · Refund: $2,847</span>
-            </div>
-            <button class="download-btn" onclick="alert('Downloading 2024 return...')">Download</button>
-          </div>
-          <div class="return-item">
-            <div class="return-year">2023</div>
-            <div class="return-info">
-              <strong>Form 1040 — Individual Tax Return</strong>
-              <span>Filed Apr 3, 2024 · Refund: $1,923</span>
-            </div>
-            <button class="download-btn" onclick="alert('Downloading 2023 return...')">Download</button>
-          </div>
+        <div class="returns-list" id="my-returns-list">
+          <div style="padding:24px;color:var(--text-dim);font-size:13px;text-align:center;">Loading...</div>
         </div>
       </div>
     </div>
