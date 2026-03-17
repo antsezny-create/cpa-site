@@ -418,6 +418,35 @@ body {
 
 .table-open-btn:hover { border-color: var(--accent); color: var(--accent); }
 
+/* ── Cell Dropdowns ── */
+.cell-dropdown {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236B7280' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+
+.cell-dropdown:hover { border-color: var(--accent); }
+.cell-dropdown:focus { border-color: var(--accent); }
+
+.status-dropdown.status-pending { color: var(--orange); background-color: var(--orange-light); border-color: rgba(245, 158, 11, 0.3); }
+.status-dropdown.status-in-progress { color: var(--cyan); background-color: var(--cyan-light); border-color: rgba(6, 182, 212, 0.3); }
+.status-dropdown.status-review { color: var(--purple); background-color: var(--purple-light); border-color: rgba(139, 92, 246, 0.3); }
+.status-dropdown.status-filed { color: var(--green); background-color: var(--green-light); border-color: rgba(34, 197, 94, 0.3); }
+
 /* ── Forms Grid ── */
 .forms-grid {
   display: grid;
@@ -498,7 +527,10 @@ body {
 }
 
 .doc-icon.flagged-icon {
-  background: var(--orange-light);
+  background: var(--red-light);
+  color: var(--red);
+  border-color: rgba(239, 68, 68, 0.2);
+}
   color: var(--orange);
   border-color: rgba(245, 158, 11, 0.2);
 }
@@ -527,11 +559,11 @@ body {
 .action-btn.approve:hover { background: rgba(34, 197, 94, 0.2); }
 
 .action-btn.flag {
-  background: var(--orange-light);
-  color: var(--orange);
+  background: var(--red-light);
+  color: var(--red);
 }
 
-.action-btn.flag:hover { background: rgba(245, 158, 11, 0.2); }
+.action-btn.flag:hover { background: rgba(239, 68, 68, 0.2); }
 
 .doc-status-badge {
   font-size: 11px; font-weight: 600;
@@ -539,7 +571,7 @@ body {
 }
 
 .doc-status-badge.approved { background: var(--green-light); color: var(--green); }
-.doc-status-badge.flagged { background: var(--orange-light); color: var(--orange); }
+.doc-status-badge.flagged { background: var(--red-light); color: var(--red); }
 
 /* ── Form Editor ── */
 .editor-actions {
@@ -1001,6 +1033,68 @@ body {
 }
 
 .msg-send-btn:hover { opacity: 0.85; }
+
+/* ── Case Toggle Button ── */
+.case-toggle {
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: none;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-width: 65px;
+  text-align: center;
+}
+
+.case-btn-open {
+  background: var(--green-light);
+  color: var(--green);
+}
+
+.case-btn-open:hover { background: rgba(34, 197, 94, 0.2); }
+
+.case-btn-closed {
+  background: var(--red-light);
+  color: var(--red);
+}
+
+.case-btn-closed:hover { background: rgba(239, 68, 68, 0.2); }
+
+/* ── Document Tabs ── */
+.doc-tab-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.doc-tab-btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.doc-tab-btn:hover { background: var(--bg-hover); }
+.doc-tab-btn.active { background: var(--accent-light); color: var(--accent); border-color: rgba(59, 130, 246, 0.2); }
+
+/* ── Unread Message Dot ── */
+.msg-unread-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-left: auto;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.5);
+}
 
 /* ── Responsive ── */
 @media (max-width: 768px) {

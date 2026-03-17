@@ -2,7 +2,9 @@
 //  DATA
 // ══════════════════════════════════════
 
-let clients = []; // Populated from Firebase
+let clients = [];
+let allDocuments = [];
+let currentDocTab = "pending";
 
 let formLibrary = {
   individual: [
@@ -64,6 +66,7 @@ function switchDashTab(tabName) {
 
   if (tabName === "clients") renderClients("all");
   if (tabName === "forms") renderForms("individual");
+  if (tabName === "documents") renderDocuments();
 }
 
 
@@ -74,23 +77,115 @@ function switchDashTab(tabName) {
 function renderClients(filter) {
   let tbody = document.getElementById("client-table-body");
   tbody.innerHTML = "";
-  let statusLabels = { "pending": "Pending", "in-progress": "In Progress", "review": "Review", "filed": "Filed" };
-  let statusClasses = { "pending": "pending", "in-progress": "progress", "review": "review", "filed": "filed" };
+
+  if (clients.length === 0) {
+    tbody.innerHTML = '<div style="padding: 24px; text-align: center; color: #6B7280; font-size: 13px;">No clients yet. They\'ll appear here when they register.</div>';
+    return;
+  }
 
   for (let i = 0; i < clients.length; i++) {
     let c = clients[i];
     if (filter !== "all" && c.status !== filter) continue;
+
     let row = document.createElement("div");
     row.className = "client-table-row";
-    row.innerHTML =
-      '<div class="client-cell"><div class="client-cell-avatar ' + c.color + '" style="background: linear-gradient(135deg, var(--' + c.color + '), var(--' + c.color + '))">' + c.initials + '</div><div><div class="cell-name">' + c.name + '</div><div class="cell-sub">' + c.id + '</div></div></div>' +
-      '<span class="cell-type">' + c.type + '</span>' +
-      '<span class="status-pill ' + statusClasses[c.status] + '">' + statusLabels[c.status] + '</span>' +
-      '<span class="cell-docs">' + c.docs + '</span>' +
-      '<span class="cell-year">' + c.year + '</span>' +
-      '<button class="table-open-btn" onclick="openClient(\'' + c.name.replace(/'/g, "\\'") + '\')">Open</button>';
+
+    // Client name + email
+    let clientCell = '<div class="client-cell">' +
+      '<div class="client-cell-avatar ' + c.color + '" style="background: linear-gradient(135deg, var(--' + c.color + '), var(--' + c.color + '))">' + c.initials + '</div>' +
+      '<div><div class="cell-name">' + c.name + '</div><div class="cell-sub">' + (c.email || "") + '</div></div></div>';
+
+    // Type dropdown
+    let typeOptions = ["Individual", "Joint", "Business", "Trust", "Partnership"];
+    let typeSelect = '<select class="cell-dropdown" onchange="updateClientField(\'' + c.uid + '\', \'type\', this.value)">';
+    for (let t = 0; t < typeOptions.length; t++) {
+      let selected = c.type === typeOptions[t] ? " selected" : "";
+      typeSelect += '<option value="' + typeOptions[t] + '"' + selected + '>' + typeOptions[t] + '</option>';
+    }
+    typeSelect += '</select>';
+
+    // Status dropdown
+    let statusOptions = [
+      { value: "pending", label: "Pending" },
+      { value: "in-progress", label: "In Progress" },
+      { value: "review", label: "Review" },
+      { value: "filed", label: "Filed" }
+    ];
+    let statusSelect = '<select class="cell-dropdown status-dropdown status-' + c.status + '" onchange="updateClientField(\'' + c.uid + '\', \'status\', this.value); this.className=\'cell-dropdown status-dropdown status-\'+this.value;">';
+    for (let s = 0; s < statusOptions.length; s++) {
+      let selected = c.status === statusOptions[s].value ? " selected" : "";
+      statusSelect += '<option value="' + statusOptions[s].value + '"' + selected + '>' + statusOptions[s].label + '</option>';
+    }
+    statusSelect += '</select>';
+
+    // Docs count
+    let docsCell = '<span class="cell-docs">' + c.docs + '</span>';
+
+    // Year dropdown (2020-2060)
+    let yearSelect = '<select class="cell-dropdown" onchange="updateClientField(\'' + c.uid + '\', \'year\', this.value)">';
+    for (let y = 2020; y <= 2060; y++) {
+      let yStr = y.toString();
+      let selected = c.year === yStr ? " selected" : "";
+      yearSelect += '<option value="' + yStr + '"' + selected + '>' + yStr + '</option>';
+    }
+    yearSelect += '</select>';
+
+    // Open/Close toggle button
+    let caseOpen = c.caseOpen !== false; // default to open
+    let caseClass = caseOpen ? "case-btn-open" : "case-btn-closed";
+    let caseLabel = caseOpen ? "Open" : "Closed";
+    let caseBtn = '<button class="case-toggle ' + caseClass + '" onclick="toggleCase(\'' + c.uid + '\', this)">' + caseLabel + '</button>';
+
+    row.innerHTML = clientCell + typeSelect + statusSelect + docsCell + yearSelect + caseBtn;
     tbody.appendChild(row);
   }
+}
+
+function toggleCase(uid, btn) {
+  let isOpen = btn.classList.contains("case-btn-open");
+  let newState = !isOpen;
+
+  db.collection("clients").doc(uid).update({ caseOpen: newState })
+    .then(function() {
+      for (let i = 0; i < clients.length; i++) {
+        if (clients[i].uid === uid) { clients[i].caseOpen = newState; break; }
+      }
+      if (newState) {
+        btn.className = "case-toggle case-btn-open";
+        btn.textContent = "Open";
+      } else {
+        btn.className = "case-toggle case-btn-closed";
+        btn.textContent = "Closed";
+      }
+    });
+}
+
+function updateClientField(uid, field, value) {
+  let update = {};
+  update[field] = value;
+  db.collection("clients").doc(uid).update(update)
+    .then(function() {
+      for (let i = 0; i < clients.length; i++) {
+        if (clients[i].uid === uid) { clients[i][field] = value; break; }
+      }
+      updateOverviewStats();
+    })
+    .catch(function(error) { alert("Failed to update: " + error.message); });
+}
+
+function updateOverviewStats() {
+  let total = clients.length;
+  let pending = 0, progress = 0, review = 0, filed = 0;
+  for (let i = 0; i < clients.length; i++) {
+    if (clients[i].status === "pending") pending++;
+    if (clients[i].status === "in-progress") progress++;
+    if (clients[i].status === "review") review++;
+    if (clients[i].status === "filed") filed++;
+  }
+  document.getElementById("stat-total").textContent = total;
+  document.getElementById("stat-progress").textContent = progress;
+  document.getElementById("stat-review").textContent = review;
+  document.getElementById("stat-filed").textContent = filed;
 }
 
 function filterClients(filter, btn) {
@@ -98,10 +193,6 @@ function filterClients(filter, btn) {
   for (let i = 0; i < btns.length; i++) { btns[i].classList.remove("active"); }
   btn.classList.add("active");
   renderClients(filter);
-}
-
-function openClient(name) {
-  alert("Opening client file for: " + name);
 }
 
 
@@ -135,10 +226,7 @@ function switchFormCategory(category, btn) {
 //  FORM EDITOR
 // ══════════════════════════════════════
 
-let formValues = {};
-
 function openFormEditor(formId) {
-  formValues = {};
   let formInfo = null;
   let allCategories = Object.keys(formLibrary);
   for (let c = 0; c < allCategories.length; c++) {
@@ -170,13 +258,11 @@ function openFormEditor(formId) {
 function build1040Editor() {
   let html = '';
   html += '<div class="form-editor-top"><div class="form-editor-top-left"><span>Department of the Treasury — Internal Revenue Service</span><h2>Form 1040</h2><p>U.S. Individual Income Tax Return</p></div><div class="form-editor-top-right"><span>Tax Year</span><strong>2025</strong></div></div>';
-
   html += '<div class="editor-section"><div class="editor-section-title">Personal Information</div>';
-  html += '<div class="editor-row"><div class="editor-field" style="flex: 1.5;"><label>First name and middle initial</label><input type="text" id="f-firstName"></div><div class="editor-field" style="flex: 1;"><label>Last name</label><input type="text" id="f-lastName"></div></div>';
-  html += '<div class="editor-row"><div class="editor-field" style="flex: 1;"><label>Social security number</label><input type="text" id="f-ssn" placeholder="XXX-XX-XXXX"></div><div class="editor-field" style="flex: 1;"><label>Filing status</label><select id="f-filingStatus"><option value="">Select...</option><option>Single</option><option>Married filing jointly</option><option>Married filing separately</option><option>Head of household</option><option>Qualifying surviving spouse</option></select></div></div>';
-  html += '<div class="editor-row"><div class="editor-field" style="flex: 1;"><label>Home address</label><input type="text" id="f-address"></div></div>';
-  html += '<div class="editor-row"><div class="editor-field" style="flex: 1.5;"><label>City</label><input type="text" id="f-city"></div><div class="editor-field" style="flex: 0.5;"><label>State</label><input type="text" id="f-state"></div><div class="editor-field" style="flex: 0.5;"><label>ZIP</label><input type="text" id="f-zip"></div></div>';
-  html += '</div>';
+  html += '<div class="editor-row"><div class="editor-field" style="flex:1.5;"><label>First name and middle initial</label><input type="text" id="f-firstName"></div><div class="editor-field" style="flex:1;"><label>Last name</label><input type="text" id="f-lastName"></div></div>';
+  html += '<div class="editor-row"><div class="editor-field" style="flex:1;"><label>Social security number</label><input type="text" id="f-ssn" placeholder="XXX-XX-XXXX"></div><div class="editor-field" style="flex:1;"><label>Filing status</label><select id="f-filingStatus"><option value="">Select...</option><option>Single</option><option>Married filing jointly</option><option>Married filing separately</option><option>Head of household</option><option>Qualifying surviving spouse</option></select></div></div>';
+  html += '<div class="editor-row"><div class="editor-field" style="flex:1;"><label>Home address</label><input type="text" id="f-address"></div></div>';
+  html += '<div class="editor-row"><div class="editor-field" style="flex:1.5;"><label>City</label><input type="text" id="f-city"></div><div class="editor-field" style="flex:0.5;"><label>State</label><input type="text" id="f-state"></div><div class="editor-field" style="flex:0.5;"><label>ZIP</label><input type="text" id="f-zip"></div></div></div>';
 
   let incomeLines = [
     { num: "1", label: "Wages, salaries, tips (W-2, box 1)", key: "line1" },
@@ -199,8 +285,7 @@ function build1040Editor() {
     let line = incomeLines[i];
     html += '<div class="income-line"><label>' + line.num + '  ' + line.label + '</label><div class="income-input-wrap"><span>$</span><input type="text" class="income-input" id="f-' + line.key + '" oninput="calculateTotal()"></div></div>';
   }
-  html += '<div class="income-line total"><label>9  Total income (add lines 1 through 8)</label><div class="income-input-wrap"><span>$</span><input type="text" class="income-input total-field" id="f-line9" readonly></div></div>';
-  html += '</div>';
+  html += '<div class="income-line total"><label>9  Total income (add lines 1 through 8)</label><div class="income-input-wrap"><span>$</span><input type="text" class="income-input total-field" id="f-line9" readonly></div></div></div>';
   return html;
 }
 
@@ -217,37 +302,123 @@ function calculateTotal() {
 
 
 // ══════════════════════════════════════
-//  DOCUMENT REVIEW
+//  DOCUMENTS (Firebase Real-Time)
 // ══════════════════════════════════════
 
-function reviewDoc(button, action) {
-  let item = button.closest(".doc-review-item");
-  let actionsDiv = item.querySelector(".doc-actions");
-  if (action === "approved") {
-    actionsDiv.innerHTML = '<span class="doc-status-badge approved">Approved ✓</span>';
-    item.querySelector(".doc-icon").className = "doc-icon approved-icon";
-    item.querySelector(".doc-icon").textContent = "✓";
-  } else {
-    actionsDiv.innerHTML = '<span class="doc-status-badge flagged">Flagged !</span>';
-    item.querySelector(".doc-icon").className = "doc-icon flagged-icon";
-    item.querySelector(".doc-icon").textContent = "!";
+function loadAllDocuments() {
+  db.collection("documents").get()
+    .then(function(snapshot) {
+      allDocuments = [];
+      snapshot.forEach(function(doc) {
+        let d = doc.data();
+        d._id = doc.id;
+        d.reviewStatus = d.reviewStatus || "pending";
+        allDocuments.push(d);
+      });
+      renderDocuments();
+    });
+}
+
+function switchDocTab(tab, btn) {
+  currentDocTab = tab;
+  let btns = document.querySelectorAll(".doc-tab-btn");
+  for (let i = 0; i < btns.length; i++) { btns[i].classList.remove("active"); }
+  btn.classList.add("active");
+  renderDocuments();
+}
+
+function renderDocuments() {
+  let list = document.getElementById("doc-review-list");
+  let title = document.getElementById("doc-section-title");
+  let countEl = document.getElementById("doc-section-count");
+  list.innerHTML = "";
+
+  let titles = { pending: "Pending Review", approved: "Approved", flagged: "Flagged" };
+  title.textContent = titles[currentDocTab] || "Documents";
+
+  let filtered = [];
+  for (let i = 0; i < allDocuments.length; i++) {
+    if (allDocuments[i].reviewStatus === currentDocTab) {
+      filtered.push(allDocuments[i]);
+    }
+  }
+
+  countEl.textContent = filtered.length + " document" + (filtered.length !== 1 ? "s" : "");
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="padding: 24px; text-align: center; color: #6B7280; font-size: 13px;">No ' + currentDocTab + ' documents.</div>';
+    return;
+  }
+
+  // Find client names
+  let clientMap = {};
+  for (let i = 0; i < clients.length; i++) {
+    clientMap[clients[i].uid] = clients[i].name;
+  }
+
+  for (let i = 0; i < filtered.length; i++) {
+    let doc = filtered[i];
+    let ext = (doc.fileName || "FILE").split(".").pop().toUpperCase();
+    let clientName = clientMap[doc.clientId] || "Unknown Client";
+
+    let timeText = "";
+    if (doc.uploadedAt) {
+      let date = new Date(doc.uploadedAt.seconds * 1000);
+      let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      timeText = months[date.getMonth()] + " " + date.getDate();
+    }
+
+    let item = document.createElement("div");
+    item.className = "doc-review-item";
+
+    let iconClass = "doc-icon";
+    let iconText = ext;
+    if (currentDocTab === "approved") { iconClass = "doc-icon approved-icon"; iconText = "✓"; }
+    if (currentDocTab === "flagged") { iconClass = "doc-icon flagged-icon"; iconText = "!"; }
+
+    let actionsHTML = "";
+    if (currentDocTab === "pending") {
+      actionsHTML = '<div class="doc-actions">' +
+        '<button class="action-btn approve" onclick="reviewDocument(\'' + doc._id + '\', \'approved\')">Approve</button>' +
+        '<button class="action-btn flag" onclick="reviewDocument(\'' + doc._id + '\', \'flagged\')">Flag</button></div>';
+    } else if (currentDocTab === "approved") {
+      actionsHTML = '<span class="doc-status-badge approved">Approved</span>';
+      if (doc.fileURL) {
+        actionsHTML += ' <a href="' + doc.fileURL + '" target="_blank" class="action-btn approve" style="text-decoration:none;margin-left:6px;">View</a>';
+      }
+    } else if (currentDocTab === "flagged") {
+      actionsHTML = '<span class="doc-status-badge flagged">Flagged</span>';
+      if (doc.fileURL) {
+        actionsHTML += ' <a href="' + doc.fileURL + '" target="_blank" class="action-btn flag" style="text-decoration:none;margin-left:6px;">View</a>';
+      }
+    }
+
+    item.innerHTML =
+      '<div class="' + iconClass + '">' + iconText + '</div>' +
+      '<div class="doc-review-info"><strong>' + (doc.fileName || "Unknown file") + '</strong><span>' + clientName + ' · ' + timeText + ' · ' + (doc.fileSize || "") + '</span></div>' +
+      actionsHTML;
+
+    list.appendChild(item);
   }
 }
 
-
-// ══════════════════════════════════════
-//  GLOBAL SEARCH
-// ══════════════════════════════════════
-
-function handleGlobalSearch(query) {
-  if (query.length < 2) return;
+function reviewDocument(docId, newStatus) {
+  db.collection("documents").doc(docId).update({ reviewStatus: newStatus })
+    .then(function() {
+      for (let i = 0; i < allDocuments.length; i++) {
+        if (allDocuments[i]._id === docId) {
+          allDocuments[i].reviewStatus = newStatus;
+          break;
+        }
+      }
+      renderDocuments();
+    })
+    .catch(function(error) { alert("Failed to update document: " + error.message); });
 }
 
 
 // ══════════════════════════════════════
-//  MESSAGES — SIMPLE APPROACH
-//  No onSnapshot, no composite queries.
-//  Just fetch ALL messages, filter in JS.
+//  MESSAGES (Firebase)
 // ══════════════════════════════════════
 
 let activeClientId = null;
@@ -279,23 +450,63 @@ function loadFirebaseClients() {
         item.className = "msg-client-item";
         item.setAttribute("data-clientid", clientId);
         item.onclick = function() {
-          // Mark active
           let all = document.querySelectorAll(".msg-client-item");
           for (let j = 0; j < all.length; j++) { all[j].classList.remove("active"); }
           item.classList.add("active");
-          // Open conversation
+          // Remove unread dot
+          let dot = item.querySelector(".msg-unread-dot");
+          if (dot) dot.remove();
           openConvo(clientId, name, initials, color, client.type || "Individual");
         };
         item.innerHTML =
           '<div class="msg-client-avatar ' + color + '">' + initials + '</div>' +
           '<div class="msg-client-info"><div class="msg-client-top"><strong>' + name + '</strong></div>' +
-          '<p class="msg-preview">' + (client.type || "Individual") + ' · ' + client.email + '</p></div>';
+          '<p class="msg-preview">' + (client.type || "Individual") + ' · ' + (client.email || "") + '</p></div>';
 
         list.appendChild(item);
       });
+
+      // Check for unread messages after loading clients
+      checkUnreadMessages();
     })
     .catch(function(error) {
-      list.innerHTML = '<div style="padding: 20px; text-align: center; color: #EF4444; font-size: 13px;">Error loading clients: ' + error.message + '</div>';
+      list.innerHTML = '<div style="padding: 20px; text-align: center; color: #EF4444; font-size: 13px;">Error: ' + error.message + '</div>';
+    });
+}
+
+function checkUnreadMessages() {
+  db.collection("messages").get()
+    .then(function(snapshot) {
+      let unreadByClient = {};
+      snapshot.forEach(function(doc) {
+        let msg = doc.data();
+        if (msg.senderRole === "client" && !msg.readByAdmin) {
+          unreadByClient[msg.clientId] = (unreadByClient[msg.clientId] || 0) + 1;
+        }
+      });
+
+      let totalUnread = 0;
+      let items = document.querySelectorAll(".msg-client-item");
+      for (let i = 0; i < items.length; i++) {
+        let cid = items[i].getAttribute("data-clientid");
+        let existing = items[i].querySelector(".msg-unread-dot");
+        if (existing) existing.remove();
+
+        if (unreadByClient[cid] && unreadByClient[cid] > 0) {
+          totalUnread += unreadByClient[cid];
+          let dot = document.createElement("span");
+          dot.className = "msg-unread-dot";
+          items[i].appendChild(dot);
+        }
+      }
+
+      let badge = document.getElementById("msg-badge");
+      if (totalUnread > 0) {
+        badge.textContent = totalUnread;
+        badge.style.display = "inline";
+      } else {
+        badge.style.display = "none";
+      }
     });
 }
 
@@ -303,28 +514,31 @@ function openConvo(clientId, name, initials, color, type) {
   activeClientId = clientId;
   activeClientName = name;
 
-  // Update header
   document.getElementById("msg-conv-header").innerHTML =
     '<div class="msg-conv-avatar ' + color + '">' + initials + '</div>' +
     '<div><strong>' + name + '</strong><span>' + type + ' · 2025 Return</span></div>';
 
-  // Update input
-  document.getElementById("admin-msg-input").placeholder = "Type a message to " + name.split(" ")[0] + "...";
+  let input = document.getElementById("admin-msg-input");
+  input.placeholder = "Type a message to " + name.split(" ")[0] + "...";
+  input.disabled = false;
 
-  // Clear any existing refresh interval
   if (messageRefreshInterval) clearInterval(messageRefreshInterval);
-
-  // Load messages now
   loadMessagesForClient(clientId);
+  messageRefreshInterval = setInterval(function() { loadMessagesForClient(clientId); }, 3000);
 
-  // Auto-refresh every 3 seconds for real-time feel
-  messageRefreshInterval = setInterval(function() {
-    loadMessagesForClient(clientId);
-  }, 3000);
+  // Mark messages as read
+  db.collection("messages").get().then(function(snapshot) {
+    snapshot.forEach(function(doc) {
+      let msg = doc.data();
+      if (msg.clientId === clientId && msg.senderRole === "client" && !msg.readByAdmin) {
+        db.collection("messages").doc(doc.id).update({ readByAdmin: true });
+      }
+    });
+    checkUnreadMessages();
+  });
 }
 
 function loadMessagesForClient(clientId) {
-  // Simple approach: get ALL messages, filter by clientId in JavaScript
   db.collection("messages").get()
     .then(function(snapshot) {
       let thread = document.getElementById("admin-msg-thread");
@@ -332,12 +546,9 @@ function loadMessagesForClient(clientId) {
 
       snapshot.forEach(function(doc) {
         let msg = doc.data();
-        if (msg.clientId === clientId) {
-          messages.push(msg);
-        }
+        if (msg.clientId === clientId) { messages.push(msg); }
       });
 
-      // Sort by timestamp
       messages.sort(function(a, b) {
         if (!a.timestamp || !b.timestamp) return 0;
         return a.timestamp.seconds - b.timestamp.seconds;
@@ -353,7 +564,6 @@ function loadMessagesForClient(clientId) {
       for (let i = 0; i < messages.length; i++) {
         let msg = messages[i];
         let isAdmin = msg.senderRole === "admin";
-
         let timeText = "";
         if (msg.timestamp) {
           let date = new Date(msg.timestamp.seconds * 1000);
@@ -372,10 +582,8 @@ function loadMessagesForClient(clientId) {
         bubble.innerHTML =
           '<div class="msg-bubble-meta"><strong>' + (msg.senderName || "Unknown") + '</strong> <span>' + timeText + '</span></div>' +
           '<div class="msg-bubble-text">' + (msg.text || "") + '</div>';
-
         thread.appendChild(bubble);
       }
-
       thread.scrollTop = thread.scrollHeight;
     })
     .catch(function(error) {
@@ -388,7 +596,6 @@ function sendAdminMessage() {
   let input = document.getElementById("admin-msg-input");
   let text = input.value.trim();
   if (text === "" || !activeClientId) return;
-
   input.value = "";
 
   db.collection("messages").add({
@@ -397,12 +604,10 @@ function sendAdminMessage() {
     senderName: "Anthony Sesny",
     senderRole: "admin",
     text: text,
+    readByAdmin: true,
     timestamp: firebase.firestore.FieldValue.serverTimestamp()
   }).then(function() {
-    // Reload messages immediately after sending
     loadMessagesForClient(activeClientId);
-  }).catch(function(error) {
-    alert("Failed to send: " + error.message);
   });
 }
 
@@ -415,31 +620,7 @@ function filterMessageClients(query) {
   }
 }
 
-function testFirebase() {
-  let results = "FIREBASE TEST:\n\n";
-  let user = auth.currentUser;
-  if (user) {
-    results += "Logged in: " + user.email + "\nUID: " + user.uid + "\n\n";
-  } else {
-    results += "NOT logged in\n\n";
-    alert(results);
-    return;
-  }
-  db.collection("clients").get().then(function(s) {
-    results += "Clients: " + s.size + "\n";
-    return db.collection("messages").get();
-  }).then(function(s) {
-    results += "Messages: " + s.size + "\n";
-    s.forEach(function(d) {
-      let m = d.data();
-      results += "  [" + m.clientId + "] " + m.senderName + ": " + (m.text || "").substring(0, 30) + "\n";
-    });
-    alert(results);
-  }).catch(function(e) {
-    results += "ERROR: " + e.message;
-    alert(results);
-  });
-}
+function handleGlobalSearch(query) {}
 
 
 // ══════════════════════════════════════
@@ -453,7 +634,10 @@ document.addEventListener("DOMContentLoaded", function() {
 auth.onAuthStateChanged(function(user) {
   if (user) {
     loadAllClientsFromFirebase();
-    loadFirebaseClients(); // For messages tab
+    loadFirebaseClients();
+    loadAllDocuments();
+    // Check for unread messages every 10 seconds
+    setInterval(checkUnreadMessages, 10000);
   }
 });
 
@@ -465,7 +649,7 @@ function loadAllClientsFromFirebase() {
 
       snapshot.forEach(function(doc) {
         let d = doc.data();
-        let name = d.firstName + " " + d.lastName;
+        let name = (d.firstName || "Unknown") + " " + (d.lastName || "");
         clients.push({
           uid: doc.id,
           name: name,
@@ -475,35 +659,19 @@ function loadAllClientsFromFirebase() {
           docs: d.documents || 0,
           type: d.type || "Individual",
           year: d.year || "2025",
+          caseOpen: d.caseOpen !== false,
           color: colors[clients.length % colors.length],
-          initials: d.firstName.charAt(0) + d.lastName.charAt(0)
+          initials: (d.firstName || "?").charAt(0) + (d.lastName || "?").charAt(0)
         });
       });
 
-      // Update stats
-      let total = clients.length;
-      let pending = 0;
-      let progress = 0;
-      let review = 0;
-      let filed = 0;
-      for (let i = 0; i < clients.length; i++) {
-        if (clients[i].status === "pending") pending++;
-        if (clients[i].status === "in-progress") progress++;
-        if (clients[i].status === "review") review++;
-        if (clients[i].status === "filed") filed++;
-      }
+      updateOverviewStats();
 
-      document.getElementById("stat-total").textContent = total;
-      document.getElementById("stat-progress").textContent = progress;
-      document.getElementById("stat-review").textContent = review;
-      document.getElementById("stat-filed").textContent = filed;
-
-      // Update recent clients on overview
+      // Recent clients on overview
       let recentList = document.getElementById("recent-clients-list");
       recentList.innerHTML = "";
-
       if (clients.length === 0) {
-        recentList.innerHTML = '<div style="padding: 16px; text-align: center; color: #6B7280; font-size: 13px;">No clients yet. They\'ll appear here when they register.</div>';
+        recentList.innerHTML = '<div style="padding: 16px; text-align: center; color: #6B7280; font-size: 13px;">No clients yet.</div>';
       } else {
         let showCount = Math.min(clients.length, 5);
         for (let i = 0; i < showCount; i++) {
@@ -524,11 +692,10 @@ function loadAllClientsFromFirebase() {
         }
       }
 
-      // Render clients table
       renderClients("all");
     })
     .catch(function(error) {
       document.getElementById("recent-clients-list").innerHTML =
-        '<div style="padding: 16px; text-align: center; color: #EF4444; font-size: 13px;">Error loading clients: ' + error.message + '</div>';
+        '<div style="padding: 16px; text-align: center; color: #EF4444; font-size: 13px;">Error: ' + error.message + '</div>';
     });
 }
