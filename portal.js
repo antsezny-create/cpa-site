@@ -69,12 +69,23 @@ function loadMessages() {
   // Listen for messages in real time
   db.collection("messages")
     .where("clientId", "==", currentUser.uid)
-    .orderBy("timestamp", "asc")
     .onSnapshot(function(snapshot) {
       thread.innerHTML = "";
 
+      // Sort messages by timestamp in JavaScript
+      let messages = [];
       snapshot.forEach(function(doc) {
         let msg = doc.data();
+        messages.push(msg);
+      });
+      messages.sort(function(a, b) {
+        if (!a.timestamp) return -1;
+        if (!b.timestamp) return 1;
+        return a.timestamp.toMillis() - b.timestamp.toMillis();
+      });
+
+      for (let i = 0; i < messages.length; i++) {
+        let msg = messages[i];
         let isMe = msg.senderId === currentUser.uid;
 
         let bubble = document.createElement("div");
@@ -107,7 +118,7 @@ function loadMessages() {
           '</div>';
 
         thread.appendChild(bubble);
-      });
+      }
 
       // Scroll to bottom
       thread.scrollTop = thread.scrollHeight;
@@ -148,7 +159,6 @@ function sendMessage() {
 function loadDocuments() {
   db.collection("documents")
     .where("clientId", "==", currentUser.uid)
-    .orderBy("uploadedAt", "desc")
     .onSnapshot(function(snapshot) {
       let fileList = document.getElementById("file-list");
       fileList.innerHTML = "";
