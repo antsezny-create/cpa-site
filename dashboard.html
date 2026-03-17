@@ -17,7 +17,6 @@
       <span class="dash-subtitle">Practitioner Dashboard</span>
     </div>
     <div class="dash-nav-right">
-      <input type="text" class="dash-search" placeholder="Search clients, forms..." id="global-search" oninput="handleGlobalSearch(this.value)">
       <span class="dash-user">Anthony Sesny</span>
     </div>
   </div>
@@ -36,7 +35,7 @@
         <span class="nav-icon">◉</span> Clients
       </button>
       <button class="dash-nav-btn" onclick="switchDashTab('forms')">
-        <span class="nav-icon">❐</span> Forms & Schedules
+        <span class="nav-icon">❐</span> Forms &amp; Schedules
       </button>
       <button class="dash-nav-btn" onclick="switchDashTab('documents')">
         <span class="nav-icon">◧</span> Documents
@@ -64,11 +63,11 @@
       <div class="stat-grid">
         <div class="stat-card">
           <span class="stat-label">Total Clients</span>
-          <span class="stat-value blue" id="stat-total">0</span>
+          <span class="stat-value blue"   id="stat-total">0</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">In Progress</span>
-          <span class="stat-value cyan" id="stat-progress">0</span>
+          <span class="stat-value cyan"   id="stat-progress">0</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">Needs Review</span>
@@ -76,7 +75,7 @@
         </div>
         <div class="stat-card">
           <span class="stat-label">Filed</span>
-          <span class="stat-value green" id="stat-filed">0</span>
+          <span class="stat-value green"  id="stat-filed">0</span>
         </div>
       </div>
 
@@ -97,12 +96,24 @@
             <button class="link-btn" onclick="switchDashTab('forms')">All Forms →</button>
           </div>
           <div class="quick-forms">
-            <div class="quick-form" onclick="openFormEditor('1040')"><span class="form-num">1040</span><span>Individual Income Tax</span></div>
-            <div class="quick-form" onclick="openFormEditor('1120-S')"><span class="form-num">1120-S</span><span>S-Corp Return</span></div>
-            <div class="quick-form" onclick="openFormEditor('1065')"><span class="form-num">1065</span><span>Partnership Return</span></div>
-            <div class="quick-form" onclick="switchDashTab('forms')"><span class="form-num">Sch C</span><span>Business Profit/Loss</span></div>
-            <div class="quick-form" onclick="switchDashTab('forms')"><span class="form-num">Sch D</span><span>Capital Gains</span></div>
-            <div class="quick-form" onclick="switchDashTab('forms')"><span class="form-num">W-2</span><span>Wage Statement</span></div>
+            <div class="quick-form" onclick="openFormViewer('1040','https://www.irs.gov/pub/irs-pdf/f1040.pdf','Form 1040','U.S. Individual Income Tax Return')">
+              <span class="form-num">1040</span><span>Individual Income Tax</span>
+            </div>
+            <div class="quick-form" onclick="openFormViewer('1120-S','https://www.irs.gov/pub/irs-pdf/f1120s.pdf','Form 1120-S','S Corporation Income Tax Return')">
+              <span class="form-num">1120-S</span><span>S-Corp Return</span>
+            </div>
+            <div class="quick-form" onclick="openFormViewer('1065','https://www.irs.gov/pub/irs-pdf/f1065.pdf','Form 1065','U.S. Return of Partnership Income')">
+              <span class="form-num">1065</span><span>Partnership Return</span>
+            </div>
+            <div class="quick-form" onclick="openFormViewer('Sch-C','https://www.irs.gov/pub/irs-pdf/f1040sc.pdf','Schedule C','Profit or Loss From Business')">
+              <span class="form-num">Sch C</span><span>Business Profit/Loss</span>
+            </div>
+            <div class="quick-form" onclick="openFormViewer('Sch-D','https://www.irs.gov/pub/irs-pdf/f1040sd.pdf','Schedule D','Capital Gains and Losses')">
+              <span class="form-num">Sch D</span><span>Capital Gains</span>
+            </div>
+            <div class="quick-form" onclick="openFormViewer('W-2','https://www.irs.gov/pub/irs-pdf/fw2.pdf','W-2','Wage and Tax Statement')">
+              <span class="form-num">W-2</span><span>Wage Statement</span>
+            </div>
           </div>
         </div>
       </div>
@@ -139,8 +150,8 @@
     <!-- ==================== FORMS & SCHEDULES ==================== -->
     <div class="dash-tab" id="tab-forms" style="display:none;">
       <div class="dash-header">
-        <h1>Forms & Schedules</h1>
-        <p>Complete IRS form library</p>
+        <h1>Forms &amp; Schedules</h1>
+        <p>IRS form library — click any form to open the official PDF viewer</p>
       </div>
       <div class="form-categories">
         <button class="filter-btn active" onclick="switchFormCategory('individual', this)">Individual</button>
@@ -208,23 +219,30 @@
       </div>
     </div>
 
-    <!-- ==================== FORM EDITOR ==================== -->
-    <div class="dash-tab" id="tab-form-editor" style="display:none;">
+    <!-- ==================== FORM VIEWER ==================== -->
+    <div class="dash-tab" id="tab-form-viewer" style="display:none;">
       <div class="dash-header">
         <div style="display: flex; align-items: center; gap: 12px;">
           <button class="back-btn" onclick="switchDashTab('forms')">←</button>
           <div>
-            <h1 id="editor-form-title">Form 1040</h1>
-            <p id="editor-form-desc">U.S. Individual Income Tax Return</p>
+            <h1 id="viewer-form-title">Form</h1>
+            <p id="viewer-form-desc"></p>
           </div>
         </div>
         <div class="editor-actions">
-          <button class="ghost-btn" onclick="alert('Draft saved!')">Save Draft</button>
-          <button class="ghost-btn" onclick="window.print()">Print</button>
-          <button class="primary-btn" onclick="alert('Select a client to attach this form to.')">Attach to Client</button>
+          <button class="ghost-btn" onclick="openFormInNewTab()">Open in New Tab ↗</button>
+          <select id="assign-client-select" class="assign-select">
+            <option value="">— Assign to client —</option>
+          </select>
+          <button class="primary-btn" onclick="assignFormToClient()">Assign to Client</button>
         </div>
       </div>
-      <div id="form-editor-content"></div>
+
+      <div class="form-viewer-layout">
+        <div class="form-pdf-wrap">
+          <iframe id="form-pdf-iframe" src="" class="form-pdf-iframe" allowfullscreen></iframe>
+        </div>
+      </div>
     </div>
 
   </main>
