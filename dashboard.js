@@ -377,20 +377,25 @@ function renderDocuments() {
     if (currentDocTab === "flagged") { iconClass = "doc-icon flagged-icon"; iconText = "!"; }
 
     let actionsHTML = "";
+    let deleteBtn = ' <button class="action-btn-delete" onclick="deleteDocumentAdmin(\'' + doc._id + '\', \'' + (doc.fileURL || '').replace(/'/g, "\\'") + '\')">Delete</button>';
+
     if (currentDocTab === "pending") {
       actionsHTML = '<div class="doc-actions">' +
         '<button class="action-btn approve" onclick="reviewDocument(\'' + doc._id + '\', \'approved\')">Approve</button>' +
-        '<button class="action-btn flag" onclick="reviewDocument(\'' + doc._id + '\', \'flagged\')">Flag</button></div>';
+        '<button class="action-btn flag" onclick="reviewDocument(\'' + doc._id + '\', \'flagged\')">Flag</button>' +
+        deleteBtn + '</div>';
     } else if (currentDocTab === "approved") {
-      actionsHTML = '<span class="doc-status-badge approved">Approved</span>';
+      actionsHTML = '<div class="doc-actions"><span class="doc-status-badge approved">Approved</span>';
       if (doc.fileURL) {
         actionsHTML += ' <a href="' + doc.fileURL + '" target="_blank" class="action-btn approve" style="text-decoration:none;margin-left:6px;">View</a>';
       }
+      actionsHTML += deleteBtn + '</div>';
     } else if (currentDocTab === "flagged") {
-      actionsHTML = '<span class="doc-status-badge flagged">Flagged</span>';
+      actionsHTML = '<div class="doc-actions"><span class="doc-status-badge flagged">Flagged</span>';
       if (doc.fileURL) {
         actionsHTML += ' <a href="' + doc.fileURL + '" target="_blank" class="action-btn flag" style="text-decoration:none;margin-left:6px;">View</a>';
       }
+      actionsHTML += deleteBtn + '</div>';
     }
 
     item.innerHTML =
@@ -414,6 +419,31 @@ function reviewDocument(docId, newStatus) {
       renderDocuments();
     })
     .catch(function(error) { alert("Failed to update document: " + error.message); });
+}
+
+function deleteDocumentAdmin(docId, fileURL) {
+  if (!confirm("Delete this document permanently?")) return;
+
+  db.collection("documents").doc(docId).delete()
+    .then(function() {
+      // Remove from local array
+      for (let i = 0; i < allDocuments.length; i++) {
+        if (allDocuments[i]._id === docId) {
+          allDocuments.splice(i, 1);
+          break;
+        }
+      }
+      renderDocuments();
+
+      // Try to delete from Storage
+      if (fileURL) {
+        try {
+          let fileRef = storage.refFromURL(fileURL);
+          fileRef.delete().catch(function() {});
+        } catch(e) {}
+      }
+    })
+    .catch(function(error) { alert("Failed to delete: " + error.message); });
 }
 
 

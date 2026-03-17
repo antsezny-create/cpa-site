@@ -188,7 +188,8 @@ function loadDocuments() {
             '<strong>' + file.fileName + '</strong>' +
             '<span>' + file.fileSize + ' · Uploaded ' + timeText + '</span>' +
           '</div>' +
-          '<span class="file-status ' + statusClass + '">' + statusText + '</span>';
+          '<span class="file-status ' + statusClass + '">' + statusText + '</span>' +
+          '<button class="file-delete-btn" onclick="deleteDocument(\'' + doc.id + '\', \'' + (file.fileURL || '') + '\')">✕</button>';
 
         fileList.appendChild(item);
       });
@@ -197,6 +198,25 @@ function loadDocuments() {
       if (docCount) docCount.textContent = count + " files";
     }, function(error) {
       console.log("Documents error:", error);
+    });
+}
+
+function deleteDocument(docId, fileURL) {
+  if (!confirm("Delete this document? This cannot be undone.")) return;
+
+  // Delete from Firestore
+  db.collection("documents").doc(docId).delete()
+    .then(function() {
+      // Try to delete from Storage too
+      if (fileURL) {
+        try {
+          let fileRef = storage.refFromURL(fileURL);
+          fileRef.delete().catch(function() {});
+        } catch(e) {}
+      }
+    })
+    .catch(function(error) {
+      alert("Failed to delete: " + error.message);
     });
 }
 

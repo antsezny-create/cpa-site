@@ -1096,6 +1096,27 @@ body {
   box-shadow: 0 0 6px rgba(59, 130, 246, 0.5);
 }
 
+/* ── Delete Buttons ── */
+.action-btn-delete {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-left: 4px;
+}
+
+.action-btn-delete:hover {
+  border-color: var(--red);
+  color: var(--red);
+  background: var(--red-light);
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .dash-sidebar { display: none; }
