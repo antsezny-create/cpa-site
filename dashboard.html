@@ -65,8 +65,14 @@
     <!-- ==================== OVERVIEW ==================== -->
     <div class="dash-tab" id="tab-overview">
       <div class="dash-header">
-        <h1>Dashboard</h1>
-        <p>Tax Year 2025 · Filing Season</p>
+        <div>
+          <h1>Dashboard</h1>
+          <p>Filing Season</p>
+        </div>
+        <div class="year-selector-wrap">
+          <label class="year-selector-label">Tax Year</label>
+          <select id="overview-year-select" class="year-selector" onchange="onYearChange(this.value)"></select>
+        </div>
       </div>
 
       <div class="stat-grid">
@@ -104,8 +110,14 @@
     <!-- ==================== CLIENTS ==================== -->
     <div class="dash-tab" id="tab-clients" style="display:none;">
       <div class="dash-header">
-        <h1>Client Management</h1>
-        <p>All clients for Tax Year 2025</p>
+        <div>
+          <h1>Client Management</h1>
+          <p id="clients-year-label">Tax Year —</p>
+        </div>
+        <div class="year-selector-wrap">
+          <label class="year-selector-label">Tax Year</label>
+          <select id="clients-year-select" class="year-selector" onchange="onClientsYearChange(this.value)"></select>
+        </div>
       </div>
       <div class="filter-bar">
         <button class="filter-btn active" onclick="filterClients('all',this)">All</button>

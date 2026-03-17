@@ -4,6 +4,7 @@
 let clients       = [];
 let allDocuments  = [];
 let currentDocTab = "pending";
+let activeYear    = (new Date().getFullYear() - 1).toString();
 let currentFormId   = null;
 let currentFormUrl  = null;
 let currentFormName = null;
@@ -41,12 +42,20 @@ function switchDashTab(tabName) {
 function renderClients(filter) {
   let tbody = document.getElementById("client-table-body");
   tbody.innerHTML = "";
-  if (clients.length === 0) {
-    tbody.innerHTML = '<div style="padding:24px;text-align:center;color:#6B7280;font-size:13px;">No clients yet.</div>';
+
+  // Filter by active year AND status
+  let filtered = clients.filter(c => {
+    let yearMatch   = c.year === activeYear;
+    let statusMatch = filter === "all" || c.status === filter;
+    return yearMatch && statusMatch;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<div style="padding:24px;text-align:center;color:#6B7280;font-size:13px;">No ${filter === "all" ? "" : filter + " "}clients for tax year ${activeYear}.</div>`;
     return;
   }
-  clients.forEach(c => {
-    if (filter !== "all" && c.status !== filter) return;
+
+  filtered.forEach(c => {
     let row = document.createElement("div");
     row.className = "client-table-row";
 
@@ -104,8 +113,9 @@ function updateClientField(uid, field, value) {
   }).catch(e => alert("Failed to update: " + e.message));
 }
 function updateOverviewStats() {
-  let total=clients.length, pending=0, progress=0, review=0, filed=0;
-  clients.forEach(c => {
+  let yearClients = clients.filter(c => c.year === activeYear);
+  let total=yearClients.length, pending=0, progress=0, review=0, filed=0;
+  yearClients.forEach(c => {
     if (c.status==="pending")     pending++;
     if (c.status==="in-progress") progress++;
     if (c.status==="review")      review++;
@@ -120,8 +130,12 @@ function updateRecentClientsList() {
   let el = document.getElementById("recent-clients-list");
   if (!el) return;
   el.innerHTML = "";
-  if (!clients.length) { el.innerHTML = '<div style="padding:16px;text-align:center;color:#6B7280;font-size:13px;">No clients yet.</div>'; return; }
-  clients.slice(0,5).forEach(c => {
+  let yearClients = clients.filter(c => c.year === activeYear);
+  if (!yearClients.length) {
+    el.innerHTML = `<div style="padding:16px;text-align:center;color:#6B7280;font-size:13px;">No clients for ${activeYear}.</div>`;
+    return;
+  }
+  yearClients.slice(0,5).forEach(c => {
     let sc="pending", sl="Pending";
     if (c.status==="in-progress"){sc="progress";sl="In Progress";}
     if (c.status==="review")     {sc="review";  sl="Review";}
@@ -138,6 +152,29 @@ function filterClients(filter, btn) {
   document.querySelectorAll(".filter-bar .filter-btn").forEach(b => b.classList.remove("active"));
   btn.classList.add("active");
   renderClients(filter);
+}
+
+function onYearChange(year) {
+  activeYear = year;
+  // Keep both dropdowns in sync
+  let clientsSel = document.getElementById("clients-year-select");
+  if (clientsSel) clientsSel.value = year;
+  updateOverviewStats();
+  updateRecentClientsList();
+}
+
+function onClientsYearChange(year) {
+  activeYear = year;
+  // Keep both dropdowns in sync
+  let overviewSel = document.getElementById("overview-year-select");
+  if (overviewSel) overviewSel.value = year;
+  let label = document.getElementById("clients-year-label");
+  if (label) label.textContent = "Tax Year " + year;
+  renderClients("all");
+  // Reset status filter buttons to All
+  document.querySelectorAll(".filter-bar .filter-btn").forEach((b,i) => {
+    b.classList.toggle("active", i === 0);
+  });
 }
 
 
@@ -627,6 +664,23 @@ function filterMessageClients(query) {
 //  INIT
 // ══════════════════════════════════════
 document.addEventListener("DOMContentLoaded", () => {
+  // Build year dropdowns — 2020 to current year, default to prior year
+  let currentYear = new Date().getFullYear();
+  let years = [];
+  for (let y = currentYear; y >= 2020; y--) years.push(y);
+
+  ["overview-year-select", "clients-year-select"].forEach(id => {
+    let sel = document.getElementById(id);
+    if (!sel) return;
+    years.forEach(y => {
+      let opt = document.createElement("option");
+      opt.value = y.toString();
+      opt.textContent = y.toString();
+      if (y.toString() === activeYear) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  });
+
   // Wire up form upload input
   let inp = document.getElementById("form-upload-input");
   if (inp) inp.addEventListener("change", function(){ handleFormUpload(this); });
