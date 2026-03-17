@@ -569,6 +569,60 @@ function updateMessageBadge() {
 
 
 // ══════════════════════════════════════
+//  DEBUG / TEST
+// ══════════════════════════════════════
+
+function testFirebase() {
+  let results = "FIREBASE TEST RESULTS:\n\n";
+
+  // Test 1: Auth
+  let user = auth.currentUser;
+  if (user) {
+    results += "✓ Logged in as: " + user.email + "\n";
+    results += "  UID: " + user.uid + "\n\n";
+  } else {
+    results += "✗ NOT logged in\n\n";
+    alert(results);
+    return;
+  }
+
+  // Test 2: Read clients
+  db.collection("clients").get()
+    .then(function(snapshot) {
+      results += "✓ Clients collection: " + snapshot.size + " documents found\n";
+      snapshot.forEach(function(doc) {
+        let d = doc.data();
+        results += "  - " + d.firstName + " " + d.lastName + " (ID: " + doc.id + ")\n";
+      });
+      results += "\n";
+
+      // Test 3: Read messages
+      return db.collection("messages").get();
+    })
+    .then(function(snapshot) {
+      results += "✓ Messages collection: " + snapshot.size + " documents found\n";
+      snapshot.forEach(function(doc) {
+        let d = doc.data();
+        results += "  - From: " + d.senderName + " | Text: " + d.text.substring(0, 40) + "...\n";
+        results += "    clientId: " + d.clientId + "\n";
+      });
+      results += "\n";
+
+      // Test 4: Read admins
+      return db.collection("admins").get();
+    })
+    .then(function(snapshot) {
+      results += "✓ Admins collection: " + snapshot.size + " documents found\n";
+      alert(results);
+    })
+    .catch(function(error) {
+      results += "✗ ERROR: " + error.message + "\n";
+      alert(results);
+    });
+}
+
+
+// ══════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════
 
@@ -582,15 +636,13 @@ auth.onAuthStateChanged(function(user) {
   if (user) {
     loadFirebaseClients();
     loadFirebaseDocuments();
-  } else {
-    window.location.href = "admin.html";
   }
+  // Don't redirect if not logged in - let them stay on the page
 });
 
 // Load real documents for review
 function loadFirebaseDocuments() {
   db.collection("documents").orderBy("uploadedAt", "desc").onSnapshot(function(snapshot) {
     // We could update the documents tab here in the future
-    // For now the static demo data stays in the HTML
   });
 }
