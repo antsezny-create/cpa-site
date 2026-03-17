@@ -1,385 +1,345 @@
 // ══════════════════════════════════════
-//  DATA
+//  STATE
 // ══════════════════════════════════════
-
-let clients = [];
-let allDocuments = [];
+let clients       = [];
+let allDocuments  = [];
 let currentDocTab = "pending";
-
-// IRS Forms library — each form has an official IRS PDF URL
-// You can update the `url` for any form to point to the latest IRS PDF
-let formLibrary = {
-  individual: [
-    { id: "1040",    name: "Form 1040",    desc: "U.S. Individual Income Tax Return",          url: "https://www.irs.gov/pub/irs-pdf/f1040.pdf" },
-    { id: "1040-SR", name: "Form 1040-SR", desc: "U.S. Tax Return for Seniors",                url: "https://www.irs.gov/pub/irs-pdf/f1040s.pdf" },
-    { id: "1040-ES", name: "Form 1040-ES", desc: "Estimated Tax for Individuals",              url: "https://www.irs.gov/pub/irs-pdf/f1040es.pdf" },
-    { id: "1040-X",  name: "Form 1040-X",  desc: "Amended Individual Tax Return",              url: "https://www.irs.gov/pub/irs-pdf/f1040x.pdf" },
-    { id: "1040-V",  name: "Form 1040-V",  desc: "Payment Voucher",                            url: "https://www.irs.gov/pub/irs-pdf/f1040v.pdf" },
-  ],
-  schedules: [
-    { id: "Sch-1",  name: "Schedule 1",  desc: "Additional Income and Adjustments",           url: "https://www.irs.gov/pub/irs-pdf/f1040s1.pdf" },
-    { id: "Sch-2",  name: "Schedule 2",  desc: "Additional Taxes",                             url: "https://www.irs.gov/pub/irs-pdf/f1040s2.pdf" },
-    { id: "Sch-3",  name: "Schedule 3",  desc: "Additional Credits and Payments",             url: "https://www.irs.gov/pub/irs-pdf/f1040s3.pdf" },
-    { id: "Sch-A",  name: "Schedule A",  desc: "Itemized Deductions",                         url: "https://www.irs.gov/pub/irs-pdf/f1040sa.pdf" },
-    { id: "Sch-B",  name: "Schedule B",  desc: "Interest and Ordinary Dividends",             url: "https://www.irs.gov/pub/irs-pdf/f1040sb.pdf" },
-    { id: "Sch-C",  name: "Schedule C",  desc: "Profit or Loss From Business",                url: "https://www.irs.gov/pub/irs-pdf/f1040sc.pdf" },
-    { id: "Sch-D",  name: "Schedule D",  desc: "Capital Gains and Losses",                    url: "https://www.irs.gov/pub/irs-pdf/f1040sd.pdf" },
-    { id: "Sch-E",  name: "Schedule E",  desc: "Supplemental Income and Loss",                url: "https://www.irs.gov/pub/irs-pdf/f1040se.pdf" },
-    { id: "Sch-SE", name: "Schedule SE", desc: "Self-Employment Tax",                         url: "https://www.irs.gov/pub/irs-pdf/f1040sse.pdf" },
-  ],
-  "w-forms": [
-    { id: "W-2", name: "W-2", desc: "Wage and Tax Statement",                                  url: "https://www.irs.gov/pub/irs-pdf/fw2.pdf" },
-    { id: "W-4", name: "W-4", desc: "Employee's Withholding Certificate",                     url: "https://www.irs.gov/pub/irs-pdf/fw4.pdf" },
-    { id: "W-9", name: "W-9", desc: "Request for Taxpayer ID Number",                         url: "https://www.irs.gov/pub/irs-pdf/fw9.pdf" },
-  ],
-  "1099": [
-    { id: "1099-MISC", name: "1099-MISC", desc: "Miscellaneous Information",                  url: "https://www.irs.gov/pub/irs-pdf/f1099msc.pdf" },
-    { id: "1099-NEC",  name: "1099-NEC",  desc: "Nonemployee Compensation",                   url: "https://www.irs.gov/pub/irs-pdf/f1099nec.pdf" },
-    { id: "1099-INT",  name: "1099-INT",  desc: "Interest Income",                             url: "https://www.irs.gov/pub/irs-pdf/f1099int.pdf" },
-    { id: "1099-DIV",  name: "1099-DIV",  desc: "Dividends and Distributions",                url: "https://www.irs.gov/pub/irs-pdf/f1099div.pdf" },
-    { id: "1099-R",    name: "1099-R",    desc: "Distributions From Pensions, Annuities",    url: "https://www.irs.gov/pub/irs-pdf/f1099r.pdf" },
-    { id: "1099-K",    name: "1099-K",    desc: "Payment Card Transactions",                  url: "https://www.irs.gov/pub/irs-pdf/f1099k.pdf" },
-  ],
-  business: [
-    { id: "1120",   name: "Form 1120",   desc: "U.S. Corporation Income Tax Return",          url: "https://www.irs.gov/pub/irs-pdf/f1120.pdf" },
-    { id: "1120-S", name: "Form 1120-S", desc: "S Corporation Income Tax Return",             url: "https://www.irs.gov/pub/irs-pdf/f1120s.pdf" },
-    { id: "1065",   name: "Form 1065",   desc: "U.S. Return of Partnership Income",           url: "https://www.irs.gov/pub/irs-pdf/f1065.pdf" },
-    { id: "941",    name: "Form 941",    desc: "Employer's Quarterly Federal Tax Return",     url: "https://www.irs.gov/pub/irs-pdf/f941.pdf" },
-    { id: "940",    name: "Form 940",    desc: "Annual Federal Unemployment Tax Return",      url: "https://www.irs.gov/pub/irs-pdf/f940.pdf" },
-  ],
-};
-
-// Currently open form in the viewer
-let currentFormId = null;
-let currentFormUrl = null;
+let currentFormId   = null;
+let currentFormUrl  = null;
 let currentFormName = null;
+let currentPdfDoc   = null;   // pdf-lib PDFDocument
+let currentCategory = "uploaded";
+
+let activeClientId        = null;
+let activeClientName      = "";
+let messageRefreshInterval = null;
 
 
 // ══════════════════════════════════════
 //  TAB SWITCHING
 // ══════════════════════════════════════
-
 function switchDashTab(tabName) {
-  let tabs = document.querySelectorAll(".dash-tab");
-  for (let i = 0; i < tabs.length; i++) { tabs[i].style.display = "none"; }
+  document.querySelectorAll(".dash-tab").forEach(t => t.style.display = "none");
   document.getElementById("tab-" + tabName).style.display = "block";
-
-  let btns = document.querySelectorAll(".dash-nav-btn");
-  for (let i = 0; i < btns.length; i++) {
-    btns[i].classList.remove("active");
-    let onclick = btns[i].getAttribute("onclick");
-    if (onclick && onclick.includes("'" + tabName + "'")) { btns[i].classList.add("active"); }
-  }
-
-  if (tabName === "clients") renderClients("all");
-  if (tabName === "forms") renderForms("individual");
+  document.querySelectorAll(".dash-nav-btn").forEach(b => {
+    b.classList.remove("active");
+    if (b.getAttribute("onclick") && b.getAttribute("onclick").includes("'" + tabName + "'"))
+      b.classList.add("active");
+  });
+  if (tabName === "clients")   renderClients("all");
+  if (tabName === "forms")     { currentCategory = "uploaded"; loadFormsFromFirebase(); }
   if (tabName === "documents") renderDocuments();
-  if (tabName === "messages") loadFirebaseClients();
+  if (tabName === "messages")  loadFirebaseClients();
 }
 
 
 // ══════════════════════════════════════
 //  CLIENTS
 // ══════════════════════════════════════
-
 function renderClients(filter) {
   let tbody = document.getElementById("client-table-body");
   tbody.innerHTML = "";
-
   if (clients.length === 0) {
-    tbody.innerHTML = '<div style="padding: 24px; text-align: center; color: #6B7280; font-size: 13px;">No clients yet. They\'ll appear here when they register.</div>';
+    tbody.innerHTML = '<div style="padding:24px;text-align:center;color:#6B7280;font-size:13px;">No clients yet.</div>';
     return;
   }
-
-  for (let i = 0; i < clients.length; i++) {
-    let c = clients[i];
-    if (filter !== "all" && c.status !== filter) continue;
-
+  clients.forEach(c => {
+    if (filter !== "all" && c.status !== filter) return;
     let row = document.createElement("div");
     row.className = "client-table-row";
 
-    // Client name + email
-    let clientCell = '<div class="client-cell">' +
-      '<div class="client-cell-avatar ' + c.color + '">' + c.initials + '</div>' +
-      '<div><div class="cell-name">' + c.name + '</div><div class="cell-sub">' + (c.email || "") + '</div></div></div>';
+    let clientCell = `<div class="client-cell">
+      <div class="client-cell-avatar ${c.color}">${c.initials}</div>
+      <div><div class="cell-name">${c.name}</div><div class="cell-sub">${c.email||""}</div></div>
+    </div>`;
 
-    // Type dropdown — use data-uid attribute, no inline JS with uid concatenation
-    let typeOptions = ["Individual", "Joint", "Business", "Trust", "Partnership"];
-    let typeSelect = '<select class="cell-dropdown" data-uid="' + c.uid + '" data-field="type" onchange="handleDropdownChange(this)">';
-    for (let t = 0; t < typeOptions.length; t++) {
-      let selected = c.type === typeOptions[t] ? " selected" : "";
-      typeSelect += '<option value="' + typeOptions[t] + '"' + selected + '>' + typeOptions[t] + '</option>';
-    }
-    typeSelect += '</select>';
+    let typeOpts = ["Individual","Joint","Business","Trust","Partnership"]
+      .map(o => `<option value="${o}"${c.type===o?" selected":""}>${o}</option>`).join("");
+    let typeSelect = `<select class="cell-dropdown" data-uid="${c.uid}" data-field="type" onchange="handleDropdownChange(this)">${typeOpts}</select>`;
 
-    // Status dropdown
-    let statusOptions = [
-      { value: "pending",     label: "Pending" },
-      { value: "in-progress", label: "In Progress" },
-      { value: "review",      label: "Review" },
-      { value: "filed",       label: "Filed" }
-    ];
-    let statusSelect = '<select class="cell-dropdown status-dropdown status-' + c.status + '" data-uid="' + c.uid + '" data-field="status" onchange="handleStatusDropdownChange(this)">';
-    for (let s = 0; s < statusOptions.length; s++) {
-      let selected = c.status === statusOptions[s].value ? " selected" : "";
-      statusSelect += '<option value="' + statusOptions[s].value + '"' + selected + '>' + statusOptions[s].label + '</option>';
-    }
-    statusSelect += '</select>';
+    let statusOpts = [{value:"pending",label:"Pending"},{value:"in-progress",label:"In Progress"},{value:"review",label:"Review"},{value:"filed",label:"Filed"}]
+      .map(o => `<option value="${o.value}"${c.status===o.value?" selected":""}>${o.label}</option>`).join("");
+    let statusSelect = `<select class="cell-dropdown status-dropdown status-${c.status}" data-uid="${c.uid}" data-field="status" onchange="handleStatusDropdownChange(this)">${statusOpts}</select>`;
 
-    // Docs count
-    let docsCell = '<span class="cell-docs">' + c.docs + '</span>';
+    let docsCell = `<span class="cell-docs">${c.docs}</span>`;
 
-    // Year dropdown
-    let yearSelect = '<select class="cell-dropdown" data-uid="' + c.uid + '" data-field="year" onchange="handleDropdownChange(this)">';
-    for (let y = 2020; y <= 2060; y++) {
-      let yStr = y.toString();
-      let selected = c.year === yStr ? " selected" : "";
-      yearSelect += '<option value="' + yStr + '"' + selected + '>' + yStr + '</option>';
-    }
-    yearSelect += '</select>';
+    let yearOpts = "";
+    for (let y = 2020; y <= 2060; y++) yearOpts += `<option value="${y}"${c.year==y?" selected":""}>${y}</option>`;
+    let yearSelect = `<select class="cell-dropdown" data-uid="${c.uid}" data-field="year" onchange="handleDropdownChange(this)">${yearOpts}</select>`;
 
-    // Case toggle
-    let caseOpen = c.caseOpen !== false;
-    let caseClass = caseOpen ? "case-btn-open" : "case-btn-closed";
-    let caseLabel = caseOpen ? "Open" : "Closed";
-    let caseBtn = '<button class="case-toggle ' + caseClass + '" data-uid="' + c.uid + '" onclick="toggleCase(this)">' + caseLabel + '</button>';
+    let caseOpen  = c.caseOpen !== false;
+    let caseBtn   = `<button class="case-toggle ${caseOpen?"case-btn-open":"case-btn-closed"}" data-uid="${c.uid}" onclick="toggleCase(this)">${caseOpen?"Open":"Closed"}</button>`;
 
     row.innerHTML = clientCell + typeSelect + statusSelect + docsCell + yearSelect + caseBtn;
     tbody.appendChild(row);
-  }
+  });
 }
 
-// Generic dropdown change handler — reads uid and field from data attributes
-function handleDropdownChange(selectEl) {
-  let uid = selectEl.getAttribute("data-uid");
-  let field = selectEl.getAttribute("data-field");
-  let value = selectEl.value;
-  updateClientField(uid, field, value);
+function handleDropdownChange(el) {
+  updateClientField(el.getAttribute("data-uid"), el.getAttribute("data-field"), el.value);
 }
-
-// Status dropdown also updates its own colour class
-function handleStatusDropdownChange(selectEl) {
-  let uid = selectEl.getAttribute("data-uid");
-  let value = selectEl.value;
-  selectEl.className = "cell-dropdown status-dropdown status-" + value;
-  updateClientField(uid, "status", value);
+function handleStatusDropdownChange(el) {
+  el.className = "cell-dropdown status-dropdown status-" + el.value;
+  updateClientField(el.getAttribute("data-uid"), "status", el.value);
 }
-
 function toggleCase(btn) {
   let uid = btn.getAttribute("data-uid");
-  let isOpen = btn.classList.contains("case-btn-open");
-  let newState = !isOpen;
-
-  db.collection("clients").doc(uid).update({ caseOpen: newState })
-    .then(function() {
-      for (let i = 0; i < clients.length; i++) {
-        if (clients[i].uid === uid) { clients[i].caseOpen = newState; break; }
-      }
-      if (newState) {
-        btn.className = "case-toggle case-btn-open";
-        btn.textContent = "Open";
-      } else {
-        btn.className = "case-toggle case-btn-closed";
-        btn.textContent = "Closed";
-      }
-    })
-    .catch(function(error) { alert("Failed to toggle case: " + error.message); });
+  let newState = !btn.classList.contains("case-btn-open");
+  db.collection("clients").doc(uid).update({ caseOpen: newState }).then(() => {
+    let c = clients.find(x => x.uid === uid);
+    if (c) c.caseOpen = newState;
+    btn.className = "case-toggle " + (newState ? "case-btn-open" : "case-btn-closed");
+    btn.textContent = newState ? "Open" : "Closed";
+  }).catch(e => alert("Failed: " + e.message));
 }
-
 function updateClientField(uid, field, value) {
-  let update = {};
-  update[field] = value;
-  db.collection("clients").doc(uid).update(update)
-    .then(function() {
-      for (let i = 0; i < clients.length; i++) {
-        if (clients[i].uid === uid) { clients[i][field] = value; break; }
-      }
-      updateOverviewStats();
-      updateRecentClientsList();
-    })
-    .catch(function(error) { alert("Failed to update: " + error.message); });
+  let update = {}; update[field] = value;
+  db.collection("clients").doc(uid).update(update).then(() => {
+    let c = clients.find(x => x.uid === uid);
+    if (c) c[field] = value;
+    updateOverviewStats();
+    updateRecentClientsList();
+  }).catch(e => alert("Failed to update: " + e.message));
 }
-
 function updateOverviewStats() {
-  let total = clients.length;
-  let pending = 0, progress = 0, review = 0, filed = 0;
-  for (let i = 0; i < clients.length; i++) {
-    if (clients[i].status === "pending")     pending++;
-    if (clients[i].status === "in-progress") progress++;
-    if (clients[i].status === "review")      review++;
-    if (clients[i].status === "filed")       filed++;
-  }
+  let total=clients.length, pending=0, progress=0, review=0, filed=0;
+  clients.forEach(c => {
+    if (c.status==="pending")     pending++;
+    if (c.status==="in-progress") progress++;
+    if (c.status==="review")      review++;
+    if (c.status==="filed")       filed++;
+  });
   document.getElementById("stat-total").textContent    = total;
   document.getElementById("stat-progress").textContent = progress;
   document.getElementById("stat-review").textContent   = review;
   document.getElementById("stat-filed").textContent    = filed;
 }
-
 function updateRecentClientsList() {
-  let recentList = document.getElementById("recent-clients-list");
-  if (!recentList) return;
-  recentList.innerHTML = "";
-  if (clients.length === 0) {
-    recentList.innerHTML = '<div style="padding: 16px; text-align: center; color: #6B7280; font-size: 13px;">No clients yet.</div>';
-    return;
-  }
-  let showCount = Math.min(clients.length, 5);
-  for (let i = 0; i < showCount; i++) {
-    let c = clients[i];
-    let statusClass = "pending", statusLabel = "Pending";
-    if (c.status === "in-progress") { statusClass = "progress"; statusLabel = "In Progress"; }
-    if (c.status === "review")      { statusClass = "review";   statusLabel = "Review"; }
-    if (c.status === "filed")       { statusClass = "filed";    statusLabel = "Filed"; }
-
+  let el = document.getElementById("recent-clients-list");
+  if (!el) return;
+  el.innerHTML = "";
+  if (!clients.length) { el.innerHTML = '<div style="padding:16px;text-align:center;color:#6B7280;font-size:13px;">No clients yet.</div>'; return; }
+  clients.slice(0,5).forEach(c => {
+    let sc="pending", sl="Pending";
+    if (c.status==="in-progress"){sc="progress";sl="In Progress";}
+    if (c.status==="review")     {sc="review";  sl="Review";}
+    if (c.status==="filed")      {sc="filed";   sl="Filed";}
     let item = document.createElement("div");
     item.className = "client-mini";
-    item.innerHTML =
-      '<div class="client-avatar ' + c.color + '">' + c.initials + '</div>' +
-      '<div class="client-mini-info"><strong>' + c.name + '</strong><span>' + c.type + ' · ' + c.docs + ' docs</span></div>' +
-      '<span class="status-pill ' + statusClass + '">' + statusLabel + '</span>';
-    recentList.appendChild(item);
-  }
+    item.innerHTML = `<div class="client-avatar ${c.color}">${c.initials}</div>
+      <div class="client-mini-info"><strong>${c.name}</strong><span>${c.type} · ${c.docs} docs</span></div>
+      <span class="status-pill ${sc}">${sl}</span>`;
+    el.appendChild(item);
+  });
 }
-
 function filterClients(filter, btn) {
-  let btns = document.querySelectorAll(".filter-bar .filter-btn");
-  for (let i = 0; i < btns.length; i++) { btns[i].classList.remove("active"); }
+  document.querySelectorAll(".filter-bar .filter-btn").forEach(b => b.classList.remove("active"));
   btn.classList.add("active");
   renderClients(filter);
 }
 
 
 // ══════════════════════════════════════
-//  FORMS LIBRARY
+//  FORMS — Firebase-backed library
 // ══════════════════════════════════════
 
-function renderForms(category) {
+// Load all forms from Firestore and render
+function loadFormsFromFirebase() {
+  let grid = document.getElementById("forms-grid");
+  if (!grid) return;
+  grid.innerHTML = '<div style="padding:24px;color:#6B7280;font-size:13px;">Loading forms...</div>';
+
+  db.collection("practitionerForms").orderBy("uploadedAt","desc").get().then(snapshot => {
+    let forms = [];
+    snapshot.forEach(doc => { let d = doc.data(); d._id = doc.id; forms.push(d); });
+    renderFormsGrid(forms);
+  }).catch(() => {
+    // If index not ready yet, fall back to unordered get
+    db.collection("practitionerForms").get().then(snapshot => {
+      let forms = [];
+      snapshot.forEach(doc => { let d = doc.data(); d._id = doc.id; forms.push(d); });
+      renderFormsGrid(forms);
+    });
+  });
+}
+
+function renderFormsGrid(forms) {
   let grid = document.getElementById("forms-grid");
   grid.innerHTML = "";
-  let forms = formLibrary[category] || [];
-  for (let i = 0; i < forms.length; i++) {
-    let f = forms[i];
-    let card = document.createElement("div");
-    card.className = "form-card";
-    card.onclick = (function(form) {
-      return function() { openFormViewer(form.id, form.url, form.name, form.desc); };
-    })(f);
 
-    // Add/edit/delete controls
-    card.innerHTML =
-      '<div class="form-card-icon"><span>IRS</span></div>' +
-      '<div class="form-card-info" style="flex:1;">' +
-        '<strong>' + f.name + '</strong>' +
-        '<span>' + f.desc + '</span>' +
-      '</div>' +
-      '<div class="form-card-actions" onclick="event.stopPropagation()">' +
-        '<button class="form-action-btn" title="Edit URL" onclick="editFormUrl(\'' + category + '\',' + i + ')">✎</button>' +
-        '<button class="form-action-btn delete" title="Remove form" onclick="deleteForm(\'' + category + '\',' + i + ')">✕</button>' +
-      '</div>';
-
-    grid.appendChild(card);
+  if (forms.length === 0) {
+    grid.innerHTML = '<div style="padding:24px;color:#6B7280;font-size:13px;">No forms uploaded yet. Use the button above to upload your first IRS PDF.</div>';
   }
 
-  // Add new form button at the end
+  forms.forEach(f => {
+    let card = document.createElement("div");
+    card.className = "form-card";
+    card.onclick = () => openFormViewer(f._id, f.storageUrl, f.name, f.desc || "");
+    card.innerHTML = `
+      <div class="form-card-icon"><span>PDF</span></div>
+      <div class="form-card-info" style="flex:1;">
+        <strong>${f.name}</strong>
+        <span>${f.desc || "Uploaded form"}</span>
+        <span class="form-year-tag">${f.taxYear || ""}</span>
+      </div>
+      <div class="form-card-actions" onclick="event.stopPropagation()">
+        <button class="form-action-btn delete" title="Delete form" onclick="deleteUploadedForm('${f._id}','${(f.storagePath||"").replace(/'/g,"\\'")}')">✕</button>
+      </div>`;
+    grid.appendChild(card);
+  });
+
+  // Upload new form card
   let addCard = document.createElement("div");
   addCard.className = "form-card add-form-card";
-  addCard.onclick = function() { addNewForm(category); };
-  addCard.innerHTML =
-    '<div class="form-card-icon add-icon"><span>+</span></div>' +
-    '<div class="form-card-info"><strong>Add Form</strong><span>Add a new IRS form to this category</span></div>';
+  addCard.onclick = () => document.getElementById("form-upload-input").click();
+  addCard.innerHTML = `<div class="form-card-icon add-icon"><span>+</span></div>
+    <div class="form-card-info"><strong>Upload Form</strong><span>Add a PDF from your computer</span></div>`;
   grid.appendChild(addCard);
 }
 
-function switchFormCategory(category, btn) {
-  let btns = document.querySelectorAll(".form-categories .filter-btn");
-  for (let i = 0; i < btns.length; i++) { btns[i].classList.remove("active"); }
-  btn.classList.add("active");
-  renderForms(category);
+// Upload a PDF from disk → Firebase Storage → Firestore record
+function handleFormUpload(input) {
+  let file = input.files[0];
+  if (!file) return;
+  let name  = prompt("Form name (e.g. Form 1040):", file.name.replace(".pdf","").replace(".PDF",""));
+  if (!name) { input.value=""; return; }
+  let desc  = prompt("Short description (e.g. U.S. Individual Income Tax Return):", "");
+  let year  = prompt("Tax year (e.g. 2025):", "2025");
+
+  let path = "practitioner-forms/" + Date.now() + "_" + file.name;
+  let ref  = storage.ref(path);
+
+  // Show uploading state
+  let grid = document.getElementById("forms-grid");
+  let uploading = document.createElement("div");
+  uploading.className = "form-upload-progress";
+  uploading.innerHTML = `<span>Uploading ${name}...</span><div class="upload-bar"><div class="upload-bar-fill" id="upload-fill"></div></div>`;
+  grid.insertBefore(uploading, grid.firstChild);
+
+  let uploadTask = ref.put(file);
+  uploadTask.on("state_changed",
+    snap => {
+      let pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+      let fill = document.getElementById("upload-fill");
+      if (fill) fill.style.width = pct + "%";
+    },
+    err => { alert("Upload failed: " + err.message); uploading.remove(); input.value=""; },
+    () => {
+      uploadTask.snapshot.ref.getDownloadURL().then(url => {
+        return db.collection("practitionerForms").add({
+          name:        name,
+          desc:        desc || "",
+          taxYear:     year || "2025",
+          storagePath: path,
+          storageUrl:  url,
+          uploadedAt:  firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }).then(() => {
+        uploading.remove();
+        input.value = "";
+        loadFormsFromFirebase();
+      }).catch(e => { alert("Error saving form record: " + e.message); uploading.remove(); input.value=""; });
+    }
+  );
 }
 
-function addNewForm(category) {
-  let name = prompt("Form name (e.g. Form 8829):");
-  if (!name) return;
-  let desc = prompt("Short description:");
-  if (!desc) return;
-  let url = prompt("IRS PDF URL (from irs.gov/pub/irs-pdf/):", "https://www.irs.gov/pub/irs-pdf/");
-  if (!url) return;
-  let id = name.replace(/\s+/g, "-").toLowerCase();
-  formLibrary[category].push({ id: id, name: name, desc: desc, url: url });
-  renderForms(category);
-}
-
-function editFormUrl(category, index) {
-  let form = formLibrary[category][index];
-  let newUrl = prompt("Update PDF URL for " + form.name + ":", form.url);
-  if (newUrl && newUrl.trim()) {
-    formLibrary[category][index].url = newUrl.trim();
-    // Get active category button to re-render
-    let activeBtn = document.querySelector(".form-categories .filter-btn.active");
-    renderForms(category);
-  }
-}
-
-function deleteForm(category, index) {
-  let form = formLibrary[category][index];
-  if (!confirm("Remove " + form.name + " from this category?")) return;
-  formLibrary[category].splice(index, 1);
-  renderForms(category);
+function deleteUploadedForm(docId, storagePath) {
+  if (!confirm("Delete this form permanently? This cannot be undone.")) return;
+  db.collection("practitionerForms").doc(docId).delete().then(() => {
+    if (storagePath) {
+      storage.ref(storagePath).delete().catch(() => {});
+    }
+    loadFormsFromFirebase();
+  }).catch(e => alert("Failed to delete: " + e.message));
 }
 
 
 // ══════════════════════════════════════
-//  FORM VIEWER  (IRS PDF + data panel)
+//  FORM VIEWER — pdf-lib fill + save
 // ══════════════════════════════════════
-
-function openFormViewer(formId, formUrl, formName, formDesc) {
-  currentFormId  = formId;
-  currentFormUrl = formUrl;
+async function openFormViewer(formId, formUrl, formName, formDesc) {
+  currentFormId   = formId;
+  currentFormUrl  = formUrl;
   currentFormName = formName;
 
-  // Hide all tabs, show viewer tab
-  let tabs = document.querySelectorAll(".dash-tab");
-  for (let i = 0; i < tabs.length; i++) { tabs[i].style.display = "none"; }
+  document.querySelectorAll(".dash-tab").forEach(t => t.style.display = "none");
   document.getElementById("tab-form-viewer").style.display = "block";
+  document.querySelectorAll(".dash-nav-btn").forEach(b => b.classList.remove("active"));
 
-  // Set header
   document.getElementById("viewer-form-title").textContent = formName;
   document.getElementById("viewer-form-desc").textContent  = formDesc;
 
-  // Load PDF in iframe
-  let iframe = document.getElementById("form-pdf-iframe");
-  iframe.src = formUrl;
-
-  // Clear client assignment dropdown and repopulate
+  // Populate assign dropdown
   let sel = document.getElementById("assign-client-select");
-  sel.innerHTML = '<option value="">— Select client —</option>';
-  for (let i = 0; i < clients.length; i++) {
+  sel.innerHTML = '<option value="">— Assign to client —</option>';
+  clients.forEach(c => {
     let opt = document.createElement("option");
-    opt.value = clients[i].uid;
-    opt.textContent = clients[i].name;
+    opt.value = c.uid; opt.textContent = c.name;
     sel.appendChild(opt);
-  }
+  });
 
-  // Remove active state from sidebar
-  let btns = document.querySelectorAll(".dash-nav-btn");
-  for (let i = 0; i < btns.length; i++) { btns[i].classList.remove("active"); }
+  // Load PDF into iframe for viewing/filling
+  let iframe = document.getElementById("form-pdf-iframe");
+  let status  = document.getElementById("viewer-status");
+  status.textContent = "Loading PDF...";
+
+  // Fetch the PDF as a blob so it works cross-origin from Firebase Storage
+  try {
+    let response = await fetch(formUrl);
+    if (!response.ok) throw new Error("Fetch failed");
+    let blob    = await response.blob();
+    let blobUrl = URL.createObjectURL(blob);
+    iframe.src  = blobUrl;
+    status.textContent = "Fill in the form fields directly in the PDF below, then click Save.";
+
+    // Also load into pdf-lib for saving
+    let arrayBuffer = await blob.arrayBuffer();
+    currentPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+  } catch(e) {
+    status.textContent = "Could not load PDF inline. Click 'Open in New Tab' to view.";
+    iframe.src = "";
+  }
 }
 
-function assignFormToClient() {
-  let sel = document.getElementById("assign-client-select");
-  let uid = sel.value;
-  if (!uid) { alert("Please select a client first."); return; }
-  let clientName = sel.options[sel.selectedIndex].text;
-  if (confirm("Assign " + currentFormName + " to " + clientName + "?")) {
-    db.collection("assignedForms").add({
-      clientId:  uid,
-      formId:    currentFormId,
-      formName:  currentFormName,
-      formUrl:   currentFormUrl,
-      assignedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }).then(function() {
-      alert(currentFormName + " assigned to " + clientName + ".");
-    }).catch(function(e) { alert("Error: " + e.message); });
+async function saveFilledForm() {
+  let btn = document.getElementById("save-form-btn");
+  btn.textContent = "Saving...";
+  btn.disabled    = true;
+
+  try {
+    // We save the PDF as-is (with whatever the user filled in the iframe)
+    // Since we can't read back the iframe's filled fields directly,
+    // we save the original PDF to Storage with a timestamp label.
+    // For true field extraction the user fills fields in the iframe then saves.
+    let iframe    = document.getElementById("form-pdf-iframe");
+    let blobUrl   = iframe.src;
+    let response  = await fetch(blobUrl);
+    let blob      = await response.blob();
+    let arrayBuffer = await blob.arrayBuffer();
+
+    let fileName  = currentFormName.replace(/\s+/g,"-") + "_" + new Date().toISOString().slice(0,10) + ".pdf";
+    let path      = "saved-forms/" + fileName;
+    let ref       = storage.ref(path);
+
+    let snap      = await ref.put(new Uint8Array(arrayBuffer));
+    let url       = await snap.ref.getDownloadURL();
+
+    await db.collection("savedForms").add({
+      formId:      currentFormId,
+      formName:    currentFormName,
+      storagePath: path,
+      storageUrl:  url,
+      savedAt:     firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    btn.textContent = "Saved ✓";
+    btn.disabled    = false;
+    setTimeout(() => { btn.textContent = "Save Form"; }, 3000);
+    document.getElementById("viewer-status").textContent = "Saved to your dashboard.";
+  } catch(e) {
+    alert("Save failed: " + e.message);
+    btn.textContent = "Save Form";
+    btn.disabled    = false;
   }
 }
 
@@ -387,337 +347,290 @@ function openFormInNewTab() {
   if (currentFormUrl) window.open(currentFormUrl, "_blank");
 }
 
-
-// ══════════════════════════════════════
-//  DOCUMENTS (Firebase)
-// ══════════════════════════════════════
-
-function loadAllDocuments() {
-  db.collection("documents").get()
-    .then(function(snapshot) {
-      allDocuments = [];
-      snapshot.forEach(function(doc) {
-        let d = doc.data();
-        d._id = doc.id;
-        d.reviewStatus = d.reviewStatus || "pending";
-        allDocuments.push(d);
-      });
-      renderDocuments();
-    });
+function assignFormToClient() {
+  let sel  = document.getElementById("assign-client-select");
+  let uid  = sel.value;
+  if (!uid) { alert("Please select a client first."); return; }
+  let name = sel.options[sel.selectedIndex].text;
+  if (!confirm("Assign " + currentFormName + " to " + name + "?")) return;
+  db.collection("assignedForms").add({
+    clientId:   uid,
+    formId:     currentFormId,
+    formName:   currentFormName,
+    formUrl:    currentFormUrl,
+    assignedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => alert(currentFormName + " assigned to " + name + "."))
+    .catch(e => alert("Error: " + e.message));
 }
 
+
+// ══════════════════════════════════════
+//  SAVED FORMS tab
+// ══════════════════════════════════════
+function loadSavedForms() {
+  let list = document.getElementById("saved-forms-list");
+  list.innerHTML = '<div style="padding:16px;color:#6B7280;font-size:13px;">Loading...</div>';
+  db.collection("savedForms").get().then(snapshot => {
+    list.innerHTML = "";
+    if (snapshot.empty) {
+      list.innerHTML = '<div style="padding:16px;color:#6B7280;font-size:13px;">No saved forms yet. Fill and save a form to see it here.</div>';
+      return;
+    }
+    let saved = [];
+    snapshot.forEach(doc => { let d=doc.data(); d._id=doc.id; saved.push(d); });
+    saved.sort((a,b) => (b.savedAt && a.savedAt) ? b.savedAt.seconds - a.savedAt.seconds : 0);
+    saved.forEach(f => {
+      let dateStr = "";
+      if (f.savedAt) {
+        let d = new Date(f.savedAt.seconds*1000);
+        let months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        dateStr = months[d.getMonth()]+" "+d.getDate()+", "+d.getFullYear();
+      }
+      let item = document.createElement("div");
+      item.className = "saved-form-item";
+      item.innerHTML = `
+        <div class="doc-thumb doc-thumb-pdf"><span>PDF</span></div>
+        <div class="doc-review-info"><strong>${f.formName}</strong><span>Saved ${dateStr}</span></div>
+        <div class="doc-actions">
+          <a href="${f.storageUrl}" target="_blank" class="action-btn approve" style="text-decoration:none;">Open</a>
+          <button class="action-btn-delete" onclick="deleteSavedForm('${f._id}','${(f.storagePath||"").replace(/'/g,"\\'")}')">Delete</button>
+        </div>`;
+      list.appendChild(item);
+    });
+  }).catch(e => {
+    list.innerHTML = '<div style="padding:16px;color:#EF4444;font-size:13px;">Error: '+e.message+'</div>';
+  });
+}
+
+function deleteSavedForm(docId, storagePath) {
+  if (!confirm("Delete this saved form?")) return;
+  db.collection("savedForms").doc(docId).delete().then(() => {
+    if (storagePath) storage.ref(storagePath).delete().catch(()=>{});
+    loadSavedForms();
+  }).catch(e => alert("Failed: " + e.message));
+}
+
+
+// ══════════════════════════════════════
+//  DOCUMENTS
+// ══════════════════════════════════════
+function loadAllDocuments() {
+  db.collection("documents").get().then(snapshot => {
+    allDocuments = [];
+    snapshot.forEach(doc => { let d=doc.data(); d._id=doc.id; d.reviewStatus=d.reviewStatus||"pending"; allDocuments.push(d); });
+    renderDocuments();
+  });
+}
 function switchDocTab(tab, btn) {
   currentDocTab = tab;
-  let btns = document.querySelectorAll(".doc-tab-btn");
-  for (let i = 0; i < btns.length; i++) { btns[i].classList.remove("active"); }
+  document.querySelectorAll(".doc-tab-btn").forEach(b => b.classList.remove("active"));
   btn.classList.add("active");
   renderDocuments();
 }
-
 function renderDocuments() {
   let list    = document.getElementById("doc-review-list");
   let title   = document.getElementById("doc-section-title");
   let countEl = document.getElementById("doc-section-count");
   list.innerHTML = "";
-
-  let titles = { pending: "Pending Review", approved: "Approved", flagged: "Flagged" };
+  let titles = {pending:"Pending Review", approved:"Approved", flagged:"Flagged"};
   title.textContent = titles[currentDocTab] || "Documents";
 
-  let filtered = [];
-  for (let i = 0; i < allDocuments.length; i++) {
-    if (allDocuments[i].reviewStatus === currentDocTab) filtered.push(allDocuments[i]);
-  }
+  let filtered = allDocuments.filter(d => d.reviewStatus === currentDocTab);
+  countEl.textContent = filtered.length + " document" + (filtered.length!==1?"s":"");
 
-  countEl.textContent = filtered.length + " document" + (filtered.length !== 1 ? "s" : "");
-
-  if (filtered.length === 0) {
-    list.innerHTML = '<div style="padding: 24px; text-align: center; color: #6B7280; font-size: 13px;">No ' + currentDocTab + ' documents.</div>';
+  if (!filtered.length) {
+    list.innerHTML = `<div style="padding:24px;text-align:center;color:#6B7280;font-size:13px;">No ${currentDocTab} documents.</div>`;
     return;
   }
-
   let clientMap = {};
-  for (let i = 0; i < clients.length; i++) { clientMap[clients[i].uid] = clients[i].name; }
+  clients.forEach(c => { clientMap[c.uid] = c.name; });
 
-  for (let i = 0; i < filtered.length; i++) {
-    let doc = filtered[i];
-    let ext = (doc.fileName || "FILE").split(".").pop().toUpperCase();
-    let clientName = clientMap[doc.clientId] || "Unknown Client";
+  filtered.forEach(doc => {
+    let ext     = (doc.fileName||"FILE").split(".").pop().toUpperCase();
     let isImage = ["JPG","JPEG","PNG","GIF","WEBP"].indexOf(ext) !== -1;
     let isPdf   = ext === "PDF";
-
     let timeText = "";
     if (doc.uploadedAt) {
-      let date = new Date(doc.uploadedAt.seconds * 1000);
+      let d = new Date(doc.uploadedAt.seconds*1000);
       let months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-      timeText = months[date.getMonth()] + " " + date.getDate();
+      timeText = months[d.getMonth()]+" "+d.getDate();
     }
-
     let item = document.createElement("div");
     item.className = "doc-review-item";
 
-    // Thumbnail
-    let thumbHTML = "";
-    if (isImage && doc.fileURL) {
-      thumbHTML = '<div class="doc-thumb"><img src="' + doc.fileURL + '" alt="preview" class="doc-thumb-img"></div>';
-    } else if (isPdf) {
-      thumbHTML = '<div class="doc-thumb doc-thumb-pdf"><span>PDF</span></div>';
-    } else {
-      thumbHTML = '<div class="doc-thumb doc-thumb-file"><span>' + ext + '</span></div>';
-    }
+    let thumbHTML = isImage && doc.fileURL
+      ? `<div class="doc-thumb"><img src="${doc.fileURL}" alt="preview" class="doc-thumb-img"></div>`
+      : isPdf
+        ? `<div class="doc-thumb doc-thumb-pdf"><span>PDF</span></div>`
+        : `<div class="doc-thumb doc-thumb-file"><span>${ext.slice(0,3)}</span></div>`;
 
-    // Status icon
     let iconClass = "doc-icon";
     let iconText  = ext.slice(0,3);
-    if (currentDocTab === "approved") { iconClass = "doc-icon approved-icon"; iconText = "✓"; }
-    if (currentDocTab === "flagged")  { iconClass = "doc-icon flagged-icon";  iconText = "!"; }
+    if (currentDocTab==="approved"){iconClass="doc-icon approved-icon";iconText="✓";}
+    if (currentDocTab==="flagged") {iconClass="doc-icon flagged-icon"; iconText="!";}
 
-    let deleteBtn = '<button class="action-btn-delete" onclick="deleteDocumentAdmin(\'' + doc._id + '\', \'' + (doc.fileURL || '').replace(/'/g, "\\'") + '\')">Delete</button>';
+    let deleteBtn = `<button class="action-btn-delete" onclick="deleteDocumentAdmin('${doc._id}','${(doc.fileURL||"").replace(/'/g,"\\'")}')">Delete</button>`;
     let actionsHTML = "";
-
-    if (currentDocTab === "pending") {
-      actionsHTML = '<div class="doc-actions">' +
-        '<button class="action-btn approve" onclick="reviewDocument(\'' + doc._id + '\', \'approved\')">Approve</button>' +
-        '<button class="action-btn flag"    onclick="reviewDocument(\'' + doc._id + '\', \'flagged\')">Flag</button>' +
-        deleteBtn + '</div>';
-    } else if (currentDocTab === "approved") {
-      actionsHTML = '<div class="doc-actions"><span class="doc-status-badge approved">Approved</span>';
-      if (doc.fileURL) { actionsHTML += ' <a href="' + doc.fileURL + '" target="_blank" class="action-btn approve" style="text-decoration:none;margin-left:6px;">View</a>'; }
-      actionsHTML += deleteBtn + '</div>';
-    } else if (currentDocTab === "flagged") {
-      actionsHTML = '<div class="doc-actions"><span class="doc-status-badge flagged">Flagged</span>';
-      if (doc.fileURL) { actionsHTML += ' <a href="' + doc.fileURL + '" target="_blank" class="action-btn flag" style="text-decoration:none;margin-left:6px;">View</a>'; }
-      actionsHTML += deleteBtn + '</div>';
+    if (currentDocTab==="pending") {
+      actionsHTML = `<div class="doc-actions">
+        <button class="action-btn approve" onclick="reviewDocument('${doc._id}','approved')">Approve</button>
+        <button class="action-btn flag"    onclick="reviewDocument('${doc._id}','flagged')">Flag</button>
+        ${deleteBtn}</div>`;
+    } else if (currentDocTab==="approved") {
+      actionsHTML = `<div class="doc-actions"><span class="doc-status-badge approved">Approved</span>
+        ${doc.fileURL?`<a href="${doc.fileURL}" target="_blank" class="action-btn approve" style="text-decoration:none;margin-left:6px;">View</a>`:""}
+        ${deleteBtn}</div>`;
+    } else {
+      actionsHTML = `<div class="doc-actions"><span class="doc-status-badge flagged">Flagged</span>
+        ${doc.fileURL?`<a href="${doc.fileURL}" target="_blank" class="action-btn flag" style="text-decoration:none;margin-left:6px;">View</a>`:""}
+        ${deleteBtn}</div>`;
     }
 
-    item.innerHTML =
-      thumbHTML +
-      '<div class="' + iconClass + '">' + iconText + '</div>' +
-      '<div class="doc-review-info"><strong>' + (doc.fileName || "Unknown file") + '</strong><span>' + clientName + ' · ' + timeText + ' · ' + (doc.fileSize || "") + '</span></div>' +
+    item.innerHTML = thumbHTML +
+      `<div class="${iconClass}">${iconText}</div>
+       <div class="doc-review-info"><strong>${doc.fileName||"Unknown file"}</strong>
+       <span>${clientMap[doc.clientId]||"Unknown Client"} · ${timeText} · ${doc.fileSize||""}</span></div>` +
       actionsHTML;
-
     list.appendChild(item);
-  }
+  });
 }
-
 function reviewDocument(docId, newStatus) {
-  db.collection("documents").doc(docId).update({ reviewStatus: newStatus })
-    .then(function() {
-      for (let i = 0; i < allDocuments.length; i++) {
-        if (allDocuments[i]._id === docId) { allDocuments[i].reviewStatus = newStatus; break; }
-      }
-      renderDocuments();
-    })
-    .catch(function(error) { alert("Failed to update document: " + error.message); });
+  db.collection("documents").doc(docId).update({reviewStatus: newStatus}).then(() => {
+    let d = allDocuments.find(x => x._id===docId);
+    if (d) d.reviewStatus = newStatus;
+    renderDocuments();
+  }).catch(e => alert("Failed: " + e.message));
 }
-
 function deleteDocumentAdmin(docId, fileURL) {
   if (!confirm("Delete this document permanently?")) return;
-  db.collection("documents").doc(docId).delete()
-    .then(function() {
-      for (let i = 0; i < allDocuments.length; i++) {
-        if (allDocuments[i]._id === docId) { allDocuments.splice(i, 1); break; }
-      }
-      renderDocuments();
-      if (fileURL) {
-        try { storage.refFromURL(fileURL).delete().catch(function() {}); } catch(e) {}
-      }
-    })
-    .catch(function(error) { alert("Failed to delete: " + error.message); });
+  db.collection("documents").doc(docId).delete().then(() => {
+    allDocuments = allDocuments.filter(x => x._id !== docId);
+    renderDocuments();
+    if (fileURL) { try { storage.refFromURL(fileURL).delete().catch(()=>{}); } catch(e){} }
+  }).catch(e => alert("Failed: " + e.message));
 }
 
 
 // ══════════════════════════════════════
-//  MESSAGES (Firebase)
+//  MESSAGES
 // ══════════════════════════════════════
-
-let activeClientId = null;
-let activeClientName = "";
-let messageRefreshInterval = null;
-
 function loadFirebaseClients() {
   let list = document.getElementById("msg-client-list");
   if (!list) return;
-
-  db.collection("clients").get()
-    .then(function(snapshot) {
-      list.innerHTML = "";
-      if (snapshot.empty) {
-        list.innerHTML = '<div style="padding: 20px; text-align: center; color: #6B7280; font-size: 13px;">No clients yet.</div>';
-        return;
-      }
-      snapshot.forEach(function(doc) {
-        let client = doc.data();
-        let name = client.firstName + " " + client.lastName;
-        let initials = client.firstName.charAt(0) + client.lastName.charAt(0);
-        let colors = ["blue","purple","green","orange","cyan"];
-        let color = colors[name.length % colors.length];
-        let clientId = doc.id;
-
-        let item = document.createElement("div");
-        item.className = "msg-client-item";
-        item.setAttribute("data-clientid", clientId);
-        item.onclick = function() {
-          let all = document.querySelectorAll(".msg-client-item");
-          for (let j = 0; j < all.length; j++) { all[j].classList.remove("active"); }
-          item.classList.add("active");
-          let dot = item.querySelector(".msg-unread-dot");
-          if (dot) dot.remove();
-          openConvo(clientId, name, initials, color, client.type || "Individual");
-        };
-        item.innerHTML =
-          '<div class="msg-client-avatar ' + color + '">' + initials + '</div>' +
-          '<div class="msg-client-info"><div class="msg-client-top"><strong>' + name + '</strong></div>' +
-          '<p class="msg-preview">' + (client.type || "Individual") + ' · ' + (client.email || "") + '</p></div>';
-        list.appendChild(item);
-      });
-      checkUnreadMessages();
-    })
-    .catch(function(error) {
-      list.innerHTML = '<div style="padding: 20px; text-align: center; color: #EF4444; font-size: 13px;">Error: ' + error.message + '</div>';
+  db.collection("clients").get().then(snapshot => {
+    list.innerHTML = "";
+    if (snapshot.empty) { list.innerHTML='<div style="padding:20px;text-align:center;color:#6B7280;font-size:13px;">No clients yet.</div>'; return; }
+    let colors = ["blue","purple","green","orange","cyan"];
+    snapshot.forEach(doc => {
+      let c = doc.data();
+      let name = c.firstName+" "+c.lastName;
+      let color = colors[name.length % colors.length];
+      let item = document.createElement("div");
+      item.className = "msg-client-item";
+      item.setAttribute("data-clientid", doc.id);
+      item.onclick = function() {
+        document.querySelectorAll(".msg-client-item").forEach(x => x.classList.remove("active"));
+        item.classList.add("active");
+        let dot = item.querySelector(".msg-unread-dot");
+        if (dot) dot.remove();
+        openConvo(doc.id, name, c.firstName[0]+c.lastName[0], color, c.type||"Individual");
+      };
+      item.innerHTML = `<div class="msg-client-avatar ${color}">${c.firstName[0]}${c.lastName[0]}</div>
+        <div class="msg-client-info"><div class="msg-client-top"><strong>${name}</strong></div>
+        <p class="msg-preview">${c.type||"Individual"} · ${c.email||""}</p></div>`;
+      list.appendChild(item);
     });
+    checkUnreadMessages();
+  }).catch(e => { list.innerHTML=`<div style="padding:20px;text-align:center;color:#EF4444;font-size:13px;">Error: ${e.message}</div>`; });
 }
-
 function checkUnreadMessages() {
-  db.collection("messages").get()
-    .then(function(snapshot) {
-      let unreadByClient = {};
-      snapshot.forEach(function(doc) {
-        let msg = doc.data();
-        if (msg.senderRole === "client" && !msg.readByAdmin) {
-          unreadByClient[msg.clientId] = (unreadByClient[msg.clientId] || 0) + 1;
-        }
-      });
-      let totalUnread = 0;
-      let items = document.querySelectorAll(".msg-client-item");
-      for (let i = 0; i < items.length; i++) {
-        let cid = items[i].getAttribute("data-clientid");
-        let existing = items[i].querySelector(".msg-unread-dot");
-        if (existing) existing.remove();
-        if (unreadByClient[cid] && unreadByClient[cid] > 0) {
-          totalUnread += unreadByClient[cid];
-          let dot = document.createElement("span");
-          dot.className = "msg-unread-dot";
-          items[i].appendChild(dot);
-        }
-      }
-      let badge = document.getElementById("msg-badge");
-      if (totalUnread > 0) {
-        badge.textContent = totalUnread;
-        badge.style.display = "inline";
-      } else {
-        badge.style.display = "none";
-      }
+  db.collection("messages").get().then(snapshot => {
+    let unread = {};
+    snapshot.forEach(doc => { let m=doc.data(); if(m.senderRole==="client"&&!m.readByAdmin) unread[m.clientId]=(unread[m.clientId]||0)+1; });
+    let total = 0;
+    document.querySelectorAll(".msg-client-item").forEach(item => {
+      let cid = item.getAttribute("data-clientid");
+      let ex  = item.querySelector(".msg-unread-dot");
+      if (ex) ex.remove();
+      if (unread[cid]) { total+=unread[cid]; let dot=document.createElement("span"); dot.className="msg-unread-dot"; item.appendChild(dot); }
     });
+    let badge = document.getElementById("msg-badge");
+    badge.textContent = total; badge.style.display = total>0?"inline":"none";
+  });
 }
-
 function openConvo(clientId, name, initials, color, type) {
-  activeClientId   = clientId;
-  activeClientName = name;
-
+  activeClientId=clientId; activeClientName=name;
   document.getElementById("msg-conv-header").innerHTML =
-    '<div class="msg-conv-avatar ' + color + '">' + initials + '</div>' +
-    '<div><strong>' + name + '</strong><span>' + type + ' · 2025 Return</span></div>';
-
+    `<div class="msg-conv-avatar ${color}">${initials}</div><div><strong>${name}</strong><span>${type} · 2025 Return</span></div>`;
   let input = document.getElementById("admin-msg-input");
   input.placeholder = "Type a message to " + name.split(" ")[0] + "...";
   input.disabled = false;
-
   if (messageRefreshInterval) clearInterval(messageRefreshInterval);
   loadMessagesForClient(clientId);
-  messageRefreshInterval = setInterval(function() { loadMessagesForClient(clientId); }, 3000);
-
-  db.collection("messages").get().then(function(snapshot) {
-    snapshot.forEach(function(doc) {
-      let msg = doc.data();
-      if (msg.clientId === clientId && msg.senderRole === "client" && !msg.readByAdmin) {
-        db.collection("messages").doc(doc.id).update({ readByAdmin: true });
-      }
+  messageRefreshInterval = setInterval(() => loadMessagesForClient(clientId), 3000);
+  db.collection("messages").get().then(snapshot => {
+    snapshot.forEach(doc => {
+      let m=doc.data();
+      if(m.clientId===clientId&&m.senderRole==="client"&&!m.readByAdmin)
+        db.collection("messages").doc(doc.id).update({readByAdmin:true});
     });
     checkUnreadMessages();
   });
 }
-
 function loadMessagesForClient(clientId) {
-  db.collection("messages").get()
-    .then(function(snapshot) {
-      let thread = document.getElementById("admin-msg-thread");
-      let messages = [];
-      snapshot.forEach(function(doc) {
-        let msg = doc.data();
-        if (msg.clientId === clientId) messages.push(msg);
-      });
-      messages.sort(function(a, b) {
-        if (!a.timestamp || !b.timestamp) return 0;
-        return a.timestamp.seconds - b.timestamp.seconds;
-      });
-      thread.innerHTML = "";
-      if (messages.length === 0) {
-        thread.innerHTML = '<div style="text-align:center;color:#6B7280;padding:40px;font-size:13px;">No messages yet. Start the conversation!</div>';
-        return;
+  db.collection("messages").get().then(snapshot => {
+    let thread = document.getElementById("admin-msg-thread");
+    let msgs = [];
+    snapshot.forEach(doc => { let m=doc.data(); if(m.clientId===clientId) msgs.push(m); });
+    msgs.sort((a,b) => (a.timestamp&&b.timestamp) ? a.timestamp.seconds-b.timestamp.seconds : 0);
+    thread.innerHTML = "";
+    if (!msgs.length) { thread.innerHTML='<div style="text-align:center;color:#6B7280;padding:40px;font-size:13px;">No messages yet.</div>'; return; }
+    msgs.forEach(msg => {
+      let timeText="";
+      if(msg.timestamp){
+        let d=new Date(msg.timestamp.seconds*1000);
+        let h=d.getHours(),mn=d.getMinutes(),ap=h>=12?"PM":"AM";
+        h=h%12||12; if(mn<10)mn="0"+mn;
+        let mo=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        timeText=mo[d.getMonth()]+" "+d.getDate()+", "+h+":"+mn+" "+ap;
       }
-      for (let i = 0; i < messages.length; i++) {
-        let msg = messages[i];
-        let isAdmin = msg.senderRole === "admin";
-        let timeText = "";
-        if (msg.timestamp) {
-          let date = new Date(msg.timestamp.seconds * 1000);
-          let hours = date.getHours(), minutes = date.getMinutes();
-          let ampm = hours >= 12 ? "PM" : "AM";
-          hours = hours % 12; if (hours === 0) hours = 12;
-          if (minutes < 10) minutes = "0" + minutes;
-          let months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-          timeText = months[date.getMonth()] + " " + date.getDate() + ", " + hours + ":" + minutes + " " + ampm;
-        }
-        let bubble = document.createElement("div");
-        bubble.className = "msg-bubble " + (isAdmin ? "sent" : "received");
-        bubble.innerHTML =
-          '<div class="msg-bubble-meta"><strong>' + (msg.senderName || "Unknown") + '</strong> <span>' + timeText + '</span></div>' +
-          '<div class="msg-bubble-text">' + (msg.text || "") + '</div>';
-        thread.appendChild(bubble);
-      }
-      thread.scrollTop = thread.scrollHeight;
-    })
-    .catch(function(error) {
-      document.getElementById("admin-msg-thread").innerHTML =
-        '<div style="text-align:center;color:#EF4444;padding:40px;font-size:13px;">Error: ' + error.message + '</div>';
+      let bubble=document.createElement("div");
+      bubble.className="msg-bubble "+(msg.senderRole==="admin"?"sent":"received");
+      bubble.innerHTML=`<div class="msg-bubble-meta"><strong>${msg.senderName||"Unknown"}</strong> <span>${timeText}</span></div>
+        <div class="msg-bubble-text">${msg.text||""}</div>`;
+      thread.appendChild(bubble);
     });
+    thread.scrollTop=thread.scrollHeight;
+  }).catch(e => { document.getElementById("admin-msg-thread").innerHTML=`<div style="text-align:center;color:#EF4444;padding:40px;font-size:13px;">Error: ${e.message}</div>`; });
 }
-
 function sendAdminMessage() {
-  let input = document.getElementById("admin-msg-input");
-  let text  = input.value.trim();
-  if (text === "" || !activeClientId) return;
-  input.value = "";
+  let input=document.getElementById("admin-msg-input");
+  let text=input.value.trim();
+  if(!text||!activeClientId) return;
+  input.value="";
   db.collection("messages").add({
-    clientId:   activeClientId,
-    senderId:   auth.currentUser ? auth.currentUser.uid : "admin",
-    senderName: "Anthony Sesny",
-    senderRole: "admin",
-    text:       text,
-    readByAdmin: true,
-    timestamp:  firebase.firestore.FieldValue.serverTimestamp()
-  }).then(function() { loadMessagesForClient(activeClientId); });
+    clientId:activeClientId, senderId:auth.currentUser?auth.currentUser.uid:"admin",
+    senderName:"Anthony Sesny", senderRole:"admin", text:text,
+    readByAdmin:true, timestamp:firebase.firestore.FieldValue.serverTimestamp()
+  }).then(()=>loadMessagesForClient(activeClientId));
 }
-
 function filterMessageClients(query) {
-  let items = document.querySelectorAll(".msg-client-item");
-  let lowerQuery = query.toLowerCase();
-  for (let i = 0; i < items.length; i++) {
-    let name = items[i].querySelector("strong").textContent.toLowerCase();
-    items[i].style.display = name.includes(lowerQuery) ? "flex" : "none";
-  }
+  document.querySelectorAll(".msg-client-item").forEach(item => {
+    item.style.display = item.querySelector("strong").textContent.toLowerCase().includes(query.toLowerCase()) ? "flex":"none";
+  });
 }
 
 
 // ══════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════
-
-document.addEventListener("DOMContentLoaded", function() {
-  renderForms("individual");
+document.addEventListener("DOMContentLoaded", () => {
+  // Wire up form upload input
+  let inp = document.getElementById("form-upload-input");
+  if (inp) inp.addEventListener("change", function(){ handleFormUpload(this); });
 });
 
-auth.onAuthStateChanged(function(user) {
+auth.onAuthStateChanged(user => {
   if (user) {
     loadAllClientsFromFirebase();
     loadAllDocuments();
@@ -726,33 +639,24 @@ auth.onAuthStateChanged(function(user) {
 });
 
 function loadAllClientsFromFirebase() {
-  db.collection("clients").get()
-    .then(function(snapshot) {
-      clients = [];
-      let colors = ["blue","purple","green","orange","cyan","red"];
-      snapshot.forEach(function(doc) {
-        let d = doc.data();
-        let name = (d.firstName || "Unknown") + " " + (d.lastName || "");
-        clients.push({
-          uid:      doc.id,
-          name:     name,
-          email:    d.email || "",
-          phone:    d.phone || "",
-          status:   d.status || "pending",
-          docs:     d.documents || 0,
-          type:     d.type || "Individual",
-          year:     d.year || "2025",
-          caseOpen: d.caseOpen !== false,
-          color:    colors[clients.length % colors.length],
-          initials: (d.firstName || "?").charAt(0) + (d.lastName || "?").charAt(0)
-        });
+  db.collection("clients").get().then(snapshot => {
+    clients = [];
+    let colors=["blue","purple","green","orange","cyan","red"];
+    snapshot.forEach(doc => {
+      let d=doc.data();
+      clients.push({
+        uid: doc.id, name:(d.firstName||"Unknown")+" "+(d.lastName||""),
+        email:d.email||"", phone:d.phone||"", status:d.status||"pending",
+        docs:d.documents||0, type:d.type||"Individual", year:d.year||"2025",
+        caseOpen:d.caseOpen!==false,
+        color:colors[clients.length%colors.length],
+        initials:(d.firstName||"?")[0]+(d.lastName||"?")[0]
       });
-      updateOverviewStats();
-      updateRecentClientsList();
-      renderClients("all");
-    })
-    .catch(function(error) {
-      let recentList = document.getElementById("recent-clients-list");
-      if (recentList) recentList.innerHTML = '<div style="padding: 16px; text-align: center; color: #EF4444; font-size: 13px;">Error: ' + error.message + '</div>';
     });
+    updateOverviewStats();
+    updateRecentClientsList();
+  }).catch(e => {
+    let el=document.getElementById("recent-clients-list");
+    if(el) el.innerHTML=`<div style="padding:16px;text-align:center;color:#EF4444;font-size:13px;">Error: ${e.message}</div>`;
+  });
 }

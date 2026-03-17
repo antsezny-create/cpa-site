@@ -1117,6 +1117,70 @@ body {
   background: var(--red-light);
 }
 
+/* ── Form year tag ── */
+.form-year-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-light);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+/* ── Upload progress bar ── */
+.form-upload-progress {
+  grid-column: 1 / -1;
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.upload-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 99px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.upload-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  width: 0%;
+  transition: width 0.2s;
+}
+
+/* ── Saved form item ── */
+.saved-form-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.saved-form-item:hover { background: var(--bg-hover); }
+
+/* ── Viewer status message ── */
+.viewer-status-msg {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+/* ── Quick form add prompt ── */
+.add-quick-form {
+  opacity: 0.5;
+  border-style: dashed;
+}
+.add-quick-form:hover { opacity: 1; }
+
 /* ── Form card action buttons (edit/delete URL) ── */
 .form-card-actions {
   display: flex;

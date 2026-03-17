@@ -8,6 +8,9 @@
 </head>
 <body>
 
+<!-- Hidden file input for form uploads -->
+<input type="file" id="form-upload-input" accept=".pdf" style="display:none;">
+
 <!-- Top Bar -->
 <nav class="dash-nav">
   <div class="dash-nav-inner">
@@ -37,6 +40,9 @@
       <button class="dash-nav-btn" onclick="switchDashTab('forms')">
         <span class="nav-icon">❐</span> Forms &amp; Schedules
       </button>
+      <button class="dash-nav-btn" onclick="switchDashTab('saved-forms')">
+        <span class="nav-icon">◈</span> Saved Forms
+      </button>
       <button class="dash-nav-btn" onclick="switchDashTab('documents')">
         <span class="nav-icon">◧</span> Documents
       </button>
@@ -61,22 +67,10 @@
       </div>
 
       <div class="stat-grid">
-        <div class="stat-card">
-          <span class="stat-label">Total Clients</span>
-          <span class="stat-value blue"   id="stat-total">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">In Progress</span>
-          <span class="stat-value cyan"   id="stat-progress">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">Needs Review</span>
-          <span class="stat-value orange" id="stat-review">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">Filed</span>
-          <span class="stat-value green"  id="stat-filed">0</span>
-        </div>
+        <div class="stat-card"><span class="stat-label">Total Clients</span><span class="stat-value blue"   id="stat-total">0</span></div>
+        <div class="stat-card"><span class="stat-label">In Progress</span>  <span class="stat-value cyan"   id="stat-progress">0</span></div>
+        <div class="stat-card"><span class="stat-label">Needs Review</span> <span class="stat-value orange" id="stat-review">0</span></div>
+        <div class="stat-card"><span class="stat-label">Filed</span>         <span class="stat-value green"  id="stat-filed">0</span></div>
       </div>
 
       <div class="overview-grid">
@@ -86,7 +80,7 @@
             <button class="link-btn" onclick="switchDashTab('clients')">View All →</button>
           </div>
           <div class="client-mini-list" id="recent-clients-list">
-            <div style="padding: 16px; text-align: center; color: #6B7280; font-size: 13px;">Loading clients...</div>
+            <div style="padding:16px;text-align:center;color:#6B7280;font-size:13px;">Loading clients...</div>
           </div>
         </div>
 
@@ -95,24 +89,9 @@
             <h2>Quick Access</h2>
             <button class="link-btn" onclick="switchDashTab('forms')">All Forms →</button>
           </div>
-          <div class="quick-forms">
-            <div class="quick-form" onclick="openFormViewer('1040','https://www.irs.gov/pub/irs-pdf/f1040.pdf','Form 1040','U.S. Individual Income Tax Return')">
-              <span class="form-num">1040</span><span>Individual Income Tax</span>
-            </div>
-            <div class="quick-form" onclick="openFormViewer('1120-S','https://www.irs.gov/pub/irs-pdf/f1120s.pdf','Form 1120-S','S Corporation Income Tax Return')">
-              <span class="form-num">1120-S</span><span>S-Corp Return</span>
-            </div>
-            <div class="quick-form" onclick="openFormViewer('1065','https://www.irs.gov/pub/irs-pdf/f1065.pdf','Form 1065','U.S. Return of Partnership Income')">
-              <span class="form-num">1065</span><span>Partnership Return</span>
-            </div>
-            <div class="quick-form" onclick="openFormViewer('Sch-C','https://www.irs.gov/pub/irs-pdf/f1040sc.pdf','Schedule C','Profit or Loss From Business')">
-              <span class="form-num">Sch C</span><span>Business Profit/Loss</span>
-            </div>
-            <div class="quick-form" onclick="openFormViewer('Sch-D','https://www.irs.gov/pub/irs-pdf/f1040sd.pdf','Schedule D','Capital Gains and Losses')">
-              <span class="form-num">Sch D</span><span>Capital Gains</span>
-            </div>
-            <div class="quick-form" onclick="openFormViewer('W-2','https://www.irs.gov/pub/irs-pdf/fw2.pdf','W-2','Wage and Tax Statement')">
-              <span class="form-num">W-2</span><span>Wage Statement</span>
+          <div class="quick-forms" id="quick-forms-grid">
+            <div class="quick-form add-quick-form" onclick="switchDashTab('forms')">
+              <span class="form-num">+</span><span>Upload a form to see it here</span>
             </div>
           </div>
         </div>
@@ -125,16 +104,14 @@
         <h1>Client Management</h1>
         <p>All clients for Tax Year 2025</p>
       </div>
-
       <div class="filter-bar">
-        <button class="filter-btn active" onclick="filterClients('all', this)">All</button>
-        <button class="filter-btn" onclick="filterClients('pending', this)">Pending</button>
-        <button class="filter-btn" onclick="filterClients('in-progress', this)">In Progress</button>
-        <button class="filter-btn" onclick="filterClients('review', this)">Review</button>
-        <button class="filter-btn" onclick="filterClients('filed', this)">Filed</button>
+        <button class="filter-btn active" onclick="filterClients('all',this)">All</button>
+        <button class="filter-btn" onclick="filterClients('pending',this)">Pending</button>
+        <button class="filter-btn" onclick="filterClients('in-progress',this)">In Progress</button>
+        <button class="filter-btn" onclick="filterClients('review',this)">Review</button>
+        <button class="filter-btn" onclick="filterClients('filed',this)">Filed</button>
       </div>
-
-      <div class="dash-card" style="padding: 0; overflow: hidden;">
+      <div class="dash-card" style="padding:0;overflow:hidden;">
         <div class="table-header">
           <span class="col-client">Client</span>
           <span class="col-type">Type</span>
@@ -151,16 +128,28 @@
     <div class="dash-tab" id="tab-forms" style="display:none;">
       <div class="dash-header">
         <h1>Forms &amp; Schedules</h1>
-        <p>IRS form library — click any form to open the official PDF viewer</p>
+        <p>Upload IRS PDFs — they're stored in your account and ready to fill anytime</p>
       </div>
-      <div class="form-categories">
-        <button class="filter-btn active" onclick="switchFormCategory('individual', this)">Individual</button>
-        <button class="filter-btn" onclick="switchFormCategory('schedules', this)">Schedules</button>
-        <button class="filter-btn" onclick="switchFormCategory('w-forms', this)">W-Forms</button>
-        <button class="filter-btn" onclick="switchFormCategory('1099', this)">1099 Series</button>
-        <button class="filter-btn" onclick="switchFormCategory('business', this)">Business</button>
+      <div class="forms-grid" id="forms-grid">
+        <div style="padding:24px;color:#6B7280;font-size:13px;">Loading...</div>
       </div>
-      <div class="forms-grid" id="forms-grid"></div>
+    </div>
+
+    <!-- ==================== SAVED FORMS ==================== -->
+    <div class="dash-tab" id="tab-saved-forms" style="display:none;">
+      <div class="dash-header">
+        <h1>Saved Forms</h1>
+        <p>Forms you've filled and saved from your dashboard</p>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <h2>Your Saved Forms</h2>
+          <button class="ghost-btn" onclick="loadSavedForms()">Refresh</button>
+        </div>
+        <div id="saved-forms-list">
+          <div style="padding:16px;color:#6B7280;font-size:13px;">Loading...</div>
+        </div>
+      </div>
     </div>
 
     <!-- ==================== DOCUMENTS ==================== -->
@@ -169,20 +158,18 @@
         <h1>Document Review</h1>
         <p>Client-uploaded documents</p>
       </div>
-
       <div class="doc-tab-bar">
-        <button class="doc-tab-btn active" onclick="switchDocTab('pending', this)">Pending Review</button>
-        <button class="doc-tab-btn" onclick="switchDocTab('approved', this)">Approved</button>
-        <button class="doc-tab-btn" onclick="switchDocTab('flagged', this)">Flagged</button>
+        <button class="doc-tab-btn active" onclick="switchDocTab('pending',this)">Pending Review</button>
+        <button class="doc-tab-btn" onclick="switchDocTab('approved',this)">Approved</button>
+        <button class="doc-tab-btn" onclick="switchDocTab('flagged',this)">Flagged</button>
       </div>
-
       <div class="dash-card">
         <div class="dash-card-header">
           <h2 id="doc-section-title">Pending Review</h2>
           <span class="card-count" id="doc-section-count">0 documents</span>
         </div>
         <div class="doc-review-list" id="doc-review-list">
-          <div style="padding: 24px; text-align: center; color: #6B7280; font-size: 13px;">Loading documents...</div>
+          <div style="padding:24px;text-align:center;color:#6B7280;font-size:13px;">Loading documents...</div>
         </div>
       </div>
     </div>
@@ -193,23 +180,21 @@
         <h1>Messages</h1>
         <p>Client communications</p>
       </div>
-
       <div class="messages-layout">
         <div class="dash-card msg-client-list">
           <div class="msg-search-wrap">
             <input type="text" class="msg-search" placeholder="Search clients..." oninput="filterMessageClients(this.value)">
           </div>
           <div id="msg-client-list">
-            <div style="padding: 20px; text-align: center; color: #6B7280; font-size: 13px;">Loading clients...</div>
+            <div style="padding:20px;text-align:center;color:#6B7280;font-size:13px;">Loading clients...</div>
           </div>
         </div>
-
         <div class="dash-card msg-conversation">
           <div class="msg-conv-header" id="msg-conv-header">
-            <div style="color: #6B7280; font-size: 13px;">Select a client to start messaging</div>
+            <div style="color:#6B7280;font-size:13px;">Select a client to start messaging</div>
           </div>
           <div class="msg-thread" id="admin-msg-thread">
-            <div style="text-align: center; color: #6B7280; padding: 40px; font-size: 13px;">Select a client to view messages</div>
+            <div style="text-align:center;color:#6B7280;padding:40px;font-size:13px;">Select a client to view messages</div>
           </div>
           <div class="msg-input-bar">
             <input type="text" id="admin-msg-input" placeholder="Select a client first..." onkeydown="if(event.key==='Enter')sendAdminMessage()" disabled>
@@ -222,7 +207,7 @@
     <!-- ==================== FORM VIEWER ==================== -->
     <div class="dash-tab" id="tab-form-viewer" style="display:none;">
       <div class="dash-header">
-        <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display:flex;align-items:center;gap:12px;">
           <button class="back-btn" onclick="switchDashTab('forms')">←</button>
           <div>
             <h1 id="viewer-form-title">Form</h1>
@@ -234,10 +219,11 @@
           <select id="assign-client-select" class="assign-select">
             <option value="">— Assign to client —</option>
           </select>
-          <button class="primary-btn" onclick="assignFormToClient()">Assign to Client</button>
+          <button class="ghost-btn" onclick="assignFormToClient()">Assign</button>
+          <button class="primary-btn" id="save-form-btn" onclick="saveFilledForm()">Save Form</button>
         </div>
       </div>
-
+      <p id="viewer-status" class="viewer-status-msg">Loading PDF...</p>
       <div class="form-viewer-layout">
         <div class="form-pdf-wrap">
           <iframe id="form-pdf-iframe" src="" class="form-pdf-iframe" allowfullscreen></iframe>
@@ -248,10 +234,13 @@
   </main>
 </div>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<!-- pdf-lib for reading/saving PDFs -->
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="firebase-config.js"></script>
 <script src="dashboard.js"></script>
 </body>
