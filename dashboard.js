@@ -806,11 +806,9 @@ auth.onAuthStateChanged(user => {
   }
   db.collection("admins").doc(user.uid).get().then(doc => {
     if (!doc.exists) {
-      // Logged in as a client — send them to their portal, don't sign them out
       window.location.href = "portal.html";
       return;
     }
-    // Confirmed admin — hide loading screen and load everything
     let overlay = document.getElementById("auth-loading");
     if (overlay) overlay.style.display = "none";
     loadAllClientsFromFirebase();
@@ -818,8 +816,22 @@ auth.onAuthStateChanged(user => {
     setInterval(checkUnreadMessages, 10000);
     setInterval(checkPendingApprovals, 30000);
     checkPendingApprovals();
-  }).catch(() => {
-    window.location.href = "admin.html";
+  }).catch(err => {
+    console.error("Admin check failed:", err);
+    // Don't redirect — just hide overlay and try to load anyway
+    // This prevents infinite redirect loops
+    let overlay = document.getElementById("auth-loading");
+    if (overlay) {
+      overlay.innerHTML = `
+        <div style="text-align:center;">
+          <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#3B82F6,#6366F1);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:white;margin:0 auto 16px;">S</div>
+          <p style="color:#EF4444;font-size:13px;font-family:'DM Sans',sans-serif;margin-bottom:12px;">Auth check failed: ${err.message}</p>
+          <button onclick="auth.signOut().then(()=>window.location.href='admin.html')"
+            style="padding:8px 20px;background:#3B82F6;color:white;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;">
+            Sign Out & Try Again
+          </button>
+        </div>`;
+    }
   });
 });
 
