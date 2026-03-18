@@ -363,7 +363,7 @@ body {
 /* ── Client Table ── */
 .table-header {
   display: grid;
-  grid-template-columns: 1fr 140px 160px 130px 120px 100px;
+  grid-template-columns: 1fr 140px 160px 130px 120px 100px 100px;
   padding: 12px 20px;
   font-size: 10px; font-weight: 700;
   text-transform: uppercase;
@@ -378,11 +378,12 @@ body {
 .table-header .col-status,
 .table-header .col-docs,
 .table-header .col-year,
+.table-header .col-notes,
 .table-header .col-action { text-align: center; }
 
 .client-table-row {
   display: grid;
-  grid-template-columns: 1fr 140px 160px 130px 120px 100px;
+  grid-template-columns: 1fr 140px 160px 130px 120px 100px 100px;
   padding: 14px 20px;
   align-items: center;
   border-bottom: 1px solid var(--border);
@@ -1901,6 +1902,31 @@ body {
 
 /* ── Pin button ── */
 .form-action-btn.pinned {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+/* ── Notes ── */
+.notes-textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.notes-textarea:focus { border-color: var(--accent); }
+.notes-textarea::placeholder { color: var(--text-dim); }
+
+.notes-btn.has-note {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-light);

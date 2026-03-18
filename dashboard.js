@@ -72,7 +72,8 @@ function renderClients(filter) {
       .map(o => `<option value="${o.value}"${c.status===o.value?" selected":""}>${o.label}</option>`).join("");
     let statusSelect = `<select class="cell-dropdown status-dropdown status-${c.status}" data-uid="${c.uid}" data-field="status" onchange="handleStatusDropdownChange(this)">${statusOpts}</select>`;
 
-    let docsCell = `<button class="docs-request-btn" onclick="openDocRequestModal('${c.uid}','${c.name}')">Requests</button>`;
+    let docsCell  = `<button class="docs-request-btn" onclick="openDocRequestModal('${c.uid}','${c.name}')">Requests</button>`;
+    let notesCell = `<button class="docs-request-btn notes-btn${c.notes ? " has-note" : ""}" onclick="openNotesModal('${c.uid}','${c.name.replace(/'/g,"\\'")}')">Notes${c.notes ? " ●" : ""}</button>`;
 
     let yearOpts = "";
     for (let y = 2020; y <= 2060; y++) yearOpts += `<option value="${y}"${c.year==y?" selected":""}>${y}</option>`;
@@ -81,7 +82,7 @@ function renderClients(filter) {
     let caseOpen  = c.caseOpen !== false;
     let caseBtn   = `<button class="case-toggle ${caseOpen?"case-btn-open":"case-btn-closed"}" data-uid="${c.uid}" onclick="toggleCase(this)">${caseOpen?"Open":"Closed"}</button>`;
 
-    row.innerHTML = clientCell + typeSelect + statusSelect + docsCell + yearSelect + caseBtn;
+    row.innerHTML = clientCell + typeSelect + statusSelect + docsCell + yearSelect + notesCell + caseBtn;
     tbody.appendChild(row);
   });
 }
@@ -812,6 +813,7 @@ function loadAllClientsFromFirebase() {
         email:d.email||"", phone:d.phone||"", status:d.status||"pending",
         docs:d.documents||0, type:d.type||"Individual", year:d.year||"2025",
         caseOpen:d.caseOpen!==false,
+        notes: d.notes || "",
         color:colors[clients.length%colors.length],
         initials:(d.firstName||"?")[0]+(d.lastName||"?")[0]
       });
@@ -1228,4 +1230,43 @@ function denyClient(uid, name) {
   db.collection("clients").doc(uid).delete().then(() => {
     checkPendingApprovals();
   }).catch(e => alert("Failed: " + e.message));
+}
+
+
+// ══════════════════════════════════════
+//  CLIENT NOTES
+// ══════════════════════════════════════
+let notesClientId   = null;
+let notesClientName = "";
+
+function openNotesModal(uid, name) {
+  notesClientId   = uid;
+  notesClientName = name;
+  document.getElementById("notes-client-name").textContent = name;
+
+  // Load existing note
+  let client = clients.find(c => c.uid === uid);
+  document.getElementById("notes-textarea").value = client && client.notes ? client.notes : "";
+  document.getElementById("notes-modal").style.display = "flex";
+  document.getElementById("notes-textarea").focus();
+}
+
+function closeNotesModal() {
+  document.getElementById("notes-modal").style.display = "none";
+  notesClientId = null;
+}
+
+function saveClientNote() {
+  if (!notesClientId) return;
+  let note = document.getElementById("notes-textarea").value.trim();
+
+  db.collection("clients").doc(notesClientId).update({ notes: note }).then(() => {
+    // Update local cache
+    let client = clients.find(c => c.uid === notesClientId);
+    if (client) client.notes = note;
+    closeNotesModal();
+    // Re-render to update the dot indicator
+    let activeFilter = document.querySelector(".filter-bar .filter-btn.active");
+    renderClients(activeFilter ? activeFilter.textContent.toLowerCase().replace(" ", "-") : "all");
+  }).catch(e => alert("Failed to save: " + e.message));
 }
