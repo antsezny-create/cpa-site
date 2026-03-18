@@ -2023,7 +2023,7 @@ body {
 /* ── Journal Entry List ── */
 .je-list-header {
   display: grid;
-  grid-template-columns: 120px 1fr 130px 130px 110px 140px;
+  grid-template-columns: 110px 1fr 120px 120px 100px 180px;
   padding: 12px 20px;
   font-size: 10px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 1.5px;
@@ -2034,7 +2034,7 @@ body {
 
 .je-list-row {
   display: grid;
-  grid-template-columns: 120px 1fr 130px 130px 110px 140px;
+  grid-template-columns: 110px 1fr 120px 120px 100px 180px;
   padding: 14px 20px;
   align-items: center;
   border-bottom: 1px solid var(--border);
