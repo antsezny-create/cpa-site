@@ -102,6 +102,7 @@ function handleStatusDropdownChange(el) {
   updateClientField(el.getAttribute("data-uid"), "status", el.value);
 }
 function toggleBookkeeping(uid, current) {
+function toggleBookkeeping(uid, current) {
   let newVal = !current;
   db.collection("clients").doc(uid).update({ bookkeeping: newVal }).then(() => {
     let c = clients.find(x => x.uid === uid);
@@ -110,6 +111,7 @@ function toggleBookkeeping(uid, current) {
     renderClients(activeFilter ? activeFilter.textContent.toLowerCase().replace(" ","-") : "all");
   }).catch(e => alert("Failed: " + e.message));
 }
+function toggleCase(btn) {
   let uid = btn.getAttribute("data-uid");
   let newState = !btn.classList.contains("case-btn-open");
   db.collection("clients").doc(uid).update({ caseOpen: newState }).then(() => {
@@ -1281,12 +1283,11 @@ function saveClientNote() {
   let note = document.getElementById("notes-textarea").value.trim();
 
   db.collection("clients").doc(notesClientId).update({ notes: note }).then(() => {
-    // Update local cache
     let client = clients.find(c => c.uid === notesClientId);
     if (client) client.notes = note;
     closeNotesModal();
-    // Re-render to update the dot indicator
     let activeFilter = document.querySelector(".filter-bar .filter-btn.active");
     renderClients(activeFilter ? activeFilter.textContent.toLowerCase().replace(" ", "-") : "all");
   }).catch(e => alert("Failed to save: " + e.message));
+}
 }
