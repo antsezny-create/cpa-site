@@ -735,7 +735,8 @@ auth.onAuthStateChanged(user => {
   }
   db.collection("admins").doc(user.uid).get().then(doc => {
     if (!doc.exists) {
-      auth.signOut().then(() => { window.location.href = "admin.html"; });
+      // Logged in as a client — send them to their portal, don't sign them out
+      window.location.href = "portal.html";
       return;
     }
     // Confirmed admin — hide loading screen and load everything
