@@ -102,7 +102,6 @@ function handleStatusDropdownChange(el) {
   updateClientField(el.getAttribute("data-uid"), "status", el.value);
 }
 function toggleBookkeeping(uid, current) {
-function toggleBookkeeping(uid, current) {
   let newVal = !current;
   db.collection("clients").doc(uid).update({ bookkeeping: newVal }).then(() => {
     let c = clients.find(x => x.uid === uid);
@@ -1301,5 +1300,4 @@ function saveClientNote() {
     let activeFilter = document.querySelector(".filter-bar .filter-btn.active");
     renderClients(activeFilter ? activeFilter.textContent.toLowerCase().replace(" ", "-") : "all");
   }).catch(e => alert("Failed to save: " + e.message));
-}
 }
