@@ -408,8 +408,11 @@ async function openFormViewer(formId, formUrl, formName, formDesc) {
   document.getElementById("tab-form-viewer").style.display = "block";
   document.querySelectorAll(".dash-nav-btn").forEach(b => b.classList.remove("active"));
 
-  document.getElementById("viewer-form-title").textContent = formName;
-  document.getElementById("viewer-form-desc").textContent  = formDesc;
+  document.getElementById("viewer-form-title").textContent  = formName;
+  document.getElementById("viewer-form-desc").textContent   = formDesc || "";
+  document.getElementById("form-preview-title").textContent = formName;
+  document.getElementById("form-preview-desc").textContent  = formDesc || "";
+  document.getElementById("viewer-back-btn").setAttribute("onclick", "switchDashTab('forms')");
 
   // Populate assign dropdown
   let sel = document.getElementById("assign-client-select");
@@ -419,70 +422,6 @@ async function openFormViewer(formId, formUrl, formName, formDesc) {
     opt.value = c.uid; opt.textContent = c.name;
     sel.appendChild(opt);
   });
-
-  // Load PDF into iframe for viewing/filling
-  let iframe = document.getElementById("form-pdf-iframe");
-  let status  = document.getElementById("viewer-status");
-  status.textContent = "Loading PDF...";
-
-  // Fetch the PDF as a blob so it works cross-origin from Firebase Storage
-  try {
-    let response = await fetch(formUrl);
-    if (!response.ok) throw new Error("Fetch failed");
-    let blob    = await response.blob();
-    let blobUrl = URL.createObjectURL(blob);
-    iframe.src  = blobUrl;
-    status.textContent = "Fill in the form fields directly in the PDF below, then click Save.";
-
-    // Also load into pdf-lib for saving
-    let arrayBuffer = await blob.arrayBuffer();
-    currentPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
-  } catch(e) {
-    status.textContent = "Could not load PDF inline. Click 'Open in New Tab' to view.";
-    iframe.src = "";
-  }
-}
-
-async function saveFilledForm() {
-  let btn = document.getElementById("save-form-btn");
-  btn.textContent = "Saving...";
-  btn.disabled    = true;
-
-  try {
-    // We save the PDF as-is (with whatever the user filled in the iframe)
-    // Since we can't read back the iframe's filled fields directly,
-    // we save the original PDF to Storage with a timestamp label.
-    // For true field extraction the user fills fields in the iframe then saves.
-    let iframe    = document.getElementById("form-pdf-iframe");
-    let blobUrl   = iframe.src;
-    let response  = await fetch(blobUrl);
-    let blob      = await response.blob();
-    let arrayBuffer = await blob.arrayBuffer();
-
-    let fileName  = currentFormName.replace(/\s+/g,"-") + "_" + new Date().toISOString().slice(0,10) + ".pdf";
-    let path      = "saved-forms/" + fileName;
-    let ref       = storage.ref(path);
-
-    let snap      = await ref.put(new Uint8Array(arrayBuffer));
-    let url       = await snap.ref.getDownloadURL();
-
-    await db.collection("savedForms").add({
-      formId:      currentFormId,
-      formName:    currentFormName,
-      storagePath: path,
-      storageUrl:  url,
-      savedAt:     firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    btn.textContent = "Saved ✓";
-    btn.disabled    = false;
-    setTimeout(() => { btn.textContent = "Save Form"; }, 3000);
-    document.getElementById("viewer-status").textContent = "Saved to your dashboard.";
-  } catch(e) {
-    alert("Save failed: " + e.message);
-    btn.textContent = "Save Form";
-    btn.disabled    = false;
-  }
 }
 
 function openFormInNewTab() {
@@ -814,9 +753,32 @@ function loadAllClientsFromFirebase() {
     });
     updateOverviewStats();
     updateRecentClientsList();
+    loadQuickAccessForms();
   }).catch(e => {
     let el=document.getElementById("recent-clients-list");
     if(el) el.innerHTML=`<div style="padding:16px;text-align:center;color:#EF4444;font-size:13px;">Error: ${e.message}</div>`;
+  });
+}
+
+function loadQuickAccessForms() {
+  let grid = document.getElementById("quick-forms-grid");
+  if (!grid) return;
+  db.collection("practitionerForms").get().then(snapshot => {
+    grid.innerHTML = "";
+    if (snapshot.empty) {
+      grid.innerHTML = '<div class="quick-form add-quick-form" onclick="switchDashTab(\'forms\')"><span class="form-num">+</span><span>Upload a form to see it here</span></div>';
+      return;
+    }
+    let forms = [];
+    snapshot.forEach(doc => { let d = doc.data(); d._id = doc.id; forms.push(d); });
+    // Show up to 6 most recently uploaded
+    forms.slice(0, 6).forEach(f => {
+      let card = document.createElement("div");
+      card.className = "quick-form";
+      card.onclick = () => openFormViewer(f._id, f.storageUrl, f.name, f.desc || "");
+      card.innerHTML = `<span class="form-num">${f.name.replace("Form ","").replace("Schedule ","Sch ").split(" ")[0]}</span><span>${f.desc || f.name}</span>`;
+      grid.appendChild(card);
+    });
   });
 }
 
@@ -1068,7 +1030,6 @@ function saveNewReturn() {
   }).catch(e => alert("Failed to save: " + e.message));
 }
 
-// Open form viewer from the Returns tab (back button goes to returns)
 function openReturnFormViewer(rid, formUrl, formName, formDesc) {
   currentFormId   = rid;
   currentFormUrl  = formUrl;
@@ -1078,31 +1039,17 @@ function openReturnFormViewer(rid, formUrl, formName, formDesc) {
   document.getElementById("tab-form-viewer").style.display = "block";
   document.querySelectorAll(".dash-nav-btn").forEach(b => b.classList.remove("active"));
 
-  document.getElementById("viewer-form-title").textContent = formName;
-  document.getElementById("viewer-form-desc").textContent  = formDesc || "";
+  document.getElementById("viewer-form-title").textContent  = formName;
+  document.getElementById("viewer-form-desc").textContent   = formDesc || "";
+  document.getElementById("form-preview-title").textContent = formName;
+  document.getElementById("form-preview-desc").textContent  = formDesc || "";
   document.getElementById("viewer-back-btn").setAttribute("onclick", "switchDashTab('returns')");
 
-  // Populate assign dropdown
   let sel = document.getElementById("assign-client-select");
   sel.innerHTML = '<option value="">— Assign to client —</option>';
   clients.forEach(c => {
     let opt = document.createElement("option");
     opt.value = c.uid; opt.textContent = c.name;
     sel.appendChild(opt);
-  });
-
-  let iframe = document.getElementById("form-pdf-iframe");
-  let status = document.getElementById("viewer-status");
-  status.textContent = "Loading PDF...";
-
-  fetch(formUrl).then(r => {
-    if (!r.ok) throw new Error("Fetch failed");
-    return r.blob();
-  }).then(blob => {
-    iframe.src = URL.createObjectURL(blob);
-    status.textContent = "Fill in the form fields directly, then click Save.";
-  }).catch(() => {
-    status.textContent = "Could not load PDF inline. Use 'Open in New Tab' to view.";
-    iframe.src = "";
   });
 }

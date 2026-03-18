@@ -267,18 +267,52 @@
           </div>
         </div>
         <div class="editor-actions">
-          <button class="ghost-btn" onclick="openFormInNewTab()">Open in New Tab ↗</button>
           <select id="assign-client-select" class="assign-select">
             <option value="">— Assign to client —</option>
           </select>
           <button class="ghost-btn" onclick="assignFormToClient()">Assign</button>
-          <button class="primary-btn" id="save-form-btn" onclick="saveFilledForm()">Save Form</button>
+          <button class="primary-btn" onclick="openFormInNewTab()">Open &amp; Fill PDF ↗</button>
         </div>
       </div>
-      <p id="viewer-status" class="viewer-status-msg">Loading PDF...</p>
-      <div class="form-viewer-layout">
-        <div class="form-pdf-wrap">
-          <iframe id="form-pdf-iframe" src="" class="form-pdf-iframe" allowfullscreen></iframe>
+
+      <!-- Form preview card -->
+      <div class="form-preview-card">
+        <div class="form-preview-icon">
+          <div class="form-preview-pdf-icon">
+            <span class="form-preview-irs">IRS</span>
+            <span class="form-preview-pdf">PDF</span>
+          </div>
+        </div>
+        <div class="form-preview-info">
+          <h2 id="form-preview-title">Form</h2>
+          <p id="form-preview-desc"></p>
+          <p class="form-preview-hint">Click <strong>Open &amp; Fill PDF</strong> to open this form in a new tab. Fill it in using your browser's built-in PDF viewer, then save it to your computer.</p>
+        </div>
+        <button class="form-preview-open-btn" onclick="openFormInNewTab()">
+          <span>Open &amp; Fill PDF</span>
+          <span class="form-preview-arrow">↗</span>
+        </button>
+      </div>
+
+      <div class="form-preview-steps">
+        <div class="form-step">
+          <div class="form-step-num">1</div>
+          <div class="form-step-text"><strong>Open</strong><span>Click the button to open the PDF in a new tab</span></div>
+        </div>
+        <div class="form-step-line"></div>
+        <div class="form-step">
+          <div class="form-step-num">2</div>
+          <div class="form-step-text"><strong>Fill</strong><span>Type directly into the PDF's fillable fields</span></div>
+        </div>
+        <div class="form-step-line"></div>
+        <div class="form-step">
+          <div class="form-step-num">3</div>
+          <div class="form-step-text"><strong>Save</strong><span>Use Ctrl+S or the browser's download button to save locally</span></div>
+        </div>
+        <div class="form-step-line"></div>
+        <div class="form-step">
+          <div class="form-step-num">4</div>
+          <div class="form-step-text"><strong>Upload</strong><span>Re-upload the filled PDF as a client document if needed</span></div>
         </div>
       </div>
     </div>
