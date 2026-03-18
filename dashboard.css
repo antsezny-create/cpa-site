@@ -373,6 +373,13 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+.table-header .col-client { text-align: left; }
+.table-header .col-type,
+.table-header .col-status,
+.table-header .col-docs,
+.table-header .col-year,
+.table-header .col-action { text-align: center; }
+
 .client-table-row {
   display: grid;
   grid-template-columns: 2.5fr 1fr 1fr 0.7fr 0.7fr 80px;
@@ -381,6 +388,12 @@ body {
   border-bottom: 1px solid var(--border);
   transition: background 0.1s;
   cursor: pointer;
+}
+
+.client-table-row > *:not(.client-cell) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .client-table-row:hover { background: var(--bg-hover); }
