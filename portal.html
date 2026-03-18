@@ -41,6 +41,9 @@
       <button class="sidebar-btn" onclick="switchTab('returns'); loadMyReturns()">
         <span class="sidebar-icon">❐</span> My Returns
       </button>
+      <button class="sidebar-btn" id="sidebar-financials-btn" style="display:none;" onclick="switchTab('financials'); loadMyStatements()">
+        <span class="sidebar-icon">◈</span> Financials
+      </button>
     </div>
     <div class="sidebar-footer">
       <div class="sidebar-help">Need help?</div>
@@ -159,6 +162,19 @@
       </div>
     </div>
 
+    <!-- FINANCIALS TAB -->
+    <div class="tab-content" id="tab-financials" style="display:none;">
+      <div class="portal-header">
+        <div>
+          <h1>Financial Statements</h1>
+          <p class="portal-subtitle">Your published financial statements from Anthony.</p>
+        </div>
+      </div>
+      <div id="financials-portal-content">
+        <div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;">Loading statements...</div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -181,12 +197,17 @@
     <span class="mobile-nav-icon">❐</span>
     <span>Returns</span>
   </button>
+  <button class="mobile-nav-btn" id="mobile-financials-btn" style="display:none;" onclick="switchTab('financials'); loadMyStatements(); setMobileActive(this)">
+    <span class="mobile-nav-icon">◈</span>
+    <span>Financials</span>
+  </button>
 </nav>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="firebase-config.js"></script>
 <script src="portal.js"></script>
 </body>

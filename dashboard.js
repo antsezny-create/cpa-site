@@ -80,6 +80,7 @@ function renderClients(filter) {
 
     let docsCell  = `<button class="docs-request-btn" onclick="openDocRequestModal('${c.uid}','${c.name}')">Requests</button>`;
     let notesCell = `<button class="docs-request-btn notes-btn${c.notes ? " has-note" : ""}" onclick="openNotesModal('${c.uid}','${c.name.replace(/'/g,"\\'")}')">Notes${c.notes ? " ●" : ""}</button>`;
+    let bkCell    = `<button class="docs-request-btn bk-btn${c.bookkeeping ? " bk-active" : ""}" onclick="toggleBookkeeping('${c.uid}',${c.bookkeeping||false})" title="Toggle Bookkeeping">${c.bookkeeping ? "📒 BK On" : "BK Off"}</button>`;
 
     let yearOpts = "";
     for (let y = 2020; y <= 2060; y++) yearOpts += `<option value="${y}"${c.year==y?" selected":""}>${y}</option>`;
@@ -88,7 +89,7 @@ function renderClients(filter) {
     let caseOpen  = c.caseOpen !== false;
     let caseBtn   = `<button class="case-toggle ${caseOpen?"case-btn-open":"case-btn-closed"}" data-uid="${c.uid}" onclick="toggleCase(this)">${caseOpen?"Open":"Closed"}</button>`;
 
-    row.innerHTML = clientCell + typeSelect + statusSelect + docsCell + yearSelect + notesCell + caseBtn;
+    row.innerHTML = clientCell + typeSelect + statusSelect + docsCell + yearSelect + notesCell + bkCell + caseBtn;
     tbody.appendChild(row);
   });
 }
@@ -100,7 +101,15 @@ function handleStatusDropdownChange(el) {
   el.className = "cell-dropdown status-dropdown status-" + el.value;
   updateClientField(el.getAttribute("data-uid"), "status", el.value);
 }
-function toggleCase(btn) {
+function toggleBookkeeping(uid, current) {
+  let newVal = !current;
+  db.collection("clients").doc(uid).update({ bookkeeping: newVal }).then(() => {
+    let c = clients.find(x => x.uid === uid);
+    if (c) c.bookkeeping = newVal;
+    let activeFilter = document.querySelector(".filter-bar .filter-btn.active");
+    renderClients(activeFilter ? activeFilter.textContent.toLowerCase().replace(" ","-") : "all");
+  }).catch(e => alert("Failed: " + e.message));
+}
   let uid = btn.getAttribute("data-uid");
   let newState = !btn.classList.contains("case-btn-open");
   db.collection("clients").doc(uid).update({ caseOpen: newState }).then(() => {
@@ -823,7 +832,8 @@ function loadAllClientsFromFirebase() {
         email:d.email||"", phone:d.phone||"", status:d.status||"pending",
         docs:d.documents||0, type:d.type||"Individual", year:d.year||"2025",
         caseOpen:d.caseOpen!==false,
-        notes: d.notes || "",
+        notes:      d.notes      || "",
+        bookkeeping:d.bookkeeping || false,
         color:colors[clients.length%colors.length],
         initials:(d.firstName||"?")[0]+(d.lastName||"?")[0]
       });

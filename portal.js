@@ -14,6 +14,11 @@ let activityListener  = null;
 auth.onAuthStateChanged(function(user) {
   if (user) {
     currentUser = user;
+    // Check email verification first
+    if (!user.emailVerified) {
+      window.location.href = "verify-email.html";
+      return;
+    }
     // Check approval status before loading portal
     db.collection("clients").doc(user.uid).get().then(function(doc) {
       if (!doc.exists) { window.location.href = "login.html"; return; }
@@ -52,6 +57,9 @@ function loadUserData() {
       // Update nav name
       let navUser = document.querySelector(".portal-user");
       if (navUser) navUser.textContent = fullName;
+
+      // Show Financials tab if bookkeeping is enabled
+      checkBookkeepingEnabled();
 
       // Now load live data that depends on user being loaded
       listenForStatus();
@@ -506,4 +514,226 @@ function loadMyReturns() {
         list.appendChild(item);
       });
     });
+}
+
+
+// ══════════════════════════════════════
+//  FINANCIALS TAB
+// ══════════════════════════════════════
+
+function checkBookkeepingEnabled() {
+  if (!currentUserData) return;
+  let enabled = currentUserData.bookkeeping === true;
+  let sidebarBtn = document.getElementById("sidebar-financials-btn");
+  let mobileBtn  = document.getElementById("mobile-financials-btn");
+  if (sidebarBtn) sidebarBtn.style.display = enabled ? "flex" : "none";
+  if (mobileBtn)  mobileBtn.style.display  = enabled ? "flex" : "none";
+}
+
+function loadMyStatements() {
+  let container = document.getElementById("financials-portal-content");
+  if (!container) return;
+  container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;">Loading statements...</div>`;
+
+  db.collection("financialStatements")
+    .where("clientId",  "==", currentUser.uid)
+    .where("published", "==", true)
+    .get().then(snap => {
+      if (snap.empty) {
+        container.innerHTML = `
+          <div class="portal-card" style="text-align:center;padding:40px;">
+            <div style="font-size:32px;margin-bottom:12px;">📊</div>
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:8px;">No statements yet</h3>
+            <p style="font-size:13px;color:var(--text-dim);">Anthony hasn't published any financial statements for you yet.</p>
+          </div>`;
+        return;
+      }
+
+      // Group by period
+      let periods = {};
+      snap.forEach(doc => {
+        let d = doc.data(); d._id = doc.id;
+        if (!periods[d.periodId]) {
+          periods[d.periodId] = { label: d.periodLabel, clientName: d.clientName, statements: {} };
+        }
+        periods[d.periodId].statements[d.statementType] = d;
+      });
+
+      let html = "";
+      Object.entries(periods).forEach(([periodId, period]) => {
+        html += `
+          <div class="portal-card fin-period-card" style="margin-bottom:20px;">
+            <div class="card-header" style="margin-bottom:16px;">
+              <div>
+                <h2>${period.clientName || "Company"}</h2>
+                <span style="font-size:12px;color:var(--text-dim);">${period.label}</span>
+              </div>
+              <button class="download-btn" onclick="downloadStatementsExcel('${periodId}')">Download Excel ↓</button>
+            </div>
+
+            <div class="fin-stmt-tabs">
+              <button class="fin-stmt-tab active" onclick="switchPortalStmt('${periodId}','income',this)">Income Statement</button>
+              <button class="fin-stmt-tab" onclick="switchPortalStmt('${periodId}','balance',this)">Balance Sheet</button>
+              <button class="fin-stmt-tab" onclick="switchPortalStmt('${periodId}','cashflow',this)">Cash Flow</button>
+              <button class="fin-stmt-tab" onclick="switchPortalStmt('${periodId}','equity',this)">Shareholders' Equity</button>
+            </div>
+
+            <div id="portal-stmt-${periodId}" class="fin-stmt-view">
+              ${renderPortalStatement(period.statements['income'], period.label, period.clientName)}
+            </div>
+          </div>`;
+      });
+
+      // Store for export
+      window._portalPeriods = periods;
+      container.innerHTML = html;
+    }).catch(e => {
+      container.innerHTML = `<div style="padding:24px;color:var(--text-dim);font-size:13px;">Failed to load statements: ${e.message}</div>`;
+    });
+}
+
+function switchPortalStmt(periodId, type, btn) {
+  // Update tabs
+  let tabs = btn.closest(".fin-stmt-tabs").querySelectorAll(".fin-stmt-tab");
+  tabs.forEach(t => t.classList.remove("active"));
+  btn.classList.add("active");
+
+  // Render
+  let period = window._portalPeriods ? window._portalPeriods[periodId] : null;
+  if (!period) return;
+  let stmt = period.statements[type];
+  let el   = document.getElementById("portal-stmt-" + periodId);
+  if (el) el.innerHTML = renderPortalStatement(stmt, period.label, period.clientName);
+}
+
+function renderPortalStatement(stmt, periodLabel, clientName) {
+  if (!stmt) return `<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:13px;">Statement not available.</div>`;
+
+  let accounts = stmt.accounts || [];
+  let ni       = stmt.netIncome || 0;
+
+  function fmt(n) {
+    if (!n) return "$0.00";
+    if (n < 0) return `($${Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2})})`;
+    return `$${n.toLocaleString("en-US",{minimumFractionDigits:2})}`;
+  }
+
+  function row(num, name, amount, indent, bold, total) {
+    return `<div class="portal-stmt-row ${bold?"portal-stmt-bold":""} ${total?"portal-stmt-total":""}" style="padding-left:${indent}px">
+      <span class="portal-stmt-num">${num||""}</span>
+      <span class="portal-stmt-name">${name}</span>
+      <span class="portal-stmt-amt">${amount!==null?fmt(amount):""}</span>
+    </div>`;
+  }
+
+  function section(title) { return `<div class="portal-stmt-section">${title}</div>`; }
+  function divider()      { return `<div class="portal-stmt-divider"></div>`; }
+
+  let html = `<div class="portal-stmt-wrapper">
+    <div class="portal-stmt-header">
+      <div class="portal-stmt-company">${clientName||""}</div>
+      <div class="portal-stmt-period">${periodLabel}</div>
+    </div>`;
+
+  if (stmt.statementType === "income") {
+    let rev  = accounts.filter(a=>a.type==="revenue");
+    let cogs = accounts.filter(a=>a.type==="cogs");
+    let opex = accounts.filter(a=>a.type==="expense"&&a.subType==="operating_expense");
+    let oexp = accounts.filter(a=>a.type==="expense"&&a.subType==="other_expense");
+    let tax  = accounts.filter(a=>a.type==="tax");
+    let tRev = rev.reduce((s,a)=>s+a.balance,0);
+    let tCOGS= cogs.reduce((s,a)=>s+a.balance,0);
+    let gp   = tRev-tCOGS;
+    let tOp  = opex.reduce((s,a)=>s+a.balance,0);
+    let ifo  = gp-tOp;
+    let tOE  = oexp.reduce((s,a)=>s+a.balance,0);
+    let ibt  = ifo-tOE;
+    let tTax = tax.reduce((s,a)=>s+a.balance,0);
+
+    if (rev.length)  { html+=section("REVENUE");   rev.forEach(a=>{ html+=row(a.number,a.name,a.balance,24,false,false); }); html+=row("","Total Revenue",tRev,24,true,true); html+=divider(); }
+    if (cogs.length) { html+=section("COST OF GOODS SOLD"); cogs.forEach(a=>{ html+=row(a.number,a.name,a.balance,24,false,false); }); html+=row("","Gross Profit",gp,0,true,true); html+=divider(); }
+    if (opex.length) { html+=section("OPERATING EXPENSES"); opex.forEach(a=>{ html+=row(a.number,a.name,a.balance,24,false,false); }); html+=row("","Income from Operations",ifo,0,true,true); html+=divider(); }
+    if (oexp.length) { html+=section("OTHER EXPENSES"); oexp.forEach(a=>{ html+=row(a.number,a.name,a.balance,24,false,false); }); html+=row("","Income Before Tax",ibt,0,true,true); html+=divider(); }
+    if (tax.length)  { html+=section("INCOME TAX"); tax.forEach(a=>{ html+=row(a.number,a.name,a.balance,24,false,false); }); html+=divider(); }
+    html += `<div class="portal-stmt-net"><span>NET INCOME</span><span>${fmt(ni)}</span></div>`;
+  }
+
+  else if (stmt.statementType === "balance") {
+    let ca  = accounts.filter(a=>a.type==="asset"&&a.subType==="current_asset");
+    let fa  = accounts.filter(a=>a.type==="asset"&&a.subType==="fixed_asset");
+    let con = accounts.filter(a=>a.type==="asset"&&a.subType==="contra_asset");
+    let oa  = accounts.filter(a=>a.type==="asset"&&a.subType==="other_asset");
+    let cl  = accounts.filter(a=>a.type==="liability"&&a.subType==="current_liability");
+    let ll  = accounts.filter(a=>a.type==="liability"&&a.subType==="long_term_liability");
+    let eq  = accounts.filter(a=>a.type==="equity");
+    let tCA = ca.reduce((s,a)=>s+a.balance,0);
+    let tFA = fa.reduce((s,a)=>s+a.balance,0);
+    let tCon= con.reduce((s,a)=>s+a.balance,0);
+    let tOA = oa.reduce((s,a)=>s+a.balance,0);
+    let tA  = tCA+tFA-tCon+tOA;
+    let tCL = cl.reduce((s,a)=>s+a.balance,0);
+    let tLL = ll.reduce((s,a)=>s+a.balance,0);
+    let tL  = tCL+tLL;
+    let tE  = eq.reduce((s,a)=>s+a.balance,0)+ni;
+
+    html+=section("ASSETS");
+    if(ca.length){ html+=section("Current Assets"); ca.forEach(a=>{html+=row(a.number,a.name,a.balance,24,false,false);}); html+=row("","Total Current Assets",tCA,8,true,true); }
+    if(fa.length||con.length){ html+=section("Property, Plant & Equipment"); fa.forEach(a=>{html+=row(a.number,a.name,a.balance,24,false,false);}); con.forEach(a=>{html+=row(a.number,a.name,-a.balance,24,false,false);}); html+=row("","Net PP&E",tFA-tCon,8,true,true); }
+    if(oa.length){ html+=section("Other Assets"); oa.forEach(a=>{html+=row(a.number,a.name,a.balance,24,false,false);}); }
+    html+=divider(); html+=row("","TOTAL ASSETS",tA,0,true,true); html+=divider();
+    html+=section("LIABILITIES");
+    if(cl.length){ html+=section("Current Liabilities"); cl.forEach(a=>{html+=row(a.number,a.name,a.balance,24,false,false);}); html+=row("","Total Current Liabilities",tCL,8,true,true); }
+    if(ll.length){ html+=section("Long-Term Liabilities"); ll.forEach(a=>{html+=row(a.number,a.name,a.balance,24,false,false);}); html+=row("","Total Long-Term Liabilities",tLL,8,true,true); }
+    html+=row("","Total Liabilities",tL,0,true,true); html+=divider();
+    html+=section("SHAREHOLDERS' EQUITY");
+    eq.forEach(a=>{html+=row(a.number,a.name,a.balance,24,false,false);});
+    html+=row("","Net Income",ni,24,false,false);
+    html+=row("","Total Shareholders' Equity",tE,0,true,true); html+=divider();
+    html+=`<div class="portal-stmt-net"><span>TOTAL LIABILITIES & EQUITY</span><span>${fmt(tL+tE)}</span></div>`;
+  }
+
+  else if (stmt.statementType === "cashflow") {
+    html += `<div style="padding:16px;color:var(--text-dim);font-size:13px;text-align:center;">Cash flow statement available. Contact Anthony for details.</div>`;
+  }
+
+  else if (stmt.statementType === "equity") {
+    let g = id => accounts.filter(a=>a.number===id).reduce((s,a)=>s+a.balance,0);
+    let cs=g("300"), apic=g("310"), re=g("320"), div=g("330"), tsy=g("340");
+    let endRE=re+ni-div, tEq=cs+apic+endRE-tsy;
+    html+=section("PAID-IN CAPITAL");
+    html+=row("300","Common Stock",cs,24,false,false);
+    if(apic) html+=row("310","Additional Paid-In Capital",apic,24,false,false);
+    html+=row("","Total Paid-In Capital",cs+apic,0,true,true); html+=divider();
+    html+=section("RETAINED EARNINGS");
+    html+=row("320","Retained Earnings (Beginning)",re,24,false,false);
+    html+=row("","Net Income (Current Period)",ni,24,false,false);
+    if(div) html+=row("330","Less: Dividends",div,24,false,false);
+    html+=row("","Retained Earnings (Ending)",endRE,0,true,true); html+=divider();
+    html+=`<div class="portal-stmt-net"><span>TOTAL SHAREHOLDERS' EQUITY</span><span>${fmt(tEq)}</span></div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+function downloadStatementsExcel(periodId) {
+  if (!window._portalPeriods || !window._portalPeriods[periodId]) return;
+  if (typeof XLSX === "undefined") { alert("Excel library not loaded."); return; }
+
+  let period   = window._portalPeriods[periodId];
+  let accounts = period.statements['income']?.accounts || [];
+  let ni       = period.statements['income']?.netIncome || 0;
+  let wb       = XLSX.utils.book_new();
+
+  let isData = [[period.clientName||""],["INCOME STATEMENT"],["Period: "+period.label],[""],["Acct #","Account Name","Amount"]];
+  accounts.filter(a=>a.type==="revenue").forEach(a=>isData.push([a.number,a.name,a.balance]));
+  accounts.filter(a=>a.type==="cogs").forEach(a=>isData.push([a.number,a.name,a.balance]));
+  accounts.filter(a=>a.type==="expense").forEach(a=>isData.push([a.number,a.name,a.balance]));
+  accounts.filter(a=>a.type==="tax").forEach(a=>isData.push([a.number,a.name,a.balance]));
+  isData.push(["","NET INCOME",ni]);
+  let ws = XLSX.utils.aoa_to_sheet(isData);
+  ws["!cols"] = [{wch:10},{wch:40},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, ws, "Income Statement");
+
+  XLSX.writeFile(wb, (period.clientName||"Statements").replace(/\s+/g,"-") + "_" + period.label.replace(/\s+/g,"-") + ".xlsx");
 }
