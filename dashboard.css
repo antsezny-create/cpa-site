@@ -1898,3 +1898,10 @@ body {
 .deny-btn:hover {
   background: rgba(239,68,68,0.2);
 }
+
+/* ── Pin button ── */
+.form-action-btn.pinned {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}

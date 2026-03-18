@@ -321,29 +321,35 @@ function renderFormsGrid(forms, cat) {
   let container = document.getElementById("forms-container");
   container.innerHTML = "";
 
-  // Sort forms: letter schedules first (A-Z), then numbered (1, 2, 3), then everything else alphabetically
+  // Sort forms intelligently by form number/name
   forms.sort(function(a, b) {
     let nameA = a.name.trim();
     let nameB = b.name.trim();
 
-    // Extract the part after "Schedule " or "Form " for comparison
-    let keyA = nameA.replace(/^(Schedule|Form)\s+/i, "");
-    let keyB = nameB.replace(/^(Schedule|Form)\s+/i, "");
+    // Strip common prefixes for comparison
+    let keyA = nameA.replace(/^(Schedule|Form|W-|1099-?)\s*/i, "").trim();
+    let keyB = nameB.replace(/^(Schedule|Form|W-|1099-?)\s*/i, "").trim();
 
-    // Check if keys are purely numeric
-    let numA = parseInt(keyA);
-    let numB = parseInt(keyB);
-    let aIsNum = !isNaN(numA) && keyA.trim() === String(numA);
-    let bIsNum = !isNaN(numB) && keyB.trim() === String(numB);
+    // Check if keys start with a number
+    let numMatchA = keyA.match(/^(\d+)(.*)/);
+    let numMatchB = keyB.match(/^(\d+)(.*)/);
 
-    // Letter entries come before numeric entries
+    let aIsNum = !!numMatchA;
+    let bIsNum = !!numMatchB;
+
+    // Pure letter keys (A, B, SE etc) come before numeric keys (1, 2, 3)
     if (!aIsNum && bIsNum) return -1;
     if (aIsNum && !bIsNum) return 1;
 
-    // Both numeric — sort numerically
-    if (aIsNum && bIsNum) return numA - numB;
+    // Both numeric — sort by number first, then suffix
+    if (aIsNum && bIsNum) {
+      let numDiff = parseInt(numMatchA[1]) - parseInt(numMatchB[1]);
+      if (numDiff !== 0) return numDiff;
+      // Same number, sort by suffix (e.g. 1040 vs 1040-SR vs 1040-X)
+      return numMatchA[2].localeCompare(numMatchB[2]);
+    }
 
-    // Both non-numeric — sort alphabetically
+    // Both non-numeric — alphabetical (A, B, C... SE)
     return keyA.localeCompare(keyB);
   });
 
@@ -361,6 +367,7 @@ function renderFormsGrid(forms, cat) {
     let card = document.createElement("div");
     card.className = "form-card";
     card.onclick = () => openFormViewer(f._id, f.storageUrl, f.name, f.desc || "");
+    let isPinned = f.pinned === true;
     card.innerHTML = `
       <div class="form-card-icon"><span>PDF</span></div>
       <div class="form-card-info" style="flex:1;">
@@ -369,6 +376,8 @@ function renderFormsGrid(forms, cat) {
         <span class="form-year-tag">${f.taxYear || ""}</span>
       </div>
       <div class="form-card-actions" onclick="event.stopPropagation()">
+        <button class="form-action-btn ${isPinned ? "pinned" : ""}" title="${isPinned ? "Unpin from Quick Access" : "Pin to Quick Access"}"
+          onclick="togglePinForm('${f._id}', ${isPinned}, this)">${isPinned ? "📌" : "☆"}</button>
         <button class="form-action-btn delete" title="Delete form"
           onclick="deleteUploadedForm('${f._id}','${(f.storagePath||"").replace(/'/g,"\\'")}')">✕</button>
       </div>`;
@@ -819,23 +828,46 @@ function loadAllClientsFromFirebase() {
 function loadQuickAccessForms() {
   let grid = document.getElementById("quick-forms-grid");
   if (!grid) return;
-  db.collection("practitionerForms").get().then(snapshot => {
+
+  // Load only pinned forms
+  db.collection("practitionerForms").where("pinned", "==", true).get().then(snapshot => {
     grid.innerHTML = "";
-    if (snapshot.empty) {
-      grid.innerHTML = '<div class="quick-form add-quick-form" onclick="switchDashTab(\'forms\')"><span class="form-num">+</span><span>Upload a form to see it here</span></div>';
-      return;
-    }
     let forms = [];
     snapshot.forEach(doc => { let d = doc.data(); d._id = doc.id; forms.push(d); });
-    // Show up to 6 most recently uploaded
+
+    if (forms.length === 0) {
+      grid.innerHTML = '<div class="quick-form add-quick-form" onclick="switchDashTab(\'forms\')"><span class="form-num">📌</span><span>Pin forms in Forms & Schedules to show here</span></div>';
+      return;
+    }
+
     forms.slice(0, 6).forEach(f => {
       let card = document.createElement("div");
       card.className = "quick-form";
       card.onclick = () => openFormViewer(f._id, f.storageUrl, f.name, f.desc || "");
-      card.innerHTML = `<span class="form-num">${f.name.replace("Form ","").replace("Schedule ","Sch ").split(" ")[0]}</span><span>${f.desc || f.name}</span>`;
+      card.innerHTML = `<span class="form-num">${getFormShortName(f.name)}</span><span>${f.desc || f.name}</span>`;
       grid.appendChild(card);
     });
   });
+}
+
+// Generate a clean short label for any form name
+function getFormShortName(name) {
+  return name
+    .replace(/^Form\s+/i, "")
+    .replace(/^Schedule\s+/i, "Sch ")
+    .split(" — ")[0]
+    .split(" - ")[0]
+    .trim();
+}
+
+function togglePinForm(docId, currentlyPinned, btn) {
+  let newPinned = !currentlyPinned;
+  db.collection("practitionerForms").doc(docId).update({ pinned: newPinned }).then(() => {
+    btn.textContent = newPinned ? "📌" : "☆";
+    btn.title = newPinned ? "Unpin from Quick Access" : "Pin to Quick Access";
+    btn.classList.toggle("pinned", newPinned);
+    loadQuickAccessForms();
+  }).catch(e => alert("Failed: " + e.message));
 }
 
 
