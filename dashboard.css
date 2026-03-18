@@ -1931,3 +1931,368 @@ body {
   color: var(--accent);
   background: var(--accent-light);
 }
+
+/* ══════════════════════════════════════
+   FINANCIALS MODULE
+   ══════════════════════════════════════ */
+
+/* ── Home / Client Grid ── */
+.fin-home { display: flex; flex-direction: column; gap: 0; }
+
+.fin-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.fin-section-header h2 { font-size: 16px; font-weight: 700; }
+.fin-section-header p  { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+.fin-client-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px,1fr));
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.fin-client-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.fin-client-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
+
+.fin-client-avatar {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: white; flex-shrink: 0;
+}
+.fin-client-info { flex: 1; }
+.fin-client-info strong { display: block; font-size: 14px; font-weight: 600; }
+.fin-client-info span   { font-size: 12px; color: var(--text-dim); }
+.fin-arrow { color: var(--text-dim); font-size: 16px; }
+
+.fin-empty { padding: 32px; text-align: center; color: var(--text-dim); font-size: 13px; }
+
+/* ── Client Toolbar ── */
+.fin-client-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.fin-client-toolbar h2 { font-size: 20px; font-weight: 700; }
+.fin-client-toolbar p  { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+/* ── Period Rows ── */
+.fin-period-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.fin-period-row:last-child { border-bottom: none; }
+.fin-period-row:hover { background: var(--bg-hover); }
+
+.fin-period-info { flex: 1; }
+.fin-period-info strong { display: block; font-size: 14px; font-weight: 600; }
+.fin-period-info span   { font-size: 12px; color: var(--text-dim); }
+
+.fin-period-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+/* ── New Period Modal ── */
+.fin-period-preview {
+  font-size: 13px;
+  color: var(--text-dim);
+  padding: 10px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 8px;
+}
+.fin-period-preview strong { color: var(--accent); }
+
+/* ── Journal Entry List ── */
+.je-list-header {
+  display: grid;
+  grid-template-columns: 120px 1fr 130px 130px 110px 140px;
+  padding: 12px 20px;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--text-dim);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.je-list-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 130px 130px 110px 140px;
+  padding: 14px 20px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.je-list-row:last-child { border-bottom: none; }
+.je-list-row:hover { background: var(--bg-hover); }
+
+.je-date  { font-size: 12px; color: var(--text-dim); font-family: var(--mono,monospace); }
+.je-desc  { font-size: 13px; font-weight: 500; }
+.je-amount{ font-family: 'JetBrains Mono',monospace; font-size: 13px; color: var(--text-muted); }
+.je-adj-tag { font-size: 9px; font-weight: 700; background: var(--orange-light); color: var(--orange); padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+
+.je-expand-row {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 20px;
+}
+.je-expand-line {
+  display: grid;
+  grid-template-columns: 60px 1fr 130px 130px;
+  padding: 6px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.je-expand-line:last-child { border-bottom: none; }
+.je-exp-num  { font-family: 'JetBrains Mono',monospace; color: var(--text-dim); }
+.je-exp-name { color: var(--text-muted); }
+.je-exp-dr   { font-family: 'JetBrains Mono',monospace; text-align: right; color: var(--accent); }
+.je-exp-cr   { font-family: 'JetBrains Mono',monospace; text-align: right; color: var(--green); }
+
+/* ── Journal Entry Form ── */
+.je-form-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px;
+}
+.je-form-header h3 { font-size: 15px; font-weight: 700; }
+
+.je-form-top { display: flex; gap: 12px; margin-bottom: 16px; }
+
+.je-lines-header {
+  display: flex; gap: 8px; padding: 0 0 6px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1.5px; color: var(--text-dim);
+  border-bottom: 1px solid var(--border); margin-bottom: 8px;
+}
+.je-lines-header span:first-child { flex: 3; }
+.je-lines-header span:nth-child(2),
+.je-lines-header span:nth-child(3) { flex: 1; text-align: right; }
+
+.je-line {
+  display: flex; gap: 8px; align-items: center;
+  margin-bottom: 6px;
+}
+.je-acct-select {
+  flex: 3;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+}
+.je-acct-select:focus { border-color: var(--accent); }
+
+.je-amount-input {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
+  text-align: right;
+  outline: none;
+}
+.je-amount-input:focus { border-color: var(--accent); }
+
+.je-totals {
+  display: flex;
+  justify-content: flex-end;
+  gap: 24px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  font-size: 13px;
+}
+.je-total-label { color: var(--text-muted); }
+.je-total-label strong { font-family: 'JetBrains Mono',monospace; color: var(--text); }
+.je-balanced   { color: var(--green);  font-weight: 700; font-size: 13px; }
+.je-unbalanced { color: var(--red);    font-weight: 700; font-size: 13px; }
+
+.je-form-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  margin-top: 16px; padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Statement Tabs ── */
+.stmt-tab-bar {
+  display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.stmt-tab {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px; font-weight: 600;
+  font-family: 'DM Sans',sans-serif;
+  cursor: pointer; transition: all 0.15s;
+}
+.stmt-tab:hover { background: var(--bg-hover); }
+.stmt-tab.active { background: var(--accent-light); color: var(--accent); border-color: rgba(59,130,246,0.2); }
+
+/* ── Statement Wrapper ── */
+.stmt-wrapper {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 40px;
+  max-width: 800px;
+}
+
+.stmt-header {
+  text-align: center;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid var(--border);
+}
+.stmt-company { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.stmt-title   { font-size: 15px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
+.stmt-period  { font-size: 13px; color: var(--text-dim); }
+.stmt-method  { font-size: 12px; color: var(--text-dim); font-style: italic; }
+
+.stmt-section-header {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 2px;
+  color: var(--accent);
+  padding: 14px 0 6px;
+}
+
+.stmt-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.stmt-bold .stmt-acct-name,
+.stmt-bold .stmt-acct-amt { font-weight: 700; color: var(--text); }
+.stmt-total { border-top: 1px solid var(--border); margin-top: 4px; }
+
+.stmt-acct-num  { font-family: 'JetBrains Mono',monospace; font-size: 11px; color: var(--text-dim); width: 48px; flex-shrink: 0; }
+.stmt-acct-name { flex: 1; color: var(--text-muted); }
+.stmt-acct-amt  { font-family: 'JetBrains Mono',monospace; font-size: 13px; color: var(--text); min-width: 120px; text-align: right; }
+
+.stmt-divider { height: 1px; background: var(--border); margin: 8px 0; }
+
+.stmt-net-income {
+  display: flex; justify-content: space-between;
+  padding: 16px 0;
+  font-size: 16px; font-weight: 700;
+  border-top: 2px solid var(--border);
+  margin-top: 8px;
+  color: var(--text);
+}
+.stmt-net-income span:last-child { font-family: 'JetBrains Mono',monospace; }
+
+.stmt-two-col  { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+.stmt-col      { min-width: 0; }
+
+.stmt-warning { margin-top: 16px; padding: 12px 16px; background: var(--red-light); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px; font-size: 13px; color: var(--red); }
+.stmt-check   { margin-top: 16px; padding: 12px 16px; background: var(--green-light); border: 1px solid rgba(34,197,94,0.2); border-radius: 8px; font-size: 13px; color: var(--green); }
+
+/* ── Trial Balance ── */
+.tb-table { margin-top: 8px; }
+.tb-header {
+  display: grid; grid-template-columns: 70px 1fr 150px 150px;
+  padding: 10px 0; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--text-dim); border-bottom: 2px solid var(--border);
+}
+.tb-row {
+  display: grid; grid-template-columns: 70px 1fr 150px 150px;
+  padding: 7px 0; font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+.tb-num  { font-family: 'JetBrains Mono',monospace; color: var(--text-dim); }
+.tb-name { color: var(--text-muted); }
+.tb-dr   { font-family: 'JetBrains Mono',monospace; text-align: right; color: var(--accent); }
+.tb-cr   { font-family: 'JetBrains Mono',monospace; text-align: right; color: var(--green); }
+.tb-total {
+  display: grid; grid-template-columns: 70px 1fr 150px 150px;
+  padding: 12px 0; font-size: 13px; font-weight: 700;
+  border-top: 2px solid var(--border); color: var(--text);
+}
+.tb-total span:nth-child(3),
+.tb-total span:nth-child(4) { font-family: 'JetBrains Mono',monospace; text-align: right; }
+
+/* ── Equity Statement ── */
+.equity-table { margin-top: 8px; }
+.equity-header {
+  display: flex; justify-content: space-between;
+  padding: 10px 0; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--text-dim); border-bottom: 2px solid var(--border);
+}
+.equity-section {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 2px; color: var(--accent); padding: 14px 0 6px;
+}
+.equity-row {
+  display: flex; justify-content: space-between;
+  padding: 6px 16px; font-size: 13px; color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.equity-row span:last-child { font-family: 'JetBrains Mono',monospace; color: var(--text); }
+.equity-subtotal {
+  font-weight: 700; color: var(--text);
+  background: var(--bg-surface);
+}
+.equity-total {
+  display: flex; justify-content: space-between;
+  padding: 16px; font-size: 15px; font-weight: 700;
+  border-top: 2px solid var(--border); color: var(--text);
+}
+.equity-total span:last-child { font-family: 'JetBrains Mono',monospace; }
+
+/* ── Chart of Accounts ── */
+.coa-header {
+  display: grid;
+  grid-template-columns: 80px 1fr 120px 130px 100px 160px;
+  padding: 12px 20px;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--text-dim); background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+.coa-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 120px 130px 100px 160px;
+  padding: 12px 20px; align-items: center;
+  border-bottom: 1px solid var(--border); transition: background 0.1s;
+}
+.coa-row:last-child { border-bottom: none; }
+.coa-row:hover { background: var(--bg-hover); }
+
+.coa-num  { font-family: 'JetBrains Mono',monospace; font-size: 13px; font-weight: 600; color: var(--accent); }
+.coa-name { font-size: 13px; font-weight: 500; }
+.coa-type { font-size: 12px; color: var(--text-dim); text-transform: capitalize; }
+.coa-bal  { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; width: fit-content; }
+.coa-bal.debit  { background: var(--accent-light); color: var(--accent); }
+.coa-bal.credit { background: var(--green-light);  color: var(--green); }
+
+/* ── Financials breadcrumb ── */
+.fin-breadcrumb {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; margin-bottom: 24px;
+}

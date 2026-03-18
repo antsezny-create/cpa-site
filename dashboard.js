@@ -33,6 +33,7 @@ function switchDashTab(tabName) {
   if (tabName === "messages")    loadFirebaseClients();
   if (tabName === "saved-forms") loadSavedForms();
   if (tabName === "returns")     loadReturnsTab();
+  if (tabName === "financials")  loadFinancialsTab();
 }
 
 
