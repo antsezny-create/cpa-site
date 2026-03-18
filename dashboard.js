@@ -198,11 +198,25 @@ const FORM_CATEGORIES = [
     color: "purple"
   },
   {
-    id: "schedules",
-    label: "Schedules",
+    id: "schedules-1040",
+    label: "1040 Schedules",
     icon: "SCH",
-    desc: "All IRS schedules attached to returns",
+    desc: "Schedules A, B, C, D, E, F, SE, 1, 2, 3",
     color: "cyan"
+  },
+  {
+    id: "schedules-1120",
+    label: "1120 Schedules",
+    icon: "SCH",
+    desc: "Schedules K, L, M-1, M-2, M-3 for corporations",
+    color: "blue"
+  },
+  {
+    id: "schedules-1065",
+    label: "1065 Schedules",
+    icon: "SCH",
+    desc: "Schedules K, K-1, L, M-1, M-2 for partnerships",
+    color: "purple"
   },
   {
     id: "payroll",
