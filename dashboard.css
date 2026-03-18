@@ -2405,3 +2405,60 @@ body {
   text-align: right;
   outline: none;
 }
+
+/* ── Sign Out Button ── */
+.dash-signout-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.dash-signout-btn:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* ── Compact overview header ── */
+.dash-header-compact {
+  padding: 16px 0 20px;
+  justify-content: center;
+  min-height: unset;
+}
+
+/* ── Master accounts action buttons ── */
+.coa-row-full > div:last-child {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.coa-row-full .form-action-btn {
+  padding: 5px 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* ── Date dropdowns ── */
+.date-dropdowns {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.date-part-select {
+  padding: 7px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 12px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  cursor: pointer;
+}
+.date-part-select:focus { border-color: var(--accent); }

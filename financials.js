@@ -112,6 +112,9 @@ async function loadPeriodsForClient(clientId, periodSelectId) {
     .collection("periods").get();
 
   sel.innerHTML = `<option value="">— Select Period —</option>`;
+  let currentYear = new Date().getFullYear().toString();
+  let bestMatch = null;
+
   snap.forEach(doc => {
     let p = doc.data();
     let opt = document.createElement("option");
@@ -120,7 +123,13 @@ async function loadPeriodsForClient(clientId, periodSelectId) {
     opt.dataset.companyName = p.companyName || "";
     opt.dataset.periodType  = p.periodType  || "annual";
     sel.appendChild(opt);
+    // Auto-select period matching current year
+    if ((p.periodLabel || p.period || "").includes(currentYear)) {
+      bestMatch = opt;
+    }
   });
+
+  if (bestMatch) bestMatch.selected = true;
   sel.disabled = false;
 }
 
@@ -274,9 +283,6 @@ function buildStatementHeader(tabId, containerId, stmtTitle, periodHint, onLoadF
         </select>
       </div>
       <div class="acct-selector-group" style="align-self:flex-end;">
-        <button class="ghost-btn" id="${tabId}-edit-btn" onclick="toggleStmtEditMode(this)" style="display:none;">Edit Numbers</button>
-      </div>
-      <div class="acct-selector-group" style="align-self:flex-end;">
         <button class="ghost-btn" id="${tabId}-export-btn" onclick="exportCurrentStatement('${tabId}')" style="display:none;">Export Excel ↓</button>
       </div>
       <div class="acct-selector-group" style="align-self:flex-end;">
@@ -324,14 +330,10 @@ async function onStmtPeriodChange(tabId) {
   window._finData = { accounts, periodLabel, clientName: companyName, clientId, periodId, tabId };
 
   // Show action buttons
-  ["edit-btn","export-btn","publish-btn"].forEach(id => {
+  ["export-btn","publish-btn"].forEach(id => {
     let btn = document.getElementById(tabId + "-" + id);
     if (btn) btn.style.display = "inline-flex";
   });
-
-  // Reset edit button label
-  let editBtn = document.getElementById(tabId + "-edit-btn");
-  if (editBtn) { editBtn.textContent = "Edit Numbers"; editBtn.className = "ghost-btn"; }
 
   renderCurrentStatement(tabId, accounts, periodLabel, companyName);
 }
@@ -700,12 +702,25 @@ async function loadGLEntries() {
     });
   }
 
+  // Store for filtering
+  window._glEntries = entries;
+
   entries.sort((a,b) => (a.entryDate&&b.entryDate) ? a.entryDate.seconds - b.entryDate.seconds : 0);
 
   let html = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap;">
       <h3 style="font-size:15px;font-weight:700;">Journal Entries (${entries.length})</h3>
-      <button class="primary-btn" onclick="openGLNewEntry()">+ New Entry</button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <select id="gl-acct-filter" class="assign-select" style="min-width:220px;" onchange="filterGLByAccount()">
+          <option value="">— Filter by Account —</option>
+          ${[...new Set(entries.flatMap(e=>e.lines.map(l=>l.accountNumber+"||"+l.accountName)))]
+            .sort()
+            .map(a => { let [num,name]=a.split("||"); return `<option value="${num}">${num} — ${name}</option>`; })
+            .join("")}
+        </select>
+        <button class="ghost-btn" onclick="document.getElementById('gl-acct-filter').value='';filterGLByAccount()">Clear</button>
+        <button class="primary-btn" onclick="openGLNewEntry()">+ New Entry</button>
+      </div>
     </div>
     <div class="dash-card" style="padding:0;overflow:hidden;">
       <div class="je-list-header">
@@ -745,15 +760,47 @@ function openGLNewEntry() {
     {accountId:"",accountNumber:"",accountName:"",debit:"",credit:""},
     {accountId:"",accountNumber:"",accountName:"",debit:"",credit:""}
   ];
+  glFormState = { date:"", desc:"", isAdjusting:false, month:"", day:"", year:"" };
   let area = document.getElementById("gl-new-entry-area");
   area.style.display = "block";
   renderGLEntryForm();
   area.scrollIntoView({ behavior:"smooth" });
 }
 
+// Store form state separately so re-renders don't wipe it
+let glFormState = { date: "", desc: "", isAdjusting: false, month: "", day: "", year: "" };
+
 function renderGLEntryForm() {
   let area = document.getElementById("gl-new-entry-area");
   if (!area) return;
+
+  // Save current values before re-render
+  let dateEl = document.getElementById("gl-je-date-month");
+  if (dateEl) {
+    glFormState.month       = document.getElementById("gl-je-date-month")?.value || glFormState.month;
+    glFormState.day         = document.getElementById("gl-je-date-day")?.value   || glFormState.day;
+    glFormState.year        = document.getElementById("gl-je-date-year")?.value  || glFormState.year;
+    glFormState.desc        = document.getElementById("gl-je-desc")?.value       || glFormState.desc;
+    glFormState.isAdjusting = document.getElementById("gl-is-adjusting")?.checked || glFormState.isAdjusting;
+  }
+
+  // Set defaults if empty
+  let now = new Date();
+  if (!glFormState.month) glFormState.month = String(now.getMonth()+1).padStart(2,"0");
+  if (!glFormState.day)   glFormState.day   = String(now.getDate()).padStart(2,"0");
+  if (!glFormState.year)  glFormState.year  = String(now.getFullYear());
+
+  // Build month options
+  let months = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+  let monthOpts = months.map(m => `<option value="${m}" ${glFormState.month===m?"selected":""}>${m}</option>`).join("");
+
+  // Build day options
+  let dayOpts = Array.from({length:31},(_,i)=>String(i+1).padStart(2,"0"))
+    .map(d => `<option value="${d}" ${glFormState.day===d?"selected":""}>${d}</option>`).join("");
+
+  // Build year options
+  let yearOpts = Array.from({length:41},(_,i)=>String(2020+i))
+    .map(y => `<option value="${y}" ${glFormState.year===y?"selected":""}>${y}</option>`).join("");
 
   let acctOpts = chartOfAccounts.filter(a=>a.isActive)
     .map(a=>`<option value="${a._id}" data-number="${a.number}" data-name="${a.name}">${a.number} — ${a.name}</option>`).join("");
@@ -777,17 +824,22 @@ function renderGLEntryForm() {
       <div class="je-form-header">
         <h3>New Journal Entry</h3>
         <label class="checkbox-label" style="font-size:13px;color:var(--text-muted);">
-          <input type="checkbox" id="gl-is-adjusting"> <span class="checkbox-custom"></span> Adjusting Entry
+          <input type="checkbox" id="gl-is-adjusting" ${glFormState.isAdjusting?"checked":""}> <span class="checkbox-custom"></span> Adjusting Entry
         </label>
       </div>
       <div class="je-form-top">
-        <div class="editor-field" style="flex:1;">
+        <div class="editor-field">
           <label>Date</label>
-          <input type="date" id="gl-je-date" value="${new Date().toISOString().slice(0,10)}">
+          <div class="date-dropdowns">
+            <select id="gl-je-date-month" class="date-part-select" onchange="saveGLFormState()">${monthOpts}</select>
+            <select id="gl-je-date-day"   class="date-part-select" onchange="saveGLFormState()">${dayOpts}</select>
+            <select id="gl-je-date-year"  class="date-part-select" onchange="saveGLFormState()">${yearOpts}</select>
+          </div>
         </div>
         <div class="editor-field" style="flex:3;">
           <label>Description</label>
-          <input type="text" id="gl-je-desc" placeholder="e.g. Record monthly rent payment">
+          <input type="text" id="gl-je-desc" placeholder="e.g. Record monthly rent payment"
+            value="${glFormState.desc}" oninput="glFormState.desc=this.value">
         </div>
       </div>
       <div class="je-lines-header">
@@ -816,6 +868,13 @@ function renderGLEntryForm() {
       if (sel) sel.value = line.accountId;
     }
   });
+}
+
+function saveGLFormState() {
+  glFormState.month = document.getElementById("gl-je-date-month")?.value || glFormState.month;
+  glFormState.day   = document.getElementById("gl-je-date-day")?.value   || glFormState.day;
+  glFormState.year  = document.getElementById("gl-je-date-year")?.value  || glFormState.year;
+  glFormState.desc  = document.getElementById("gl-je-desc")?.value       || glFormState.desc;
 }
 
 function setGLAccount(i, sel) {
@@ -857,12 +916,16 @@ function cancelGLEntry() {
   let area = document.getElementById("gl-new-entry-area");
   if (area) { area.style.display = "none"; area.innerHTML = ""; }
   glJeLines = [];
+  glFormState = { date:"", desc:"", isAdjusting:false, month:"", day:"", year:"" };
 }
 
 function postGLEntry() {
-  let date = document.getElementById("gl-je-date").value;
-  let desc = document.getElementById("gl-je-desc").value.trim();
-  let isAdj= document.getElementById("gl-is-adjusting").checked;
+  let month = document.getElementById("gl-je-date-month")?.value;
+  let day   = document.getElementById("gl-je-date-day")?.value;
+  let year  = document.getElementById("gl-je-date-year")?.value;
+  let date  = `${year}-${month}-${day}`;
+  let desc  = document.getElementById("gl-je-desc").value.trim();
+  let isAdj = document.getElementById("gl-is-adjusting").checked;
 
   if (!date) { alert("Please enter a date."); return; }
   if (!desc) { alert("Please enter a description."); return; }
@@ -983,6 +1046,41 @@ function updateGLEntry(id) {
 function deleteGLEntry(id) {
   if (!confirm("Delete this journal entry? This cannot be undone.")) return;
   db.collection("journalEntries").doc(id).delete().then(() => loadGLEntries());
+}
+
+function filterGLByAccount() {
+  let filterAcct = document.getElementById("gl-acct-filter")?.value;
+  let entries    = window._glEntries || [];
+  let filtered   = filterAcct
+    ? entries.filter(e => e.lines.some(l => l.accountNumber === filterAcct))
+    : entries;
+
+  let list = document.getElementById("gl-entries-list");
+  if (!list) return;
+
+  if (!filtered.length) {
+    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:13px;">No entries found for this account.</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(e => {
+    let totalDr  = e.lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
+    let totalCr  = e.lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
+    let balanced = Math.abs(totalDr-totalCr) < 0.01;
+    let dateStr  = e.entryDate ? new Date(e.entryDate.seconds*1000).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—";
+    return `<div class="je-list-row">
+      <span class="je-date">${dateStr}</span>
+      <span class="je-desc">${e.description||"—"}${e.isAdjusting?` <span class="je-adj-tag">ADJ</span>`:""}</span>
+      <span class="je-amount">$${fmtMoney(totalDr)}</span>
+      <span class="je-amount">$${fmtMoney(totalCr)}</span>
+      <span class="status-pill ${balanced?"filed":"review"}">${balanced?"Balanced":"Unbalanced"}</span>
+      <div style="display:flex;gap:6px;">
+        <button class="ghost-btn" onclick="expandGLEntry('${e._id}',this)">View</button>
+        <button class="ghost-btn" onclick="editGLEntry('${e._id}')">Edit</button>
+        <button class="action-btn-delete" onclick="deleteGLEntry('${e._id}')">Delete</button>
+      </div>
+    </div>`;
+  }).join("");
 }
 
 // ══════════════════════════════════════
