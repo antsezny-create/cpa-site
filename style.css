@@ -375,6 +375,9 @@ body {
 /* ── Services ── */
 .services-section {
   padding: 100px 32px;
+  background: var(--ink);
+  border-top: 1px solid var(--cream-border);
+  border-bottom: 1px solid var(--cream-border);
 }
 
 .section-inner {
@@ -406,14 +409,17 @@ body {
   color: var(--warm);
 }
 
+.services-section .section-label { color: var(--warm); }
+.services-section .section-title { color: var(--white); }
+
 .services-grid {
   display: flex;
   flex-direction: column;
   gap: 0;
-  border: 1px solid var(--cream-border);
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius);
   overflow: hidden;
-  background: var(--white);
+  background: rgba(255,255,255,0.03);
 }
 
 .service-item {
@@ -421,20 +427,19 @@ body {
   grid-template-columns: 80px 1fr;
   gap: 32px;
   padding: 40px;
-  border-bottom: 1px solid var(--cream-border);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
   transition: background 0.2s;
   align-items: start;
 }
 
 .service-item:last-child { border-bottom: none; }
-
-.service-item:hover { background: var(--cream); }
+.service-item:hover { background: rgba(255,255,255,0.04); }
 
 .service-num {
   font-family: var(--mono);
   font-size: 13px;
   font-weight: 500;
-  color: var(--ink-light);
+  color: rgba(255,255,255,0.25);
   padding-top: 4px;
 }
 
@@ -442,7 +447,7 @@ body {
   font-family: var(--serif);
   font-size: 26px;
   font-weight: 500;
-  color: var(--ink);
+  color: var(--white);
   margin-bottom: 10px;
   letter-spacing: -0.2px;
 }
@@ -450,24 +455,18 @@ body {
 .service-content p {
   font-size: 15px;
   font-weight: 300;
-  color: var(--ink-muted);
+  color: rgba(255,255,255,0.5);
   line-height: 1.75;
   margin-bottom: 18px;
   max-width: 620px;
-}
-
-.service-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
 }
 
 .service-tags span {
   font-size: 12px;
   font-weight: 500;
   color: var(--warm);
-  background: var(--warm-light);
-  border: 1px solid var(--warm-border);
+  background: rgba(200,150,74,0.12);
+  border: 1px solid rgba(200,150,74,0.25);
   padding: 4px 12px;
   border-radius: 6px;
   letter-spacing: 0.2px;
@@ -477,7 +476,6 @@ body {
 .process-section {
   padding: 100px 32px;
   background: var(--cream-dark);
-  border-top: 1px solid var(--cream-border);
   border-bottom: 1px solid var(--cream-border);
 }
 
