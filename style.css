@@ -796,3 +796,62 @@ body {
   .footer-left { flex-direction: column; gap: 6px; }
   .footer-tagline { border-left: none; padding-left: 0; }
 }
+
+/* ── Service Breakdown ── */
+.breakdown-header { margin-bottom: 32px; }
+
+.breakdown-title {
+  font-family: var(--serif);
+  font-size: 36px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -0.3px;
+}
+
+.breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.breakdown-card {
+  background: var(--white);
+  border: 1px solid var(--cream-border);
+  border-radius: var(--radius);
+  padding: 32px;
+  transition: all 0.2s;
+}
+
+.breakdown-card:hover {
+  border-color: var(--warm-border);
+  box-shadow: 0 4px 20px rgba(200,150,74,0.08);
+  transform: translateY(-2px);
+}
+
+.breakdown-num {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-light);
+  margin-bottom: 14px;
+}
+
+.breakdown-card h4 {
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+
+.breakdown-card p {
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--ink-muted);
+  line-height: 1.75;
+}
+
+@media (max-width: 768px) {
+  .breakdown-grid { grid-template-columns: 1fr; }
+  .breakdown-title { font-size: 28px; }
+}
