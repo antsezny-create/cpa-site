@@ -82,40 +82,38 @@ function createAccount() {
   if (ssn !== ssnConfirm) { alert("SSN entries do not match. Please re-enter."); return; }
   if (!terms) { alert("Please agree to the Terms of Service and Privacy Policy."); return; }
 
-  let email = document.getElementById("reg-email").value.trim();
-  let password = document.getElementById("reg-password").value;
+  let email     = document.getElementById("reg-email").value.trim();
+  let password  = document.getElementById("reg-password").value;
   let firstName = document.getElementById("firstName").value.trim();
-  let lastName = document.getElementById("lastName").value.trim();
-  let phone = document.getElementById("phone").value.trim();
+  let lastName  = document.getElementById("lastName").value.trim();
+  let phone     = document.getElementById("phone").value.trim();
 
-  // Create the account in Firebase Auth
   auth.createUserWithEmailAndPassword(email, password)
     .then(function(userCredential) {
       let user = userCredential.user;
-
-      // Save client profile to Firestore
       return db.collection("clients").doc(user.uid).set({
-        firstName: firstName,
-        lastName: lastName,
-        email: email,
-        phone: phone,
-        role: "client",
-        status: "pending",
-        documents: 0,
-        type: "Individual",
-        year: "2025",
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        firstName:    firstName,
+        lastName:     lastName,
+        email:        email,
+        phone:        phone,
+        role:         "client",
+        status:       "pending",
+        approvalStatus: "pending-approval",
+        documents:    0,
+        type:         "Individual",
+        year:         (new Date().getFullYear() - 1).toString(),
+        createdAt:    firebase.firestore.FieldValue.serverTimestamp()
       });
     })
     .then(function() {
-      // Show success
+      // Show success screen
       let steps = document.querySelectorAll(".register-step");
       for (let i = 0; i < steps.length; i++) { steps[i].style.display = "none"; }
       document.getElementById("step-success").style.display = "block";
       document.querySelector(".step-indicator").style.display = "none";
-
+      // Redirect to pending approval page instead of portal
       setTimeout(function() {
-        window.location.href = "portal.html";
+        window.location.href = "pending.html";
       }, 2000);
     })
     .catch(function(error) {

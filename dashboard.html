@@ -15,12 +15,12 @@
 <nav class="dash-nav">
   <div class="dash-nav-inner">
     <div class="dash-nav-left">
-      <span class="dash-logo">S</span>
-      <span class="dash-title">AcctgPro</span>
-      <span class="dash-subtitle">Administrator</span>
+      <span class="dash-logo">AS</span>
+      <span class="dash-title">TaxPro</span>
+      <span class="dash-subtitle">Practitioner Dashboard</span>
     </div>
     <div class="dash-nav-right">
-      <span class="dash-user">Sesny</span>
+      <span class="dash-user">Anthony Sesny</span>
     </div>
   </div>
 </nav>
@@ -36,6 +36,7 @@
       </button>
       <button class="dash-nav-btn" onclick="switchDashTab('clients')">
         <span class="nav-icon">◉</span> Clients
+        <span class="msg-badge" id="clients-approval-badge" style="display:none;">0</span>
       </button>
       <button class="dash-nav-btn" onclick="switchDashTab('returns')">
         <span class="nav-icon">◑</span> Returns
@@ -119,6 +120,17 @@
           <select id="clients-year-select" class="year-selector" onchange="onClientsYearChange(this.value)"></select>
         </div>
       </div>
+      <!-- Pending Approval Banner -->
+      <div id="pending-approval-banner" style="display:none;" class="pending-approval-banner">
+        <div class="pending-approval-header">
+          <div class="pending-approval-title">
+            <span class="pending-approval-dot"></span>
+            <strong>New clients awaiting approval</strong>
+          </div>
+        </div>
+        <div id="pending-approval-list"></div>
+      </div>
+
       <div class="filter-bar">
         <button class="filter-btn active" onclick="filterClients('all',this)">All</button>
         <button class="filter-btn" onclick="filterClients('pending',this)">Pending</button>

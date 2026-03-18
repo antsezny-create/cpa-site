@@ -27,7 +27,7 @@ function switchDashTab(tabName) {
     if (b.getAttribute("onclick") && b.getAttribute("onclick").includes("'" + tabName + "'"))
       b.classList.add("active");
   });
-  if (tabName === "clients")     renderClients("all");
+  if (tabName === "clients")     { renderClients("all"); checkPendingApprovals(); }
   if (tabName === "forms")       { currentCategory = "uploaded"; loadFormsFromFirebase(); }
   if (tabName === "documents")   renderDocuments();
   if (tabName === "messages")    loadFirebaseClients();
@@ -733,6 +733,8 @@ auth.onAuthStateChanged(user => {
     loadAllClientsFromFirebase();
     loadAllDocuments();
     setInterval(checkUnreadMessages, 10000);
+    setInterval(checkPendingApprovals, 30000);
+    checkPendingApprovals();
   }
 });
 
@@ -1052,4 +1054,92 @@ function openReturnFormViewer(rid, formUrl, formName, formDesc) {
     opt.value = c.uid; opt.textContent = c.name;
     sel.appendChild(opt);
   });
+}
+
+
+// ══════════════════════════════════════
+//  CLIENT APPROVAL SYSTEM
+// ══════════════════════════════════════
+
+function checkPendingApprovals() {
+  db.collection("clients")
+    .where("approvalStatus", "==", "pending-approval")
+    .get().then(snapshot => {
+      let count = snapshot.size;
+      let badge = document.getElementById("clients-approval-badge");
+      if (badge) {
+        badge.textContent = count;
+        badge.style.display = count > 0 ? "inline" : "none";
+      }
+      if (count > 0) renderPendingApprovalBanner(snapshot);
+      else {
+        let banner = document.getElementById("pending-approval-banner");
+        if (banner) banner.style.display = "none";
+      }
+    });
+}
+
+function renderPendingApprovalBanner(snapshot) {
+  let banner = document.getElementById("pending-approval-banner");
+  if (!banner) return;
+  banner.style.display = "block";
+  let list = document.getElementById("pending-approval-list");
+  list.innerHTML = "";
+
+  snapshot.forEach(doc => {
+    let d = doc.data();
+    let name = (d.firstName || "") + " " + (d.lastName || "");
+    let colors = ["blue","purple","green","orange","cyan"];
+    let color  = colors[name.length % colors.length];
+    let initials = (d.firstName||"?")[0] + (d.lastName||"?")[0];
+
+    let timeText = "";
+    if (d.createdAt) {
+      let dt = new Date(d.createdAt.seconds * 1000);
+      let months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      timeText = months[dt.getMonth()] + " " + dt.getDate();
+    }
+
+    let row = document.createElement("div");
+    row.className = "pending-client-row";
+    row.innerHTML = `
+      <div class="client-cell">
+        <div class="client-cell-avatar ${color}">${initials}</div>
+        <div>
+          <div class="cell-name">${name}</div>
+          <div class="cell-sub">${d.email || ""} · Registered ${timeText}</div>
+        </div>
+      </div>
+      <div class="pending-actions">
+        <button class="approve-btn" onclick="approveClient('${doc.id}','${name.replace(/'/g,"\\'")}','${d.email||""}')">✓ Approve</button>
+        <button class="deny-btn"    onclick="denyClient('${doc.id}','${name.replace(/'/g,"\\'")}')">✕ Deny</button>
+      </div>`;
+    list.appendChild(row);
+  });
+}
+
+function approveClient(uid, name, email) {
+  if (!confirm("Approve " + name + "? They will get access to the portal immediately.")) return;
+  db.collection("clients").doc(uid).update({
+    approvalStatus: "approved",
+    status: "pending"
+  }).then(() => {
+    // Log welcome activity
+    db.collection("activity").add({
+      clientId:  uid,
+      type:      "account",
+      text:      "Account approved — welcome to AcctgPro!",
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    checkPendingApprovals();
+    loadAllClientsFromFirebase();
+  }).catch(e => alert("Failed: " + e.message));
+}
+
+function denyClient(uid, name) {
+  if (!confirm("Deny and delete " + name + "'s account? This cannot be undone.")) return;
+  // Delete from Firestore first, then Auth deletion happens via Cloud Function
+  db.collection("clients").doc(uid).delete().then(() => {
+    checkPendingApprovals();
+  }).catch(e => alert("Failed: " + e.message));
 }

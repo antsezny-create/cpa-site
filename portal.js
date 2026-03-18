@@ -14,10 +14,24 @@ let activityListener  = null;
 auth.onAuthStateChanged(function(user) {
   if (user) {
     currentUser = user;
-    loadUserData();
-    loadMessages();
-    loadDocuments();
-    listenForUnreadMessages();
+    // Check approval status before loading portal
+    db.collection("clients").doc(user.uid).get().then(function(doc) {
+      if (!doc.exists) { window.location.href = "login.html"; return; }
+      let data = doc.data();
+      if (data.approvalStatus === "pending-approval") {
+        window.location.href = "pending.html";
+        return;
+      }
+      if (data.approvalStatus === "rejected") {
+        auth.signOut().then(function() { window.location.href = "login.html"; });
+        return;
+      }
+      // Approved — load portal normally
+      loadUserData();
+      loadMessages();
+      loadDocuments();
+      listenForUnreadMessages();
+    });
   } else {
     window.location.href = "login.html";
   }

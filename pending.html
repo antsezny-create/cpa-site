@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pending Approval — AcctgPro</title>
+  <link rel="stylesheet" href="portal.css">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: var(--bg);
+    }
+    .pending-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+    }
+    .pending-icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: var(--accent-light);
+      color: var(--accent);
+      font-size: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+    }
+    .pending-card h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+    .pending-card p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+    .pending-card .contact {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+    .pending-card .contact a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .pending-signout {
+      margin-top: 24px;
+      padding: 10px 24px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-dim);
+      font-size: 13px;
+      font-weight: 600;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .pending-signout:hover {
+      border-color: var(--text-muted);
+      color: var(--text-muted);
+    }
+    .pending-pulse {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    .pending-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pendingPulse 1.4s ease-in-out infinite;
+    }
+    .pending-dot:nth-child(2) { animation-delay: 0.2s; }
+    .pending-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes pendingPulse {
+      0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+      40% { opacity: 1; transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="pending-card">
+  <div class="pending-icon">⏳</div>
+  <h1>Your account is pending approval</h1>
+  <div class="pending-pulse">
+    <div class="pending-dot"></div>
+    <div class="pending-dot"></div>
+    <div class="pending-dot"></div>
+  </div>
+  <p>Thank you for registering! Your account has been submitted and is currently being reviewed by Anthony.</p>
+  <p>You'll receive an email at <strong id="pending-email"></strong> once your account has been approved — typically within 1 business day.</p>
+  <p>If you have any questions in the meantime, feel free to reach out directly.</p>
+  <div class="contact">
+    <a href="mailto:sesnyanthony@gmail.com">sesnyanthony@gmail.com</a> · (718) 612-5911
+  </div>
+  <button class="pending-signout" onclick="signOut()">Sign Out</button>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+  auth.onAuthStateChanged(function(user) {
+    if (!user) { window.location.href = "login.html"; return; }
+
+    // Show their email
+    let emailEl = document.getElementById("pending-email");
+    if (emailEl) emailEl.textContent = user.email;
+
+    // Listen in real time — if approved, redirect to portal automatically
+    db.collection("clients").doc(user.uid).onSnapshot(function(doc) {
+      if (!doc.exists) return;
+      let data = doc.data();
+      if (data.approvalStatus === "approved") {
+        window.location.href = "portal.html";
+      }
+      if (data.approvalStatus === "rejected") {
+        auth.signOut().then(function() {
+          window.location.href = "login.html";
+        });
+      }
+    });
+  });
+
+  function signOut() {
+    auth.signOut().then(function() {
+      window.location.href = "login.html";
+    });
+  }
+</script>
+</body>
+</html>
