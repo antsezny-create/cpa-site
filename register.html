@@ -71,22 +71,22 @@
           <div class="form-row-split">
             <div class="form-group">
               <label for="firstName">First name</label>
-              <input type="text" id="firstName" placeholder="Sarah">
+              <input type="text" id="firstName" placeholder="Sarah" autocomplete="off">
             </div>
             <div class="form-group">
               <label for="lastName">Last name</label>
-              <input type="text" id="lastName" placeholder="Mitchell">
+              <input type="text" id="lastName" placeholder="Mitchell" autocomplete="off">
             </div>
           </div>
 
           <div class="form-group">
             <label for="reg-email">Email address</label>
-            <input type="email" id="reg-email" placeholder="you@example.com">
+            <input type="email" id="reg-email" placeholder="you@example.com" autocomplete="off">
           </div>
 
           <div class="form-group">
             <label for="phone">Phone number</label>
-            <input type="tel" id="phone" placeholder="(555) 123-4567">
+            <input type="tel" id="phone" placeholder="(555) 123-4567" autocomplete="off">
           </div>
 
           <button class="btn-login" onclick="nextStep(2)">Continue</button>
@@ -105,7 +105,7 @@
         <div class="login-form">
           <div class="form-group">
             <label for="reg-password">Password</label>
-            <input type="password" id="reg-password" placeholder="At least 8 characters">
+            <input type="password" id="reg-password" placeholder="At least 8 characters" autocomplete="new-password">
             <div class="password-requirements">
               <div class="req" id="req-length">At least 8 characters</div>
               <div class="req" id="req-number">Contains a number</div>
@@ -115,7 +115,7 @@
 
           <div class="form-group">
             <label for="reg-confirm">Confirm password</label>
-            <input type="password" id="reg-confirm" placeholder="Re-enter your password">
+            <input type="password" id="reg-confirm" placeholder="Re-enter your password" autocomplete="new-password">
           </div>
 
           <div class="form-buttons">
