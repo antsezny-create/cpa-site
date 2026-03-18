@@ -27,13 +27,18 @@ function switchDashTab(tabName) {
     if (b.getAttribute("onclick") && b.getAttribute("onclick").includes("'" + tabName + "'"))
       b.classList.add("active");
   });
-  if (tabName === "clients")     { renderClients("all"); checkPendingApprovals(); }
-  if (tabName === "forms")       { currentCategory = "uploaded"; loadFormsFromFirebase(); }
-  if (tabName === "documents")   renderDocuments();
-  if (tabName === "messages")    loadFirebaseClients();
-  if (tabName === "saved-forms") loadSavedForms();
-  if (tabName === "returns")     loadReturnsTab();
-  if (tabName === "financials")  loadFinancialsTab();
+  if (tabName === "clients")         { renderClients("all"); checkPendingApprovals(); }
+  if (tabName === "forms")           { currentCategory = "uploaded"; loadFormsFromFirebase(); }
+  if (tabName === "documents")       renderDocuments();
+  if (tabName === "messages")        loadFirebaseClients();
+  if (tabName === "saved-forms")     loadSavedForms();
+  if (tabName === "returns")         loadReturnsTab();
+  if (tabName === "gl")              loadGLTab();
+  if (tabName === "is")              loadStatementTab("is");
+  if (tabName === "bs")              loadStatementTab("bs");
+  if (tabName === "scf")             loadStatementTab("scf");
+  if (tabName === "sshe")            loadStatementTab("sshe");
+  if (tabName === "master-accounts") loadMasterAccountsTab();
 }
 
 

@@ -2330,3 +2330,77 @@ body {
   margin-bottom: 12px; padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
+
+/* ── Sidebar Section Dividers ── */
+.sidebar-section-label {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 2.5px;
+  color: var(--text-dim);
+  padding: 14px 12px 6px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Accounting Selectors ── */
+.acct-selectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  padding: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+}
+.acct-selector-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+}
+.acct-selector-group label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+}
+
+/* ── Master Accounts Full Table ── */
+.coa-header,
+.coa-row-full {
+  display: grid;
+  grid-template-columns: 80px 1fr 110px 160px 130px 90px 200px;
+  padding: 12px 20px;
+  align-items: center;
+}
+.coa-header {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--text-dim); background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+.coa-row-full {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s; font-size: 13px;
+}
+.coa-row-full:last-child { border-bottom: none; }
+.coa-row-full:hover { background: var(--bg-hover); }
+.coa-subtype { font-size: 12px; color: var(--text-dim); }
+
+/* ── Statement edit inputs ── */
+.stmt-edit-input {
+  width: 120px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
+  text-align: right;
+  outline: none;
+}
