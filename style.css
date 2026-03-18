@@ -19,6 +19,17 @@
   --serif:       'Cormorant Garamond', Georgia, serif;
   --sans:        'DM Sans', -apple-system, sans-serif;
   --mono:        'DM Mono', monospace;
+
+  /* Legacy variables used by login/register/admin pages */
+  --bg:          #FAF8F4;
+  --bg-alt:      #F2EFE8;
+  --bg-dark:     #0F0F0F;
+  --text:        #1C1917;
+  --text-muted:  #6B6560;
+  --text-light:  #A8A39C;
+  --accent:      #0A66C2;
+  --accent-light:#E8F1FB;
+  --border:      #E8E3D8;
 }
 
 html { scroll-behavior: smooth; }
