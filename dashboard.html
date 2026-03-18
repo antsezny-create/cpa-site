@@ -15,12 +15,12 @@
 <nav class="dash-nav">
   <div class="dash-nav-inner">
     <div class="dash-nav-left">
-      <span class="dash-logo">S</span>
-      <span class="dash-title">AcctgPro</span>
-      <span class="dash-subtitle">Administrator</span>
+      <span class="dash-logo">AS</span>
+      <span class="dash-title">TaxPro</span>
+      <span class="dash-subtitle">Practitioner Dashboard</span>
     </div>
     <div class="dash-nav-right">
-      <span class="dash-user">Sesny</span>
+      <span class="dash-user">Anthony Sesny</span>
     </div>
   </div>
 </nav>
@@ -142,10 +142,18 @@
     <!-- ==================== FORMS & SCHEDULES ==================== -->
     <div class="dash-tab" id="tab-forms" style="display:none;">
       <div class="dash-header">
-        <h1>Forms &amp; Schedules</h1>
-        <p>Upload IRS PDFs — they're stored in your account and ready to fill anytime</p>
+        <div>
+          <h1>Forms &amp; Schedules</h1>
+          <div class="forms-breadcrumb" id="forms-breadcrumb">
+            <span class="breadcrumb-current">All Categories</span>
+          </div>
+        </div>
+        <div class="editor-actions">
+          <button class="back-btn" id="forms-back-btn" style="display:none;" onclick="loadFormsFromFirebase()">←</button>
+          <button class="primary-btn" id="forms-upload-btn" style="display:none;" onclick="document.getElementById('form-upload-input').click()">+ Upload Form</button>
+        </div>
       </div>
-      <div class="forms-grid" id="forms-grid">
+      <div id="forms-container">
         <div style="padding:24px;color:#6B7280;font-size:13px;">Loading...</div>
       </div>
     </div>

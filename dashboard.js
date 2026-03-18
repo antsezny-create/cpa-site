@@ -179,35 +179,142 @@ function onClientsYearChange(year) {
 
 
 // ══════════════════════════════════════
-//  FORMS — Firebase-backed library
+//  FORMS — Category-based two-level view
 // ══════════════════════════════════════
 
-// Load all forms from Firestore and render
-function loadFormsFromFirebase() {
-  let grid = document.getElementById("forms-grid");
-  if (!grid) return;
-  grid.innerHTML = '<div style="padding:24px;color:#6B7280;font-size:13px;">Loading forms...</div>';
+const FORM_CATEGORIES = [
+  {
+    id: "individual",
+    label: "Individual Returns",
+    icon: "1040",
+    desc: "Personal income tax returns and amendments",
+    color: "blue"
+  },
+  {
+    id: "business",
+    label: "Business Returns",
+    icon: "1120",
+    desc: "Corporate, S-Corp, and partnership returns",
+    color: "purple"
+  },
+  {
+    id: "schedules",
+    label: "Schedules",
+    icon: "SCH",
+    desc: "All IRS schedules attached to returns",
+    color: "cyan"
+  },
+  {
+    id: "payroll",
+    label: "Payroll & Employment",
+    icon: "941",
+    desc: "Payroll taxes, W-forms, and employment",
+    color: "orange"
+  },
+  {
+    id: "1099s",
+    label: "1099 Series",
+    icon: "1099",
+    desc: "Information returns and income reporting",
+    color: "green"
+  },
+  {
+    id: "other",
+    label: "Other Forms",
+    icon: "etc",
+    desc: "Extensions, authorizations, and more",
+    color: "red"
+  }
+];
 
-  db.collection("practitionerForms").orderBy("uploadedAt","desc").get().then(snapshot => {
-    let forms = [];
-    snapshot.forEach(doc => { let d = doc.data(); d._id = doc.id; forms.push(d); });
-    renderFormsGrid(forms);
-  }).catch(() => {
-    // If index not ready yet, fall back to unordered get
-    db.collection("practitionerForms").get().then(snapshot => {
-      let forms = [];
-      snapshot.forEach(doc => { let d = doc.data(); d._id = doc.id; forms.push(d); });
-      renderFormsGrid(forms);
+let currentFormsCategory = null;
+
+function loadFormsFromFirebase() {
+  currentFormsCategory = null;
+  renderCategoryGrid();
+}
+
+// Level 1 — show category tiles
+function renderCategoryGrid() {
+  let container = document.getElementById("forms-container");
+  if (!container) return;
+
+  // Update breadcrumb
+  document.getElementById("forms-breadcrumb").innerHTML =
+    '<span class="breadcrumb-current">All Categories</span>';
+  document.getElementById("forms-back-btn").style.display = "none";
+  document.getElementById("forms-upload-btn").style.display = "none";
+
+  container.innerHTML = "";
+  let grid = document.createElement("div");
+  grid.className = "category-grid";
+
+  // Fetch all forms to get counts per category
+  db.collection("practitionerForms").get().then(snapshot => {
+    let countByCategory = {};
+    snapshot.forEach(doc => {
+      let cat = doc.data().category || "other";
+      countByCategory[cat] = (countByCategory[cat] || 0) + 1;
     });
+
+    FORM_CATEGORIES.forEach(cat => {
+      let count = countByCategory[cat.id] || 0;
+      let tile = document.createElement("div");
+      tile.className = "category-tile category-tile-" + cat.color;
+      tile.onclick = () => openCategory(cat);
+      tile.innerHTML = `
+        <div class="category-tile-icon">${cat.icon}</div>
+        <div class="category-tile-info">
+          <strong>${cat.label}</strong>
+          <span>${cat.desc}</span>
+          <span class="category-count">${count} form${count !== 1 ? "s" : ""}</span>
+        </div>
+        <div class="category-tile-arrow">→</div>`;
+      grid.appendChild(tile);
+    });
+
+    container.appendChild(grid);
   });
 }
 
-function renderFormsGrid(forms) {
-  let grid = document.getElementById("forms-grid");
-  grid.innerHTML = "";
+// Level 2 — show forms inside a category
+function openCategory(cat) {
+  currentFormsCategory = cat;
+  let container = document.getElementById("forms-container");
+
+  // Update breadcrumb
+  document.getElementById("forms-breadcrumb").innerHTML =
+    `<span class="breadcrumb-link" onclick="loadFormsFromFirebase()">All Categories</span>
+     <span class="breadcrumb-sep">›</span>
+     <span class="breadcrumb-current">${cat.label}</span>`;
+  document.getElementById("forms-back-btn").style.display = "inline-flex";
+  document.getElementById("forms-upload-btn").style.display = "inline-flex";
+
+  container.innerHTML = '<div style="padding:24px;color:#6B7280;font-size:13px;">Loading forms...</div>';
+
+  db.collection("practitionerForms").get().then(snapshot => {
+    let forms = [];
+    snapshot.forEach(doc => {
+      let d = doc.data(); d._id = doc.id;
+      let formCat = d.category || "other";
+      if (formCat === cat.id) forms.push(d);
+    });
+    renderFormsGrid(forms, cat);
+  });
+}
+
+function renderFormsGrid(forms, cat) {
+  let container = document.getElementById("forms-container");
+  container.innerHTML = "";
+
+  let grid = document.createElement("div");
+  grid.className = "forms-grid";
 
   if (forms.length === 0) {
-    grid.innerHTML = '<div style="padding:24px;color:#6B7280;font-size:13px;">No forms uploaded yet. Use the button above to upload your first IRS PDF.</div>';
+    let empty = document.createElement("div");
+    empty.style.cssText = "grid-column:1/-1;padding:32px;color:#6B7280;font-size:13px;text-align:center;";
+    empty.textContent = "No forms in this category yet. Click Upload Form to add one.";
+    grid.appendChild(empty);
   }
 
   forms.forEach(f => {
@@ -222,38 +329,37 @@ function renderFormsGrid(forms) {
         <span class="form-year-tag">${f.taxYear || ""}</span>
       </div>
       <div class="form-card-actions" onclick="event.stopPropagation()">
-        <button class="form-action-btn delete" title="Delete form" onclick="deleteUploadedForm('${f._id}','${(f.storagePath||"").replace(/'/g,"\\'")}')">✕</button>
+        <button class="form-action-btn delete" title="Delete form"
+          onclick="deleteUploadedForm('${f._id}','${(f.storagePath||"").replace(/'/g,"\\'")}')">✕</button>
       </div>`;
     grid.appendChild(card);
   });
 
-  // Upload new form card
-  let addCard = document.createElement("div");
-  addCard.className = "form-card add-form-card";
-  addCard.onclick = () => document.getElementById("form-upload-input").click();
-  addCard.innerHTML = `<div class="form-card-icon add-icon"><span>+</span></div>
-    <div class="form-card-info"><strong>Upload Form</strong><span>Add a PDF from your computer</span></div>`;
-  grid.appendChild(addCard);
+  container.appendChild(grid);
 }
 
-// Upload a PDF from disk → Firebase Storage → Firestore record
+// Upload a PDF — now asks for category
 function handleFormUpload(input) {
   let file = input.files[0];
   if (!file) return;
-  let name  = prompt("Form name (e.g. Form 1040):", file.name.replace(".pdf","").replace(".PDF",""));
+  let name = prompt("Form name (e.g. Form 1040):", file.name.replace(/\.pdf$/i,""));
   if (!name) { input.value=""; return; }
-  let desc  = prompt("Short description (e.g. U.S. Individual Income Tax Return):", "");
-  let year  = prompt("Tax year (e.g. 2025):", "2025");
+  let desc = prompt("Short description:", "");
+  let year = prompt("Tax year:", new Date().getFullYear() - 1);
+
+  // Category is already known from which category we're in
+  let category = currentFormsCategory ? currentFormsCategory.id : "other";
 
   let path = "practitioner-forms/" + Date.now() + "_" + file.name;
   let ref  = storage.ref(path);
 
-  // Show uploading state
-  let grid = document.getElementById("forms-grid");
+  // Show progress
+  let container = document.getElementById("forms-container");
   let uploading = document.createElement("div");
   uploading.className = "form-upload-progress";
+  uploading.style.marginBottom = "16px";
   uploading.innerHTML = `<span>Uploading ${name}...</span><div class="upload-bar"><div class="upload-bar-fill" id="upload-fill"></div></div>`;
-  grid.insertBefore(uploading, grid.firstChild);
+  container.insertBefore(uploading, container.firstChild);
 
   let uploadTask = ref.put(file);
   uploadTask.on("state_changed",
@@ -266,30 +372,27 @@ function handleFormUpload(input) {
     () => {
       uploadTask.snapshot.ref.getDownloadURL().then(url => {
         return db.collection("practitionerForms").add({
-          name:        name,
-          desc:        desc || "",
-          taxYear:     year || "2025",
-          storagePath: path,
-          storageUrl:  url,
-          uploadedAt:  firebase.firestore.FieldValue.serverTimestamp()
+          name, desc: desc||"", taxYear: year||"", category,
+          storagePath: path, storageUrl: url,
+          uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
       }).then(() => {
         uploading.remove();
         input.value = "";
-        loadFormsFromFirebase();
-      }).catch(e => { alert("Error saving form record: " + e.message); uploading.remove(); input.value=""; });
+        if (currentFormsCategory) openCategory(currentFormsCategory);
+        else renderCategoryGrid();
+      }).catch(e => { alert("Error: " + e.message); uploading.remove(); input.value=""; });
     }
   );
 }
 
 function deleteUploadedForm(docId, storagePath) {
-  if (!confirm("Delete this form permanently? This cannot be undone.")) return;
+  if (!confirm("Delete this form permanently?")) return;
   db.collection("practitionerForms").doc(docId).delete().then(() => {
-    if (storagePath) {
-      storage.ref(storagePath).delete().catch(() => {});
-    }
-    loadFormsFromFirebase();
-  }).catch(e => alert("Failed to delete: " + e.message));
+    if (storagePath) storage.ref(storagePath).delete().catch(()=>{});
+    if (currentFormsCategory) openCategory(currentFormsCategory);
+    else renderCategoryGrid();
+  }).catch(e => alert("Failed: " + e.message));
 }
 
 
