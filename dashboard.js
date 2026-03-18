@@ -307,6 +307,32 @@ function renderFormsGrid(forms, cat) {
   let container = document.getElementById("forms-container");
   container.innerHTML = "";
 
+  // Sort forms: letter schedules first (A-Z), then numbered (1, 2, 3), then everything else alphabetically
+  forms.sort(function(a, b) {
+    let nameA = a.name.trim();
+    let nameB = b.name.trim();
+
+    // Extract the part after "Schedule " or "Form " for comparison
+    let keyA = nameA.replace(/^(Schedule|Form)\s+/i, "");
+    let keyB = nameB.replace(/^(Schedule|Form)\s+/i, "");
+
+    // Check if keys are purely numeric
+    let numA = parseInt(keyA);
+    let numB = parseInt(keyB);
+    let aIsNum = !isNaN(numA) && keyA.trim() === String(numA);
+    let bIsNum = !isNaN(numB) && keyB.trim() === String(numB);
+
+    // Letter entries come before numeric entries
+    if (!aIsNum && bIsNum) return -1;
+    if (aIsNum && !bIsNum) return 1;
+
+    // Both numeric — sort numerically
+    if (aIsNum && bIsNum) return numA - numB;
+
+    // Both non-numeric — sort alphabetically
+    return keyA.localeCompare(keyB);
+  });
+
   let grid = document.createElement("div");
   grid.className = "forms-grid";
 
