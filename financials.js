@@ -118,12 +118,13 @@ async function loadPeriodsForClient(clientId, periodSelectId) {
     opt.value = doc.id;
     opt.textContent = p.periodLabel || p.period;
     opt.dataset.companyName = p.companyName || "";
+    opt.dataset.periodType  = p.periodType  || "annual";
     sel.appendChild(opt);
   });
   sel.disabled = false;
 }
 
-async function computeBalances(clientId, periodId) {
+async function computeBalances(clientId, periodId, dateFrom, dateTo) {
   let snap = await db.collection("journalEntries")
     .where("clientId", "==", clientId)
     .where("periodId", "==", periodId)
@@ -135,7 +136,16 @@ async function computeBalances(clientId, periodId) {
   });
 
   snap.forEach(doc => {
-    doc.data().lines.forEach(line => {
+    let e = doc.data();
+
+    // Date range filter — only include entries within the period's date range
+    if (e.entryDate && (dateFrom || dateTo)) {
+      let entryDate = new Date(e.entryDate.seconds * 1000).toISOString().slice(0,10);
+      if (dateFrom && entryDate < dateFrom) return;
+      if (dateTo   && entryDate > dateTo)   return;
+    }
+
+    e.lines.forEach(line => {
       if (!balMap[line.accountId]) {
         balMap[line.accountId] = {
           _id: line.accountId, number: line.accountNumber,
@@ -156,6 +166,35 @@ async function computeBalances(clientId, periodId) {
   return Object.values(balMap)
     .filter(a => a.debit > 0 || a.credit > 0)
     .sort((a,b) => parseInt(a.number) - parseInt(b.number));
+}
+
+// Get date range for a period based on its type and label
+function getPeriodDateRange(periodLabel, periodType) {
+  if (!periodLabel || !periodType) return { from: null, to: null };
+
+  let year = periodLabel.match(/\d{4}/)?.[0];
+  if (!year) return { from: null, to: null };
+
+  if (periodType === "annual") {
+    return { from: `${year}-01-01`, to: `${year}-12-31` };
+  }
+  if (periodType === "quarterly") {
+    let q = periodLabel.match(/Q(\d)/)?.[1];
+    if (!q) return { from: null, to: null };
+    let ranges = { "1":["01-01","03-31"], "2":["04-01","06-30"], "3":["07-01","09-30"], "4":["10-01","12-31"] };
+    let r = ranges[q];
+    return r ? { from:`${year}-${r[0]}`, to:`${year}-${r[1]}` } : { from:null, to:null };
+  }
+  if (periodType === "monthly") {
+    let months = { Jan:"01",Feb:"02",Mar:"03",Apr:"04",May:"05",Jun:"06",
+                   Jul:"07",Aug:"08",Sep:"09",Oct:"10",Nov:"11",Dec:"12" };
+    let monthAbbr = periodLabel.match(/[A-Z][a-z]{2}/)?.[0];
+    let monthNum  = months[monthAbbr];
+    if (!monthNum) return { from:null, to:null };
+    let daysInMonth = new Date(parseInt(year), parseInt(monthNum), 0).getDate();
+    return { from:`${year}-${monthNum}-01`, to:`${year}-${monthNum}-${daysInMonth}` };
+  }
+  return { from: null, to: null };
 }
 
 // ══════════════════════════════════════
@@ -189,18 +228,17 @@ function toggleStmtEditMode(btn) {
   stmtEditMode = !stmtEditMode;
   btn.textContent = stmtEditMode ? "✓ Done Editing" : "Edit Numbers";
   btn.className   = stmtEditMode ? "primary-btn" : "ghost-btn";
-  // Re-render current statement
-  let activeTab = document.querySelector(".stmt-tab.active");
-  if (activeTab) activeTab.click();
+  if (!window._finData) return;
+  let { accounts, periodLabel, clientName, tabId } = window._finData;
+  let activeTabId = tabId || window._currentTabId;
+  if (!activeTabId) return;
+  renderCurrentStatement(activeTabId, accounts, periodLabel, clientName);
 }
 
 function onStmtEdit(input) {
   let id  = input.dataset.id;
   let val = parseFloat(input.value) || 0;
   stmtOverrides[id] = val;
-  // Re-render totals only (lightweight)
-  let activeTab = document.querySelector(".stmt-tab.active");
-  if (activeTab) activeTab.click();
 }
 
 function getBalance(account) {
@@ -262,21 +300,28 @@ async function onStmtPeriodChange(tabId) {
   let clientSel = document.getElementById(tabId + "-client");
   let periodSel = document.getElementById(tabId + "-period");
   if (!clientSel || !periodSel) return;
-  let clientId  = clientSel.value;
-  let periodId  = periodSel.value;
+  let clientId    = clientSel.value;
+  let periodId    = periodSel.value;
   let periodLabel = periodSel.options[periodSel.selectedIndex]?.textContent || "";
-  let companyName = periodSel.options[periodSel.selectedIndex]?.dataset.companyName || clientSel.options[clientSel.selectedIndex]?.textContent || "";
+  let companyName = periodSel.options[periodSel.selectedIndex]?.dataset.companyName
+                 || clientSel.options[clientSel.selectedIndex]?.textContent || "";
+  let periodType  = periodSel.options[periodSel.selectedIndex]?.dataset.periodType || "annual";
   if (!clientId || !periodId) return;
 
-  stmtOverrides  = {};
-  stmtEditMode   = false;
+  stmtOverrides = {};
+  stmtEditMode  = false;
+  window._currentTabId = tabId;
 
   let output = document.getElementById(tabId + "-stmt-output");
-  output.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;">Computing from journal entries...</div>`;
+  if (output) output.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;">Computing from journal entries...</div>`;
 
   await initChartOfAccounts();
-  let accounts = await computeBalances(clientId, periodId);
-  window._finData = { accounts, periodLabel, clientName: companyName, clientId, periodId };
+
+  // Get date range for this period and filter entries accordingly
+  let { from, to } = getPeriodDateRange(periodLabel, periodType);
+  let accounts = await computeBalances(clientId, periodId, from, to);
+
+  window._finData = { accounts, periodLabel, clientName: companyName, clientId, periodId, tabId };
 
   // Show action buttons
   ["edit-btn","export-btn","publish-btn"].forEach(id => {
@@ -284,7 +329,14 @@ async function onStmtPeriodChange(tabId) {
     if (btn) btn.style.display = "inline-flex";
   });
 
-  // Render the right statement
+  // Reset edit button label
+  let editBtn = document.getElementById(tabId + "-edit-btn");
+  if (editBtn) { editBtn.textContent = "Edit Numbers"; editBtn.className = "ghost-btn"; }
+
+  renderCurrentStatement(tabId, accounts, periodLabel, companyName);
+}
+
+function renderCurrentStatement(tabId, accounts, periodLabel, companyName) {
   if (tabId === "is")   renderIS(accounts, periodLabel, companyName);
   if (tabId === "bs")   renderBS(accounts, periodLabel, companyName);
   if (tabId === "scf")  renderSCF(accounts, periodLabel, companyName);
@@ -677,6 +729,7 @@ async function loadGLEntries() {
         <span class="status-pill ${balanced?"filed":"review"}">${balanced?"Balanced":"Unbalanced"}</span>
         <div style="display:flex;gap:6px;">
           <button class="ghost-btn" onclick="expandGLEntry('${e._id}',this)">View</button>
+          <button class="ghost-btn" onclick="editGLEntry('${e._id}')">Edit</button>
           <button class="action-btn-delete" onclick="deleteGLEntry('${e._id}')">Delete</button>
         </div>
       </div>`;
@@ -855,6 +908,76 @@ function expandGLEntry(id, btn) {
       </div>`).join("");
     row.parentNode.insertBefore(expand, row.nextSibling);
   });
+}
+
+function editGLEntry(id) {
+  db.collection("journalEntries").doc(id).get().then(doc => {
+    if (!doc.exists) return;
+    let e = doc.data();
+
+    // Load the existing lines into the form
+    glJeLines = e.lines.map(l => ({
+      accountId:     l.accountId,
+      accountNumber: l.accountNumber,
+      accountName:   l.accountName,
+      debit:         l.debit  > 0 ? l.debit.toString()  : "",
+      credit:        l.credit > 0 ? l.credit.toString() : ""
+    }));
+
+    let area = document.getElementById("gl-new-entry-area");
+    area.style.display = "block";
+    renderGLEntryForm();
+
+    // Pre-fill date and description
+    let dateInput = document.getElementById("gl-je-date");
+    let descInput = document.getElementById("gl-je-desc");
+    let adjCheck  = document.getElementById("gl-is-adjusting");
+    if (dateInput && e.entryDate) {
+      dateInput.value = new Date(e.entryDate.seconds*1000).toISOString().slice(0,10);
+    }
+    if (descInput) descInput.value = e.description || "";
+    if (adjCheck)  adjCheck.checked = e.isAdjusting || false;
+
+    // Change Post button to Update
+    let postBtn = document.getElementById("gl-post-btn");
+    if (postBtn) {
+      postBtn.textContent = "Update Entry";
+      postBtn.disabled    = false;
+      postBtn.onclick     = () => updateGLEntry(id);
+    }
+
+    area.scrollIntoView({ behavior:"smooth" });
+  });
+}
+
+function updateGLEntry(id) {
+  let date = document.getElementById("gl-je-date").value;
+  let desc = document.getElementById("gl-je-desc").value.trim();
+  let isAdj= document.getElementById("gl-is-adjusting").checked;
+
+  if (!date) { alert("Please enter a date."); return; }
+  if (!desc) { alert("Please enter a description."); return; }
+
+  let lines = glJeLines.filter(l=>l.accountId && (parseFloat(l.debit)||0)+(parseFloat(l.credit)||0)>0);
+  if (lines.length < 2) { alert("Add at least 2 account lines."); return; }
+
+  let totalDr = lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
+  let totalCr = lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
+  if (Math.abs(totalDr-totalCr) > 0.01) { alert("Entry is not balanced. Debits must equal credits."); return; }
+
+  db.collection("journalEntries").doc(id).update({
+    entryDate:   firebase.firestore.Timestamp.fromDate(new Date(date+"T12:00:00")),
+    description: desc,
+    isAdjusting: isAdj,
+    lines: lines.map(l=>({
+      accountId:l.accountId, accountNumber:l.accountNumber,
+      accountName:l.accountName, debit:parseFloat(l.debit)||0, credit:parseFloat(l.credit)||0
+    })),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    cancelGLEntry();
+    loadGLEntries();
+  }).catch(e => alert("Failed to update: " + e.message));
 }
 
 function deleteGLEntry(id) {
