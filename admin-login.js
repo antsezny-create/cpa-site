@@ -1,19 +1,39 @@
 // ── Route protection: redirect if already logged in ──
 auth.onAuthStateChanged(function(user) {
-  if (!user) return; // Not logged in — show the login form normally
+  if (!user) return;
 
-  // Someone is logged in — check if they're an admin
   db.collection("admins").doc(user.uid).get().then(function(doc) {
     if (doc.exists) {
-      // Already logged in as admin — go straight to dashboard
+      // Log session if not already logged
+      let existingSession = sessionStorage.getItem("adminSessionId");
+      if (!existingSession) {
+        let sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+        let sessionData = {
+          sessionId:  sessionId,
+          uid:        user.uid,
+          email:      user.email,
+          signInAt:   firebase.firestore.FieldValue.serverTimestamp(),
+          signOutAt:  null,
+          duration:   null,
+          userAgent:  navigator.userAgent,
+          active:     true
+        };
+        db.collection("adminSessions").doc(sessionId).set(sessionData)
+          .then(() => console.log("Session logged:", sessionId))
+          .catch(e => console.error("Session log failed:", e.message));
+        db.collection("admins").doc(user.uid).update({
+          activeSession: sessionId,
+          lastSignIn:    firebase.firestore.FieldValue.serverTimestamp(),
+          lastUserAgent: navigator.userAgent
+        });
+        sessionStorage.setItem("adminSessionId", sessionId);
+        sessionStorage.setItem("adminSessionStart", Date.now().toString());
+      }
       window.location.href = "dashboard.html";
     } else {
-      // Logged in as a client — redirect to portal, this page isn't for them
       window.location.href = "portal.html";
     }
-  }).catch(function() {
-    // Can't verify — just let them see the login form
-  });
+  }).catch(function() {});
 });
 
 function handleAdminLogin() {
@@ -155,7 +175,7 @@ function showSuccess() {
 
   setTimeout(function() {
     window.location.href = "dashboard.html";
-  }, 4000);
+  }, 1500);
 }
 
 document.addEventListener("keydown", function(event) {
