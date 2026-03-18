@@ -162,6 +162,27 @@
   </main>
 </div>
 
+<!-- Mobile Bottom Navigation -->
+<nav class="mobile-bottom-nav">
+  <button class="mobile-nav-btn active" onclick="switchTab('overview'); setMobileActive(this)">
+    <span class="mobile-nav-icon">◫</span>
+    <span>Overview</span>
+  </button>
+  <button class="mobile-nav-btn" onclick="switchTab('documents'); setMobileActive(this)">
+    <span class="mobile-nav-icon">◧</span>
+    <span>Documents</span>
+  </button>
+  <button class="mobile-nav-btn" onclick="switchTab('messages'); setMobileActive(this)">
+    <span class="mobile-nav-icon">◯</span>
+    <span>Messages</span>
+    <span class="mobile-msg-badge" id="mobile-msg-badge" style="display:none;">0</span>
+  </button>
+  <button class="mobile-nav-btn" onclick="switchTab('returns'); loadMyReturns(); setMobileActive(this)">
+    <span class="mobile-nav-icon">❐</span>
+    <span>Returns</span>
+  </button>
+</nav>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>

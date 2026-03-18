@@ -75,6 +75,11 @@ function switchTab(tabName) {
   });
 }
 
+function setMobileActive(btn) {
+  document.querySelectorAll(".mobile-nav-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+}
+
 
 // ══════════════════════════════════════
 //  REAL-TIME STATUS / TIMELINE
@@ -291,6 +296,12 @@ function listenForUnreadMessages() {
       if (badge) {
         badge.textContent = unread;
         badge.style.display = unread > 0 ? "inline" : "none";
+      }
+      // Sync mobile badge too
+      let mobileBadge = document.getElementById("mobile-msg-badge");
+      if (mobileBadge) {
+        mobileBadge.textContent = unread;
+        mobileBadge.style.display = unread > 0 ? "inline" : "none";
       }
     });
 }

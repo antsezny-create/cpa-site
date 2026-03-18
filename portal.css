@@ -799,24 +799,121 @@ body {
   background: var(--accent-light);
 }
 
+/* ── Mobile Bottom Navigation ── */
+.mobile-bottom-nav {
+  display: none;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
-  .portal-sidebar {
-    display: none;
-  }
 
+  /* Hide desktop sidebar */
+  .portal-sidebar { display: none; }
+
+  /* Content fills full width, add bottom padding for nav */
   .portal-content {
     margin-left: 0;
-    padding: 20px;
+    padding: 16px 16px 90px;
+    max-width: 100%;
   }
 
-  .portal-grid {
-    grid-template-columns: 1fr;
+  /* Nav — hide username on small screens */
+  .portal-user { display: none; }
+  .portal-nav-inner { padding: 0 16px; }
+
+  /* Stack overview grid */
+  .portal-grid { grid-template-columns: 1fr; }
+
+  /* Hide status timeline steps on small screens */
+  .status-steps { display: none; }
+
+  /* Status banner stacks */
+  .status-banner { padding: 16px; }
+  .status-banner-left { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+  /* Cards */
+  .portal-card { padding: 16px; }
+  .card-header h2 { font-size: 15px; }
+
+  /* Upload zone */
+  .upload-zone { padding: 28px 16px; }
+
+  /* Messages */
+  .messages-card { height: calc(100vh - 180px); }
+
+  /* Returns */
+  .return-item { flex-wrap: wrap; gap: 8px; }
+  .return-year { width: 100%; font-size: 22px; }
+
+  /* File list */
+  .file-item { flex-wrap: wrap; gap: 8px; }
+  .file-delete-btn { margin-left: auto; }
+
+  /* Checklist */
+  .checklist-item { padding: 10px 8px; }
+
+  /* Activity */
+  .activity-item { padding: 12px 8px; }
+
+  /* Mobile Bottom Navigation */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: rgba(11, 15, 23, 0.97);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+    height: auto;
   }
 
-  .status-steps {
-    display: none;
+  .mobile-nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 4px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: color 0.15s;
+    position: relative;
   }
+
+  .mobile-nav-btn.active { color: var(--accent); }
+  .mobile-nav-btn:hover  { color: var(--text-muted); }
+
+  .mobile-nav-icon {
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .mobile-msg-badge {
+    position: absolute;
+    top: 2px;
+    right: calc(50% - 18px);
+    background: var(--accent);
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 99px;
+    min-width: 16px;
+    text-align: center;
+  }
+
+  /* Header */
+  .portal-header { margin-bottom: 16px; }
+  .portal-header h1 { font-size: 20px; }
 }
 
 /* ── Additional return status classes ── */
