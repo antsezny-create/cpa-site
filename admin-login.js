@@ -137,7 +137,9 @@ function showSuccess() {
     };
 
     // Store session in Firestore
-    db.collection("adminSessions").doc(sessionId).set(sessionData);
+    db.collection("adminSessions").doc(sessionId).set(sessionData)
+      .then(() => console.log("Session logged:", sessionId))
+      .catch(e => console.error("Session log failed:", e.message));
 
     // Mark admin as having an active session
     db.collection("admins").doc(user.uid).update({
