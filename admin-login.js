@@ -155,7 +155,7 @@ function showSuccess() {
 
   setTimeout(function() {
     window.location.href = "dashboard.html";
-  }, 1500);
+  }, 4000);
 }
 
 document.addEventListener("keydown", function(event) {
