@@ -773,6 +773,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  // Set the clients year label to match the default active year
+  let label = document.getElementById("clients-year-label");
+  if (label) label.textContent = "Tax Year " + activeYear;
+
   // Wire up form upload input
   let inp = document.getElementById("form-upload-input");
   if (inp) inp.addEventListener("change", function(){ handleFormUpload(this); });
