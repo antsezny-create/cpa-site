@@ -14,11 +14,6 @@ let activityListener  = null;
 auth.onAuthStateChanged(function(user) {
   if (user) {
     currentUser = user;
-    // Check email verification first
-    if (!user.emailVerified) {
-      window.location.href = "verify-email.html";
-      return;
-    }
     // Check approval status before loading portal
     db.collection("clients").doc(user.uid).get().then(function(doc) {
       if (!doc.exists) { window.location.href = "login.html"; return; }

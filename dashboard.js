@@ -808,6 +808,19 @@ auth.onAuthStateChanged(user => {
       window.location.href = "portal.html";
       return;
     }
+
+    // ── Session firewall ──
+    let localSessionId   = sessionStorage.getItem("adminSessionId");
+    let firestoreSession = doc.data().activeSession;
+
+    if (firestoreSession && localSessionId && firestoreSession !== localSessionId) {
+      auth.signOut().then(() => {
+        alert("Your session was ended because a new sign-in was detected.");
+        window.location.href = "admin.html";
+      });
+      return;
+    }
+
     let overlay = document.getElementById("auth-loading");
     if (overlay) overlay.style.display = "none";
     loadAllClientsFromFirebase();
@@ -815,10 +828,10 @@ auth.onAuthStateChanged(user => {
     setInterval(checkUnreadMessages, 10000);
     setInterval(checkPendingApprovals, 30000);
     checkPendingApprovals();
+    setInterval(() => verifySession(user.uid), 300000);
+
   }).catch(err => {
     console.error("Admin check failed:", err);
-    // Don't redirect — just hide overlay and try to load anyway
-    // This prevents infinite redirect loops
     let overlay = document.getElementById("auth-loading");
     if (overlay) {
       overlay.innerHTML = `
@@ -833,6 +846,47 @@ auth.onAuthStateChanged(user => {
     }
   });
 });
+
+// ── Secure Sign Out ──
+function secureSignOut() {
+  let user         = auth.currentUser;
+  let sessionId    = sessionStorage.getItem("adminSessionId");
+  let sessionStart = sessionStorage.getItem("adminSessionStart");
+
+  if (user && sessionId) {
+    let duration = sessionStart
+      ? Math.round((Date.now() - parseInt(sessionStart)) / 1000)
+      : null;
+
+    db.collection("adminSessions").doc(sessionId).update({
+      signOutAt: firebase.firestore.FieldValue.serverTimestamp(),
+      duration:  duration,
+      active:    false
+    });
+
+    db.collection("admins").doc(user.uid).update({ activeSession: null });
+  }
+
+  sessionStorage.removeItem("adminSessionId");
+  sessionStorage.removeItem("adminSessionStart");
+
+  auth.signOut().then(() => {
+    window.location.href = "admin.html";
+  });
+}
+
+// ── Session Verification (every 5 min) ──
+function verifySession(uid) {
+  let localSessionId = sessionStorage.getItem("adminSessionId");
+  db.collection("admins").doc(uid).get().then(doc => {
+    if (!doc.exists) { secureSignOut(); return; }
+    let firestoreSession = doc.data().activeSession;
+    if (firestoreSession && localSessionId && firestoreSession !== localSessionId) {
+      alert("Your session was ended because a new sign-in was detected.");
+      secureSignOut();
+    }
+  });
+}
 
 function loadAllClientsFromFirebase() {
   db.collection("clients").get().then(snapshot => {

@@ -121,6 +121,36 @@ function showSuccess() {
     '<p>Loading your dashboard...</p>';
   document.querySelector(".login-form-header").style.textAlign = "center";
 
+  // Log session start
+  let user = auth.currentUser;
+  if (user) {
+    let sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+    let sessionData = {
+      sessionId:   sessionId,
+      uid:         user.uid,
+      email:       user.email,
+      signInAt:    firebase.firestore.FieldValue.serverTimestamp(),
+      signOutAt:   null,
+      duration:    null,
+      userAgent:   navigator.userAgent,
+      active:      true
+    };
+
+    // Store session in Firestore
+    db.collection("adminSessions").doc(sessionId).set(sessionData);
+
+    // Mark admin as having an active session
+    db.collection("admins").doc(user.uid).update({
+      activeSession:   sessionId,
+      lastSignIn:      firebase.firestore.FieldValue.serverTimestamp(),
+      lastUserAgent:   navigator.userAgent
+    });
+
+    // Store sessionId locally so dashboard can reference it on sign out
+    sessionStorage.setItem("adminSessionId", sessionId);
+    sessionStorage.setItem("adminSessionStart", Date.now().toString());
+  }
+
   setTimeout(function() {
     window.location.href = "dashboard.html";
   }, 1500);
