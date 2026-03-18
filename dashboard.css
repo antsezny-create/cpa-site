@@ -363,7 +363,7 @@ body {
 /* ── Client Table ── */
 .table-header {
   display: grid;
-  grid-template-columns: 2.5fr 1fr 1fr 0.7fr 0.7fr 80px;
+  grid-template-columns: 1.8fr 120px 140px 110px 110px 90px;
   padding: 12px 20px;
   font-size: 10px; font-weight: 700;
   text-transform: uppercase;
@@ -382,7 +382,7 @@ body {
 
 .client-table-row {
   display: grid;
-  grid-template-columns: 2.5fr 1fr 1fr 0.7fr 0.7fr 80px;
+  grid-template-columns: 1.8fr 120px 140px 110px 110px 90px;
   padding: 14px 20px;
   align-items: center;
   border-bottom: 1px solid var(--border);
