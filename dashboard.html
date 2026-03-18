@@ -8,6 +8,14 @@
 </head>
 <body>
 
+<!-- Auth check overlay — hidden once verified -->
+<div id="auth-loading" style="position:fixed;inset:0;background:#0B0F17;display:flex;align-items:center;justify-content:center;z-index:9999;">
+  <div style="text-align:center;">
+    <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#3B82F6,#6366F1);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:white;margin:0 auto 16px;">S</div>
+    <p style="color:#6B7280;font-size:13px;font-family:'DM Sans',sans-serif;">Verifying access...</p>
+  </div>
+</div>
+
 <!-- Hidden file input for form uploads -->
 <input type="file" id="form-upload-input" accept=".pdf" style="display:none;">
 

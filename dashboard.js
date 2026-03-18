@@ -729,13 +729,26 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 auth.onAuthStateChanged(user => {
-  if (user) {
+  if (!user) {
+    window.location.href = "admin.html";
+    return;
+  }
+  db.collection("admins").doc(user.uid).get().then(doc => {
+    if (!doc.exists) {
+      auth.signOut().then(() => { window.location.href = "admin.html"; });
+      return;
+    }
+    // Confirmed admin — hide loading screen and load everything
+    let overlay = document.getElementById("auth-loading");
+    if (overlay) overlay.style.display = "none";
     loadAllClientsFromFirebase();
     loadAllDocuments();
     setInterval(checkUnreadMessages, 10000);
     setInterval(checkPendingApprovals, 30000);
     checkPendingApprovals();
-  }
+  }).catch(() => {
+    window.location.href = "admin.html";
+  });
 });
 
 function loadAllClientsFromFirebase() {

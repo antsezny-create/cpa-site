@@ -1,3 +1,21 @@
+// ── Route protection: redirect if already logged in ──
+auth.onAuthStateChanged(function(user) {
+  if (!user) return; // Not logged in — show the login form normally
+
+  // Someone is logged in — check if they're an admin
+  db.collection("admins").doc(user.uid).get().then(function(doc) {
+    if (doc.exists) {
+      // Already logged in as admin — go straight to dashboard
+      window.location.href = "dashboard.html";
+    } else {
+      // Logged in as a client — redirect to portal, this page isn't for them
+      window.location.href = "portal.html";
+    }
+  }).catch(function() {
+    // Can't verify — just let them see the login form
+  });
+});
+
 function handleAdminLogin() {
   let email = document.getElementById("admin-email").value;
   let password = document.getElementById("admin-password").value;
