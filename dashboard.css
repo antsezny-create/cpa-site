@@ -1314,7 +1314,7 @@ body {
 
 /* ── Docs column → Request button ── */
 .docs-request-btn {
-  padding: 4px 10px;
+  padding: 4px 7px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: transparent;
@@ -1325,6 +1325,8 @@ body {
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
+  max-width: 110px;
+  width: 100%;
 }
 .docs-request-btn:hover { border-color: var(--accent); color: var(--accent); }
 
