@@ -97,6 +97,19 @@ body {
   color: var(--white) !important;
 }
 
+.nav-register {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--text-muted) !important;
+  text-decoration: none;
+  transition: color 0.2s;
+  white-space: nowrap;
+}
+
+.nav-register:hover {
+  color: var(--accent) !important;
+}
+
 /* ── Hero ── */
 .hero {
   max-width: 720px;
@@ -516,6 +529,10 @@ h2 {
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .nav-links a:not(.nav-cta) {
+    display: none;
+  }
+
+  .nav-register {
     display: none;
   }
 
