@@ -374,6 +374,26 @@
   </div>
 </div>
 
+<!-- Account Scope Modal -->
+<div id="account-scope-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAccountScopeModal()">
+  <div class="modal-box" style="max-width:560px;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;">
+    <div class="modal-header">
+      <h2>Account Scope</h2>
+      <button class="modal-close" onclick="closeAccountScopeModal()">✕</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:12px;">Choose which accounts are available for this company and period.</p>
+    <div style="display:flex;gap:6px;margin-bottom:12px;">
+      <button class="ghost-btn" onclick="selectAllScope(true)">Select All</button>
+      <button class="ghost-btn" onclick="selectAllScope(false)">Deselect All</button>
+    </div>
+    <div id="scope-account-list" style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:12px;"></div>
+    <div class="modal-input-row" style="justify-content:flex-end;margin-top:16px;">
+      <button class="ghost-btn" onclick="closeAccountScopeModal()">Cancel</button>
+      <button class="primary-btn" onclick="saveAccountScope()">Save Scope</button>
+    </div>
+  </div>
+</div>
+
 <!-- New Period Modal -->
 <div id="new-period-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeNewPeriodModal()">
   <div class="modal-box">

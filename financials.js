@@ -193,6 +193,7 @@ function loadClientPeriods(clientId) {
           </div>
           <span class="status-pill ${statusClass}">${statusLabel}</span>
           <div class="fin-period-actions">
+            <button class="ghost-btn" onclick="openAccountScopeModal('${doc.id}','${(p.periodLabel||p.period).replace(/'/g,"\\'")}')">Accounts</button>
             <button class="ghost-btn" onclick="openJournalEntries('${doc.id}','${(p.periodLabel||p.period).replace(/'/g,"\\'")}')">Journal Entries</button>
             <button class="ghost-btn" onclick="openStatements('${doc.id}','${(p.periodLabel||p.period).replace(/'/g,"\\'")}')">View Statements</button>
             ${p.status !== "finalized"
@@ -1240,4 +1241,219 @@ function saveNewAccount() {
     let list = document.getElementById("coa-list");
     if (list) list.innerHTML = renderCOARows();
   }).catch(e => alert("Failed: " + e.message));
+}
+
+
+// ══════════════════════════════════════
+//  ACCOUNT SCOPING PER COMPANY
+// ══════════════════════════════════════
+
+let companyActiveAccounts = null; // null = all accounts active
+
+// Open account scope selector for a period
+function openAccountScopeModal(periodId, periodLabel) {
+  currentPeriodId    = periodId;
+  currentPeriodLabel = periodLabel;
+
+  // Load existing scope from Firebase
+  db.collection("clientLedger").doc(finClientId)
+    .collection("periods").doc(periodId).get().then(doc => {
+      let saved = doc.exists && doc.data().activeAccountIds
+        ? doc.data().activeAccountIds
+        : null;
+
+      // Build modal content
+      let modal = document.getElementById("account-scope-modal");
+      let list  = document.getElementById("scope-account-list");
+      list.innerHTML = "";
+
+      // Group by type
+      let groups = {};
+      chartOfAccounts.forEach(a => {
+        if (!groups[a.type]) groups[a.type] = [];
+        groups[a.type].push(a);
+      });
+
+      let typeLabels = {
+        asset:"Assets", liability:"Liabilities", equity:"Equity",
+        revenue:"Revenue", cogs:"Cost of Goods Sold",
+        expense:"Operating Expenses", tax:"Income Tax"
+      };
+
+      Object.keys(typeLabels).forEach(type => {
+        if (!groups[type]) return;
+        let section = document.createElement("div");
+        section.className = "scope-section";
+        section.innerHTML = `<div class="scope-section-label">${typeLabels[type]}</div>`;
+
+        groups[type].forEach(a => {
+          let checked = saved === null || saved.includes(a._id);
+          let item = document.createElement("label");
+          item.className = "scope-item";
+          item.innerHTML = `
+            <input type="checkbox" value="${a._id}" ${checked ? "checked" : ""}>
+            <span class="scope-acct-num">${a.number}</span>
+            <span class="scope-acct-name">${a.name}</span>`;
+          section.appendChild(item);
+        });
+
+        list.appendChild(section);
+      });
+
+      modal.style.display = "flex";
+    });
+}
+
+function closeAccountScopeModal() {
+  document.getElementById("account-scope-modal").style.display = "none";
+}
+
+function selectAllScope(checked) {
+  document.querySelectorAll("#scope-account-list input[type=checkbox]")
+    .forEach(cb => cb.checked = checked);
+}
+
+function saveAccountScope() {
+  let checked = Array.from(
+    document.querySelectorAll("#scope-account-list input[type=checkbox]:checked")
+  ).map(cb => cb.value);
+
+  db.collection("clientLedger").doc(finClientId)
+    .collection("periods").doc(currentPeriodId)
+    .update({ activeAccountIds: checked })
+    .then(() => {
+      closeAccountScopeModal();
+      alert("Account scope saved for this period.");
+    }).catch(e => alert("Failed: " + e.message));
+}
+
+
+// ══════════════════════════════════════
+//  PER-STATEMENT ACCOUNT FILTER
+// ══════════════════════════════════════
+
+let stmtHiddenAccounts = new Set(); // account IDs hidden in current statement view
+
+function openStmtFilterPanel() {
+  let panel = document.getElementById("stmt-filter-panel");
+  if (!panel) return;
+
+  let accounts = window._finData ? window._finData.accounts : [];
+  if (!accounts.length) { alert("No accounts with activity to filter."); return; }
+
+  let html = `
+    <div class="filter-panel-header">
+      <strong>Show / Hide Accounts</strong>
+      <div style="display:flex;gap:6px;">
+        <button class="ghost-btn" onclick="selectAllStmtFilter(true)">All</button>
+        <button class="ghost-btn" onclick="selectAllStmtFilter(false)">None</button>
+        <button class="primary-btn" onclick="applyStmtFilter()">Apply</button>
+        <button class="modal-close" onclick="closeStmtFilterPanel()">✕</button>
+      </div>
+    </div>`;
+
+  let groups = {};
+  accounts.forEach(a => {
+    let g = a.type;
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(a);
+  });
+
+  let typeLabels = {
+    asset:"Assets", liability:"Liabilities", equity:"Equity",
+    revenue:"Revenue", cogs:"COGS", expense:"Expenses", tax:"Tax"
+  };
+
+  Object.keys(groups).forEach(type => {
+    html += `<div class="scope-section-label">${typeLabels[type]||type}</div>`;
+    groups[type].forEach(a => {
+      let hidden = stmtHiddenAccounts.has(a._id);
+      html += `<label class="scope-item">
+        <input type="checkbox" id="sf-${a._id}" ${!hidden?"checked":""}>
+        <span class="scope-acct-num">${a.number}</span>
+        <span class="scope-acct-name">${a.name}</span>
+        <span class="scope-acct-bal">$${fmtMoney(a.balance)}</span>
+      </label>`;
+    });
+  });
+
+  panel.innerHTML = html;
+  panel.style.display = "block";
+}
+
+function closeStmtFilterPanel() {
+  let panel = document.getElementById("stmt-filter-panel");
+  if (panel) panel.style.display = "none";
+}
+
+function selectAllStmtFilter(checked) {
+  document.querySelectorAll("#stmt-filter-panel input[type=checkbox]")
+    .forEach(cb => cb.checked = checked);
+}
+
+function applyStmtFilter() {
+  stmtHiddenAccounts = new Set();
+  document.querySelectorAll("#stmt-filter-panel input[type=checkbox]")
+    .forEach(cb => { if (!cb.checked) stmtHiddenAccounts.add(cb.id.replace("sf-","")); });
+
+  closeStmtFilterPanel();
+
+  // Re-render current statement with filter applied
+  let filteredAccounts = (window._finData ? window._finData.accounts : [])
+    .filter(a => !stmtHiddenAccounts.has(a._id));
+
+  // Temp swap data, re-render, restore
+  let origAccounts = window._finData.accounts;
+  window._finData.accounts = filteredAccounts;
+
+  let activeTab = document.querySelector(".stmt-tab.active");
+  if (activeTab) activeTab.click();
+
+  window._finData.accounts = origAccounts;
+}
+
+
+// ══════════════════════════════════════
+//  PATCH: inject scope + filter buttons
+//  into openStatements toolbar
+// ══════════════════════════════════════
+
+const _origOpenStatements = openStatements;
+async function openStatements(periodId, periodLabel) {
+  stmtHiddenAccounts = new Set(); // reset filter on new open
+  await _origOpenStatements(periodId, periodLabel);
+
+  // Inject filter button and scope button into toolbar
+  let toolbar = document.querySelector(".fin-client-toolbar .editor-actions, .fin-client-toolbar div:last-child");
+  if (!toolbar) {
+    // Find the actions div in the toolbar
+    let toolbars = document.querySelectorAll(".fin-client-toolbar");
+    if (toolbars.length) {
+      let lastToolbar = toolbars[toolbars.length - 1];
+      let actionsDiv  = lastToolbar.querySelector("div:last-child");
+      if (actionsDiv) {
+        let filterBtn = document.createElement("button");
+        filterBtn.className = "ghost-btn";
+        filterBtn.textContent = "Filter Accounts ▾";
+        filterBtn.onclick = openStmtFilterPanel;
+        actionsDiv.insertBefore(filterBtn, actionsDiv.firstChild);
+
+        let scopeBtn = document.createElement("button");
+        scopeBtn.className = "ghost-btn";
+        scopeBtn.textContent = "Account Scope";
+        scopeBtn.onclick = () => openAccountScopeModal(periodId, periodLabel);
+        actionsDiv.insertBefore(scopeBtn, actionsDiv.firstChild);
+      }
+    }
+  }
+
+  // Add filter panel container below stmt tabs
+  let stmtContent = document.getElementById("stmt-content");
+  if (stmtContent) {
+    let panel = document.createElement("div");
+    panel.id = "stmt-filter-panel";
+    panel.className = "stmt-filter-panel";
+    panel.style.display = "none";
+    stmtContent.parentNode.insertBefore(panel, stmtContent);
+  }
 }

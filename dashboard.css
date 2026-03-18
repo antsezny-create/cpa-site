@@ -2296,3 +2296,37 @@ body {
   display: flex; align-items: center; gap: 6px;
   font-size: 13px; margin-bottom: 24px;
 }
+
+/* ── Account Scope & Filter ── */
+.scope-section { margin-bottom: 16px; }
+.scope-section-label {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 2px;
+  color: var(--accent); padding: 8px 0 6px;
+}
+.scope-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 8px; border-radius: 6px; cursor: pointer;
+  font-size: 13px; transition: background 0.1s;
+}
+.scope-item:hover { background: var(--bg-hover); }
+.scope-item input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; flex-shrink: 0; }
+.scope-acct-num  { font-family: 'JetBrains Mono',monospace; font-size: 11px; color: var(--text-dim); width: 40px; flex-shrink: 0; }
+.scope-acct-name { flex: 1; color: var(--text-muted); }
+.scope-acct-bal  { font-family: 'JetBrains Mono',monospace; font-size: 11px; color: var(--text-dim); }
+
+/* ── Statement Filter Panel ── */
+.stmt-filter-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.filter-panel-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px; padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
