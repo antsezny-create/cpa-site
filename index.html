@@ -1,902 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><!-- v3 -->
+  <meta charset="UTF-8"><!-- v4 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Anthony Sesny CPA — Tax & Advisory</title>
+  <title>Anthony Sesny — Tax & Advisory</title>
   <meta name="description" content="Expert tax & accounting for everyone. Built on trust. Driven by results. New York-based CPA serving individuals and businesses.">
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <style>
-    /* ── DARK PREMIUM THEME OVERRIDE ── */
-    :root {
-      --bg-deep:     #080A0F;
-      --bg-mid:      #0D1017;
-      --bg-surface:  #111520;
-      --bg-card:     #161B28;
-      --border:      rgba(255,255,255,0.07);
-      --border-glow: rgba(124,90,220,0.35);
-      --ink:         #F0EDE8;
-      --ink-muted:   rgba(240,237,232,0.55);
-      --ink-light:   rgba(240,237,232,0.3);
-      --purple:      #7C5ADC;
-      --purple-light:#9B7EF8;
-      --purple-glow: rgba(124,90,220,0.15);
-      --gold:        #C8964A;
-      --gold-glow:   rgba(200,150,74,0.12);
-      --white:       #FFFFFF;
-      --radius:      12px;
-      --serif:       'Cormorant Garamond', Georgia, serif;
-      --sans:        'DM Sans', -apple-system, sans-serif;
-      --mono:        'DM Mono', monospace;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
-
-    body {
-      font-family: var(--sans);
-      background: var(--bg-deep);
-      color: var(--ink);
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-      overflow-x: hidden;
-    }
-
-    /* ── NAV ── */
-    .nav {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 100;
-      background: rgba(8,10,15,0.85);
-      backdrop-filter: blur(24px);
-      border-bottom: 1px solid var(--border);
-      transition: background 0.3s;
-    }
-
-    .nav-inner {
-      max-width: 1120px;
-      margin: 0 auto;
-      padding: 0 40px;
-      height: 70px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .nav-logo {
-      font-family: var(--serif);
-      font-size: 24px;
-      font-weight: 500;
-      color: var(--ink);
-      text-decoration: none;
-      letter-spacing: 0.5px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .nav-logo-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--purple-light);
-    }
-
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 40px;
-    }
-
-    .nav-links a {
-      font-size: 13px;
-      font-weight: 400;
-      color: var(--ink-muted);
-      text-decoration: none;
-      letter-spacing: 0.2px;
-      transition: color 0.2s;
-    }
-
-    .nav-links a:hover { color: var(--ink); }
-
-    .nav-cta {
-      background: var(--purple) !important;
-      color: var(--white) !important;
-      padding: 9px 22px;
-      border-radius: 8px;
-      font-size: 13px !important;
-      font-weight: 500 !important;
-      transition: all 0.2s !important;
-      border: 1px solid rgba(124,90,220,0.5) !important;
-    }
-
-    .nav-cta:hover { background: var(--purple-light) !important; transform: translateY(-1px); }
-
-    .nav-register {
-      font-size: 13px !important;
-      color: var(--ink-light) !important;
-      transition: color 0.2s !important;
-    }
-
-    .nav-register:hover { color: var(--purple-light) !important; }
-
-    .nav-mobile-menu {
-      display: none;
-      background: none;
-      border: none;
-      font-size: 20px;
-      cursor: pointer;
-      color: var(--ink);
-    }
-
-    .mobile-menu {
-      display: none;
-      flex-direction: column;
-      padding: 16px 40px 24px;
-      border-top: 1px solid var(--border);
-      background: var(--bg-mid);
-      gap: 4px;
-    }
-
-    .mobile-menu.open { display: flex; }
-
-    .mobile-menu a {
-      padding: 13px 0;
-      font-size: 15px;
-      font-weight: 400;
-      color: var(--ink-muted);
-      text-decoration: none;
-      border-bottom: 1px solid var(--border);
-      transition: color 0.2s;
-    }
-
-    .mobile-menu a:last-child { border-bottom: none; }
-    .mobile-menu a:hover { color: var(--ink); }
-    .mobile-cta { color: var(--purple-light) !important; font-weight: 500 !important; }
-    .mobile-register { color: var(--ink-light) !important; font-size: 13px !important; }
-
-    /* ── HERO ── */
-    .hero {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      padding: 140px 40px 100px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .hero-bg {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-    }
-
-    .hero-bg-grid {
-      position: absolute;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
-      background-size: 80px 80px;
-      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
-    }
-
-    .hero-bg-glow {
-      position: absolute;
-      top: 20%;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 800px;
-      height: 500px;
-      background: radial-gradient(ellipse, rgba(124,90,220,0.12) 0%, transparent 70%);
-      pointer-events: none;
-    }
-
-    .hero-bg-glow-2 {
-      position: absolute;
-      bottom: 10%;
-      right: -10%;
-      width: 500px;
-      height: 400px;
-      background: radial-gradient(ellipse, rgba(200,150,74,0.06) 0%, transparent 70%);
-    }
-
-    .hero-inner {
-      max-width: 1120px;
-      margin: 0 auto;
-      width: 100%;
-      position: relative;
-      z-index: 1;
-    }
-
-    .hero-eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--purple-light);
-      background: rgba(124,90,220,0.1);
-      border: 1px solid rgba(124,90,220,0.25);
-      padding: 7px 18px;
-      border-radius: 99px;
-      margin-bottom: 40px;
-      letter-spacing: 0.5px;
-      animation: fadeUp 0.5s ease-out both;
-    }
-
-    .eyebrow-dot {
-      width: 5px; height: 5px;
-      border-radius: 50%;
-      background: var(--purple-light);
-      animation: pulse 2s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.8); }
-    }
-
-    .hero-headline {
-      font-family: var(--serif);
-      font-size: clamp(52px, 7vw, 92px);
-      font-weight: 400;
-      line-height: 1.05;
-      letter-spacing: -2px;
-      color: var(--ink);
-      margin-bottom: 12px;
-      animation: fadeUp 0.6s 0.1s ease-out both;
-    }
-
-    .hero-headline em {
-      font-style: italic;
-      color: var(--purple-light);
-    }
-
-    .hero-tagline {
-      font-family: var(--serif);
-      font-size: clamp(18px, 2.5vw, 28px);
-      font-weight: 300;
-      font-style: italic;
-      color: var(--ink-muted);
-      margin-bottom: 28px;
-      animation: fadeUp 0.6s 0.15s ease-out both;
-    }
-
-    .hero-sub {
-      font-size: 16px;
-      font-weight: 300;
-      color: var(--ink-muted);
-      line-height: 1.8;
-      max-width: 580px;
-      margin-bottom: 44px;
-      animation: fadeUp 0.6s 0.2s ease-out both;
-    }
-
-    .hero-actions {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 72px;
-      animation: fadeUp 0.6s 0.25s ease-out both;
-    }
-
-    .btn-primary {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: var(--purple);
-      color: var(--white);
-      padding: 14px 32px;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 500;
-      text-decoration: none;
-      transition: all 0.2s;
-      border: 1px solid rgba(124,90,220,0.5);
-      letter-spacing: 0.2px;
-    }
-
-    .btn-primary:hover {
-      background: var(--purple-light);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 32px rgba(124,90,220,0.3);
-    }
-
-    .btn-ghost {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: transparent;
-      color: var(--ink-muted);
-      padding: 14px 28px;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 400;
-      text-decoration: none;
-      transition: all 0.2s;
-      border: 1px solid var(--border);
-    }
-
-    .btn-ghost:hover {
-      color: var(--ink);
-      border-color: rgba(255,255,255,0.15);
-      background: rgba(255,255,255,0.03);
-    }
-
-    /* Hero trust cards */
-    .hero-trust {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      animation: fadeUp 0.6s 0.35s ease-out both;
-    }
-
-    .trust-card {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px 24px;
-      transition: all 0.2s;
-    }
-
-    .trust-card:hover {
-      border-color: var(--border-glow);
-      background: rgba(124,90,220,0.05);
-    }
-
-    .trust-form {
-      font-family: var(--mono);
-      font-size: 17px;
-      font-weight: 500;
-      color: var(--purple-light);
-    }
-
-    .trust-label {
-      font-size: 11px;
-      font-weight: 400;
-      color: var(--ink-light);
-      letter-spacing: 0.3px;
-    }
-
-    /* ── STATS BAR ── */
-    .stats-bar {
-      background: var(--bg-surface);
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-      padding: 40px;
-    }
-
-    .stats-inner {
-      max-width: 1120px;
-      margin: 0 auto;
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 40px;
-    }
-
-    .stat-item {
-      text-align: center;
-    }
-
-    .stat-num {
-      font-family: var(--serif);
-      font-size: 42px;
-      font-weight: 400;
-      color: var(--ink);
-      line-height: 1;
-      margin-bottom: 6px;
-    }
-
-    .stat-num em { color: var(--purple-light); font-style: normal; }
-
-    .stat-label {
-      font-size: 12px;
-      font-weight: 400;
-      color: var(--ink-light);
-      letter-spacing: 0.5px;
-    }
-
-    /* ── SECTION SHARED ── */
-    .section-inner {
-      max-width: 1120px;
-      margin: 0 auto;
-    }
-
-    .section-label {
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 3px;
-      color: var(--purple-light);
-      margin-bottom: 20px;
-    }
-
-    .section-title {
-      font-family: var(--serif);
-      font-size: clamp(36px, 4vw, 54px);
-      font-weight: 400;
-      line-height: 1.1;
-      letter-spacing: -1px;
-      color: var(--ink);
-      margin-bottom: 48px;
-    }
-
-    .section-title em {
-      font-style: italic;
-      color: var(--ink-muted);
-    }
-
-    /* ── SERVICES ── */
-    .services-section {
-      padding: 100px 40px;
-      background: var(--bg-mid);
-    }
-
-    .services-header {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 80px;
-      align-items: end;
-      margin-bottom: 64px;
-    }
-
-    .services-intro {
-      font-size: 16px;
-      font-weight: 300;
-      color: var(--ink-muted);
-      line-height: 1.8;
-    }
-
-    .services-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1px;
-      background: var(--border);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-    }
-
-    .service-item {
-      background: var(--bg-card);
-      padding: 40px 36px;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      transition: background 0.2s;
-    }
-
-    .service-item:hover { background: rgba(124,90,220,0.05); }
-
-    .service-num {
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--ink-light);
-      letter-spacing: 2px;
-    }
-
-    .service-content h3 {
-      font-family: var(--serif);
-      font-size: 26px;
-      font-weight: 400;
-      color: var(--ink);
-      margin-bottom: 12px;
-      line-height: 1.2;
-    }
-
-    .service-content p {
-      font-size: 14px;
-      font-weight: 300;
-      color: var(--ink-muted);
-      line-height: 1.75;
-      margin-bottom: 20px;
-    }
-
-    .service-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: auto;
-    }
-
-    .service-tags span {
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--purple-light);
-      background: rgba(124,90,220,0.1);
-      border: 1px solid rgba(124,90,220,0.2);
-      padding: 4px 10px;
-      border-radius: 6px;
-      letter-spacing: 0.2px;
-    }
-
-    /* Breakdown */
-    .breakdown-header { margin: 72px 0 32px; }
-
-    .breakdown-title {
-      font-family: var(--serif);
-      font-size: 36px;
-      font-weight: 400;
-      color: var(--ink);
-      letter-spacing: -0.5px;
-    }
-
-    .breakdown-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1px;
-      background: var(--border);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-    }
-
-    .breakdown-card {
-      background: var(--bg-surface);
-      padding: 36px;
-      transition: background 0.2s;
-    }
-
-    .breakdown-card:hover { background: var(--bg-card); }
-
-    .breakdown-num {
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--ink-light);
-      letter-spacing: 2px;
-      margin-bottom: 16px;
-    }
-
-    .breakdown-card h4 {
-      font-family: var(--serif);
-      font-size: 22px;
-      font-weight: 400;
-      color: var(--ink);
-      margin-bottom: 10px;
-    }
-
-    .breakdown-card p {
-      font-size: 14px;
-      font-weight: 300;
-      color: var(--ink-muted);
-      line-height: 1.75;
-    }
-
-    /* ── PROCESS ── */
-    .process-section {
-      padding: 100px 40px;
-      background: var(--bg-deep);
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .process-steps {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1px;
-      background: var(--border);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-      margin-top: 48px;
-    }
-
-    .process-step {
-      background: var(--bg-surface);
-      padding: 48px 40px;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      transition: background 0.2s;
-    }
-
-    .process-step:hover { background: var(--bg-card); }
-
-    .process-step-num {
-      font-family: var(--serif);
-      font-size: 48px;
-      font-weight: 300;
-      color: var(--purple-light);
-      opacity: 0.4;
-      line-height: 1;
-    }
-
-    .process-step-content h4 {
-      font-family: var(--serif);
-      font-size: 24px;
-      font-weight: 400;
-      color: var(--ink);
-      margin-bottom: 10px;
-    }
-
-    .process-step-content p {
-      font-size: 14px;
-      font-weight: 300;
-      color: var(--ink-muted);
-      line-height: 1.75;
-    }
-
-    /* ── ABOUT ── */
-    .about-section {
-      padding: 100px 40px;
-      background: var(--bg-mid);
-    }
-
-    .about-grid {
-      display: grid;
-      grid-template-columns: 1fr 1.5fr;
-      gap: 100px;
-      align-items: start;
-    }
-
-    .about-left { position: sticky; top: 100px; }
-
-    .about-monogram {
-      font-family: var(--serif);
-      font-size: 120px;
-      font-weight: 300;
-      color: rgba(124,90,220,0.1);
-      line-height: 1;
-      margin-top: 24px;
-      letter-spacing: -4px;
-      user-select: none;
-    }
-
-    .about-lead {
-      font-family: var(--serif);
-      font-size: 22px;
-      font-weight: 300;
-      line-height: 1.7;
-      color: var(--ink);
-      margin-bottom: 24px;
-      font-style: italic;
-    }
-
-    .about-right p {
-      font-size: 15px;
-      font-weight: 300;
-      color: var(--ink-muted);
-      line-height: 1.85;
-      margin-bottom: 18px;
-    }
-
-    .about-values {
-      margin-top: 40px;
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-    }
-
-    .about-value {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 18px 24px;
-      background: var(--bg-surface);
-      border-bottom: 1px solid var(--border);
-      font-size: 14px;
-      font-weight: 400;
-      color: var(--ink-muted);
-      transition: background 0.2s;
-    }
-
-    .about-value:last-child { border-bottom: none; }
-    .about-value:hover { background: var(--bg-card); color: var(--ink); }
-
-    .value-icon {
-      width: 28px; height: 28px;
-      border-radius: 6px;
-      background: rgba(124,90,220,0.1);
-      border: 1px solid rgba(124,90,220,0.2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      color: var(--purple-light);
-      flex-shrink: 0;
-    }
-
-    /* ── CONTACT ── */
-    .contact-section {
-      padding: 100px 40px;
-      background: var(--bg-deep);
-      border-top: 1px solid var(--border);
-    }
-
-    .contact-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 80px;
-      align-items: start;
-    }
-
-    .contact-section .section-label { color: var(--purple-light); }
-
-    .contact-section .section-title {
-      color: var(--ink);
-    }
-
-    .contact-desc {
-      font-size: 16px;
-      font-weight: 300;
-      color: var(--ink-muted);
-      line-height: 1.75;
-      margin-bottom: 36px;
-    }
-
-    .contact-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-    }
-
-    .contact-item {
-      padding: 20px 28px;
-      border-bottom: 1px solid var(--border);
-      transition: background 0.2s;
-    }
-
-    .contact-item:hover { background: var(--bg-surface); }
-    .contact-item:last-of-type { border-bottom: none; }
-
-    .contact-item-label {
-      font-size: 10px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 2.5px;
-      color: var(--ink-light);
-      margin-bottom: 5px;
-    }
-
-    .contact-item-value {
-      font-size: 16px;
-      font-weight: 400;
-      color: var(--ink);
-    }
-
-    .btn-copy {
-      width: 100%;
-      padding: 16px;
-      background: var(--purple);
-      color: var(--white);
-      border: none;
-      font-size: 13px;
-      font-weight: 500;
-      font-family: var(--sans);
-      cursor: pointer;
-      transition: all 0.2s;
-      letter-spacing: 0.3px;
-    }
-
-    .btn-copy:hover { background: var(--purple-light); }
-
-    /* ── FOOTER ── */
-    .footer {
-      background: var(--bg-deep);
-      padding: 28px 40px;
-      border-top: 1px solid var(--border);
-    }
-
-    .footer-inner {
-      max-width: 1120px;
-      margin: 0 auto;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .footer-left {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-    }
-
-    .footer-logo {
-      font-family: var(--serif);
-      font-size: 18px;
-      font-weight: 500;
-      color: rgba(240,237,232,0.6);
-    }
-
-    .footer-tagline {
-      font-size: 12px;
-      color: rgba(240,237,232,0.2);
-      padding-left: 20px;
-      border-left: 1px solid var(--border);
-    }
-
-    .footer-right {
-      display: flex;
-      align-items: center;
-      gap: 24px;
-    }
-
-    .footer-copy {
-      font-size: 12px;
-      color: rgba(240,237,232,0.2);
-    }
-
-    .footer-admin {
-      font-size: 12px;
-      color: rgba(240,237,232,0.1);
-      text-decoration: none;
-      transition: color 0.2s;
-    }
-
-    .footer-admin:hover { color: rgba(240,237,232,0.3); }
-
-    /* ── ANIMATIONS ── */
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* ── RESPONSIVE ── */
-    @media (max-width: 768px) {
-      .nav-links { display: none; }
-      .nav-mobile-menu { display: block; }
-      .nav-inner { padding: 0 20px; }
-
-      .hero { padding: 120px 20px 80px; min-height: auto; }
-      .hero-headline { font-size: 48px; letter-spacing: -1.5px; }
-      .hero-tagline { font-size: 18px; }
-      .hero-sub { font-size: 15px; }
-      .hero-actions { flex-direction: column; align-items: flex-start; }
-      .hero-trust { gap: 8px; }
-      .trust-card { padding: 12px 16px; }
-
-      .stats-inner { grid-template-columns: repeat(2, 1fr); gap: 24px; }
-      .stat-num { font-size: 32px; }
-
-      .services-section,
-      .process-section,
-      .about-section,
-      .contact-section { padding: 64px 20px; }
-
-      .services-header { grid-template-columns: 1fr; gap: 24px; }
-      .services-grid { grid-template-columns: 1fr; }
-      .process-steps { grid-template-columns: 1fr; }
-      .breakdown-grid { grid-template-columns: 1fr; }
-
-      .about-grid { grid-template-columns: 1fr; gap: 40px; }
-      .about-left { position: static; }
-      .about-monogram { display: none; }
-
-      .contact-grid { grid-template-columns: 1fr; gap: 40px; }
-
-      .footer { padding: 24px 20px; }
-      .footer-inner { flex-direction: column; gap: 12px; text-align: center; }
-      .footer-left { flex-direction: column; gap: 8px; }
-      .footer-tagline { border-left: none; padding-left: 0; }
-
-      .section-title { font-size: 34px; }
-      .mobile-menu { padding: 16px 20px 24px; }
-    }
-  </style>
 </head>
 <body>
-
-<!-- Navigation -->
 <nav class="nav">
   <div class="nav-inner">
-    <a href="#" class="nav-logo">
-      <span class="nav-logo-dot"></span>
-      Sesny
-    </a>
+    <a href="#" class="nav-logo"><span class="nav-logo-dot"></span>Sesny</a>
     <div class="nav-links">
       <a href="#services">Services</a>
       <a href="#about">About</a>
@@ -915,74 +32,34 @@
   </div>
 </nav>
 
-<!-- Hero -->
 <section class="hero">
-  <div class="hero-bg">
-    <div class="hero-bg-grid"></div>
-    <div class="hero-bg-glow"></div>
-    <div class="hero-bg-glow-2"></div>
-  </div>
   <div class="hero-inner">
-    <div class="hero-eyebrow">
-      <span class="eyebrow-dot"></span>
-      Now accepting new clients for 2026
-    </div>
-    <h1 class="hero-headline">
-      Built on trust.<br>
-      <em>Driven by results.</em>
-    </h1>
+    <div class="hero-badge"><span class="badge-dot"></span>Now accepting new clients for 2026</div>
+    <h1 class="hero-headline">Built on trust.<br><em>Driven by results.</em></h1>
     <p class="hero-tagline">Expert tax & accounting for everyone.</p>
-    <p class="hero-sub">
-      I'm Anthony — a New York-based accounting professional who believes everyone deserves an accountant that actually listens. No confusing jargon. No unanswered calls. Just clear, honest guidance for your finances.
-    </p>
+    <p class="hero-sub">I'm Anthony — a New York-based accounting professional who believes everyone deserves an accountant that actually listens. No confusing jargon. No unanswered calls. Just clear, honest guidance for your finances.</p>
     <div class="hero-actions">
       <a href="register.html" class="btn-primary">Get Started →</a>
       <a href="#services" class="btn-ghost">See What I Do ↓</a>
     </div>
     <div class="hero-trust">
-      <div class="trust-card">
-        <span class="trust-form">1040</span>
-        <span class="trust-label">Individual Returns</span>
-      </div>
-      <div class="trust-card">
-        <span class="trust-form">1065</span>
-        <span class="trust-label">Partnership Returns</span>
-      </div>
-      <div class="trust-card">
-        <span class="trust-form">1120</span>
-        <span class="trust-label">Corporate Returns</span>
-      </div>
-      <div class="trust-card">
-        <span class="trust-form">1120-S</span>
-        <span class="trust-label">S-Corp Returns</span>
-      </div>
+      <div class="trust-card"><span class="trust-form">1040</span><span class="trust-label">Individual Returns</span></div>
+      <div class="trust-card"><span class="trust-form">1065</span><span class="trust-label">Partnership Returns</span></div>
+      <div class="trust-card"><span class="trust-form">1120</span><span class="trust-label">Corporate Returns</span></div>
+      <div class="trust-card"><span class="trust-form">1120-S</span><span class="trust-label">S-Corp Returns</span></div>
     </div>
   </div>
 </section>
 
-<!-- Stats Bar -->
 <div class="stats-bar">
   <div class="stats-inner">
-    <div class="stat-item">
-      <div class="stat-num">All<em>.</em></div>
-      <div class="stat-label">Return types handled</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-num">24<em>hr</em></div>
-      <div class="stat-label">Response guarantee</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-num">NY<em>C</em></div>
-      <div class="stat-label">Based in New York</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-num">100<em>%</em></div>
-      <div class="stat-label">Personalized service</div>
-    </div>
+    <div class="stat-item"><div class="stat-num">All<em>.</em></div><div class="stat-label">Return types handled</div></div>
+    <div class="stat-item"><div class="stat-num">24<em>hr</em></div><div class="stat-label">Response guarantee</div></div>
+    <div class="stat-item"><div class="stat-num">NY<em>C</em></div><div class="stat-label">Based in New York</div></div>
+    <div class="stat-item"><div class="stat-num">100<em>%</em></div><div class="stat-label">Personalized service</div></div>
   </div>
 </div>
 
-<!-- Services -->
 <section class="services-section" id="services">
   <div class="section-inner">
     <div class="services-header">
@@ -992,45 +69,29 @@
       </div>
       <p class="services-intro">From individual tax returns to full-service business accounting — I handle it all with precision, care, and a personal touch that larger firms simply can't offer.</p>
     </div>
-
     <div class="services-grid">
       <div class="service-item">
         <div class="service-num">01</div>
         <div class="service-content">
           <h3>Tax Filing</h3>
           <p>Individual, partnership, corporation, and small business returns. Every form, every schedule, every deduction — handled with precision and care.</p>
-          <div class="service-tags">
-            <span>1040 Individual</span>
-            <span>1065 Partnership</span>
-            <span>1120 / 1120-S</span>
-            <span>Small Business</span>
-          </div>
+          <div class="service-tags"><span>1040 Individual</span><span>1065 Partnership</span><span>1120 / 1120-S</span><span>Small Business</span></div>
         </div>
       </div>
-
       <div class="service-item">
         <div class="service-num">02</div>
         <div class="service-content">
           <h3>Bookkeeping</h3>
           <p>Monthly reconciliation, financial statement preparation, and clean books you can actually understand and make decisions from.</p>
-          <div class="service-tags">
-            <span>Monthly Bookkeeping</span>
-            <span>Financial Statements</span>
-            <span>Expense Tracking</span>
-          </div>
+          <div class="service-tags"><span>Monthly Bookkeeping</span><span>Financial Statements</span><span>Expense Tracking</span></div>
         </div>
       </div>
-
       <div class="service-item">
         <div class="service-num">03</div>
         <div class="service-content">
           <h3>Tax Advisory</h3>
           <p>Proactive planning and entity selection guidance. Strategy that saves you money before tax season even starts — not after.</p>
-          <div class="service-tags">
-            <span>Tax Planning</span>
-            <span>Entity Selection</span>
-            <span>Business Formation</span>
-          </div>
+          <div class="service-tags"><span>Tax Planning</span><span>Entity Selection</span><span>Business Formation</span></div>
         </div>
       </div>
     </div>
@@ -1040,67 +101,28 @@
       <h3 class="breakdown-title">What's included</h3>
     </div>
     <div class="breakdown-grid">
-      <div class="breakdown-card">
-        <div class="breakdown-num">01</div>
-        <h4>Individual Tax Filing</h4>
-        <p>Personal 1040 preparation, W-2 and 1099 income reporting, Schedule A itemizing, and state returns. Simple and complex returns handled with equal care.</p>
-      </div>
-      <div class="breakdown-card">
-        <div class="breakdown-num">02</div>
-        <h4>Partnership Returns</h4>
-        <p>Form 1065, K-1 preparation, P&L allocation, and guaranteed payment reporting. Basis in partnership calculated correctly.</p>
-      </div>
-      <div class="breakdown-card">
-        <div class="breakdown-num">03</div>
-        <h4>Corporation Tax Filing</h4>
-        <p>Form 1120 and 1120-S preparation for C-Corps and S-Corps. Shareholder basis tracking, reasonable compensation analysis, and E&P allocation.</p>
-      </div>
-      <div class="breakdown-card">
-        <div class="breakdown-num">04</div>
-        <h4>Small Businesses</h4>
-        <p>End-to-end support — from entity selection and formation to monthly bookkeeping, payroll processing, sales tax compliance, and year-end tax strategy.</p>
-      </div>
-      <div class="breakdown-card">
-        <div class="breakdown-num">05</div>
-        <h4>Bookkeeping Services</h4>
-        <p>Detailed record-keeping, real-time expense tracking, and comprehensive monthly reporting tailored to your business needs.</p>
-      </div>
+      <div class="breakdown-card"><div class="breakdown-num">01</div><h4>Individual Tax Filing</h4><p>Personal 1040 preparation, W-2 and 1099 income reporting, Schedule A itemizing, and state returns. Simple and complex returns handled with equal care.</p></div>
+      <div class="breakdown-card"><div class="breakdown-num">02</div><h4>Partnership Returns</h4><p>Form 1065, K-1 preparation, P&L allocation, and guaranteed payment reporting. Basis in partnership calculated correctly.</p></div>
+      <div class="breakdown-card"><div class="breakdown-num">03</div><h4>Corporation Tax Filing</h4><p>Form 1120 and 1120-S preparation for C-Corps and S-Corps. Shareholder basis tracking, reasonable compensation analysis, and E&P allocation.</p></div>
+      <div class="breakdown-card"><div class="breakdown-num">04</div><h4>Small Businesses</h4><p>End-to-end support — from entity selection and formation to monthly bookkeeping, sales tax compliance, and year-end tax strategy.</p></div>
+      <div class="breakdown-card"><div class="breakdown-num">05</div><h4>Bookkeeping Services</h4><p>Detailed record-keeping, real-time expense tracking, and comprehensive monthly reporting tailored to your business needs.</p></div>
+      <div class="breakdown-card"><div class="breakdown-num">06</div><h4>Financial Statement Preparation</h4><p>Compiled income statements, balance sheets, and cash flow statements for businesses — clean, accurate financials you can use for decisions, loans, and planning.</p></div>
     </div>
   </div>
 </section>
 
-<!-- How it works -->
 <section class="process-section">
   <div class="section-inner">
     <div class="section-label">How it works</div>
     <h2 class="section-title">Simple from start to finish.</h2>
     <div class="process-steps">
-      <div class="process-step">
-        <div class="process-step-num">1</div>
-        <div class="process-step-content">
-          <h4>Reach out</h4>
-          <p>Send me a message or call. I'll get back to you within 24 hours to learn about your situation and what you need.</p>
-        </div>
-      </div>
-      <div class="process-step">
-        <div class="process-step-num">2</div>
-        <div class="process-step-content">
-          <h4>Get set up</h4>
-          <p>I'll create your secure client portal where you can upload documents and track your return status in real time.</p>
-        </div>
-      </div>
-      <div class="process-step">
-        <div class="process-step-num">3</div>
-        <div class="process-step-content">
-          <h4>Leave it to me</h4>
-          <p>I handle everything. You'll be kept informed every step of the way — no surprises, no confusion, no stress.</p>
-        </div>
-      </div>
+      <div class="process-step"><div class="process-step-num">1</div><div class="process-step-content"><h4>Reach out</h4><p>Send me a message or call. I'll get back to you within 24 hours to learn about your situation and what you need.</p></div></div>
+      <div class="process-step"><div class="process-step-num">2</div><div class="process-step-content"><h4>Get set up</h4><p>I'll create your secure client portal where you can upload documents and track your return status in real time.</p></div></div>
+      <div class="process-step"><div class="process-step-num">3</div><div class="process-step-content"><h4>Leave it to me</h4><p>I handle everything. You'll be kept informed every step of the way — no surprises, no confusion, no stress.</p></div></div>
     </div>
   </div>
 </section>
 
-<!-- About -->
 <section class="about-section" id="about">
   <div class="section-inner">
     <div class="about-grid">
@@ -1110,29 +132,19 @@
         <div class="about-monogram">AS</div>
       </div>
       <div class="about-right">
-        <p class="about-lead">"I'm an accounting professional based in New York, built my practice around one thing: making your financial life easier."</p>
-        <p>Currently pursuing my CPA license, with a degree in accounting and a genuine passion for helping people take control of their finances. I offer tax preparation, small business accounting, bookkeeping, and payroll services — all with a personal touch.</p>
+        <p class="about-lead">"I'm an accounting professional based in New York, and I built my practice around one thing: making your financial life easier."</p>
+        <p>Currently pursuing my CPA license, with a degree in accounting and a genuine passion for helping people take control of their finances. I offer tax preparation, small business accounting, bookkeeping, and financial statement services — all with a personal touch.</p>
         <p>I believe every client deserves clear communication, attention to detail, and an accountant who actually picks up the phone. Whether you're filing a simple 1040 or managing the books for a growing business, I'm here to help you stay organized, compliant, and confident in your numbers.</p>
         <div class="about-values">
-          <div class="about-value">
-            <span class="value-icon">✓</span>
-            Personal attention to every client
-          </div>
-          <div class="about-value">
-            <span class="value-icon">✓</span>
-            Clear communication, always
-          </div>
-          <div class="about-value">
-            <span class="value-icon">✓</span>
-            Available when you need me
-          </div>
+          <div class="about-value"><span class="value-icon">✓</span>Personal attention to every client</div>
+          <div class="about-value"><span class="value-icon">✓</span>Clear communication, always</div>
+          <div class="about-value"><span class="value-icon">✓</span>Available when you need me</div>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Contact -->
 <section class="contact-section" id="contact">
   <div class="section-inner">
     <div class="contact-grid">
@@ -1144,22 +156,10 @@
       </div>
       <div class="contact-right">
         <div class="contact-card">
-          <div class="contact-item">
-            <div class="contact-item-label">Email</div>
-            <div class="contact-item-value">sesnyanthony&#64;gmail.com</div>
-          </div>
-          <div class="contact-item">
-            <div class="contact-item-label">Phone</div>
-            <div class="contact-item-value">(718) 612-5911</div>
-          </div>
-          <div class="contact-item">
-            <div class="contact-item-label">Location</div>
-            <div class="contact-item-value">New York, NY</div>
-          </div>
-          <div class="contact-item">
-            <div class="contact-item-label">Hours</div>
-            <div class="contact-item-value">Mon–Fri, 9am–6pm EST</div>
-          </div>
+          <div class="contact-item"><div class="contact-item-label">Email</div><div class="contact-item-value">sesnyanthony&#64;gmail.com</div></div>
+          <div class="contact-item"><div class="contact-item-label">Phone</div><div class="contact-item-value">(718) 612-5911</div></div>
+          <div class="contact-item"><div class="contact-item-label">Location</div><div class="contact-item-value">New York, NY</div></div>
+          <div class="contact-item"><div class="contact-item-label">Hours</div><div class="contact-item-value">Mon–Fri, 9am–6pm EST</div></div>
           <button class="btn-copy" onclick="copyEmail()">Copy Email Address</button>
         </div>
       </div>
@@ -1167,7 +167,6 @@
   </div>
 </section>
 
-<!-- Footer -->
 <footer class="footer">
   <div class="footer-inner">
     <div class="footer-left">

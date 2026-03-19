@@ -5,37 +5,170 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Create Account — Anthony Sesny</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="login.css">
-  <link rel="stylesheet" href="register.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    .register-container { max-width: 420px; }
+
+    .step-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 36px;
+    }
+
+    .step-dot-reg {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 1.5px solid var(--cream-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink-light);
+      background: transparent;
+      transition: all 0.3s;
+      flex-shrink: 0;
+      font-family: var(--mono);
+    }
+
+    .step-dot-reg.active {
+      border-color: var(--purple);
+      background: var(--purple);
+      color: white;
+    }
+
+    .step-dot-reg.done {
+      border-color: #22C55E;
+      background: #22C55E;
+      color: white;
+    }
+
+    .step-line {
+      width: 48px; height: 1.5px;
+      background: var(--cream-border);
+      transition: background 0.3s;
+    }
+
+    .step-line.active { background: var(--purple); }
+    .step-line.done { background: #22C55E; }
+
+    .form-row-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .password-requirements {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .req {
+      font-size: 12px;
+      color: var(--ink-light);
+      font-weight: 400;
+      padding-left: 18px;
+      position: relative;
+    }
+
+    .req::before { content: "○"; position: absolute; left: 0; font-size: 10px; }
+    .req.met { color: #22C55E; }
+    .req.met::before { content: "●"; color: #22C55E; }
+
+    .field-note {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--ink-muted);
+      line-height: 1.6;
+      padding: 10px 14px;
+      background: var(--cream-dark);
+      border-radius: 8px;
+      border: 1px solid var(--cream-border);
+    }
+
+    .form-buttons { display: flex; gap: 10px; }
+
+    .btn-back {
+      padding: 14px 24px;
+      background: transparent;
+      color: var(--ink-muted);
+      border: 1px solid var(--cream-border);
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 400;
+      font-family: var(--sans);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-back:hover { border-color: var(--ink-light); color: var(--ink); }
+    .form-buttons .btn-login { flex: 1; }
+
+    .register-link {
+      color: var(--purple);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .register-link:hover { color: var(--purple-light); }
+
+    .success-check {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--purple-glow);
+      border: 1px solid var(--purple-border);
+      color: var(--purple);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      margin: 0 auto 20px;
+    }
+
+    @media (max-width: 768px) {
+      .form-row-split { grid-template-columns: 1fr; }
+      .step-line { width: 32px; }
+    }
+  </style>
 </head>
 <body>
 
 <div class="login-page">
 
-  <!-- Left side: Branding -->
+  <!-- Left: Branding -->
   <div class="login-brand">
     <div class="login-brand-content">
       <a href="index.html" class="login-back">← Back to site</a>
       <div class="login-brand-main">
-        <h1>Anthony Sesny</h1>
-        <p class="login-tagline">Create your secure client portal account to get started with tax preparation.</p>
+        <div class="login-brand-logo">
+          <span class="login-brand-logo-dot"></span>
+          Sesny
+        </div>
+        <h1>Get started<br>today.</h1>
+        <p class="login-tagline">Create your secure client portal account and get started with tax preparation in minutes.</p>
         <div class="login-features">
           <div class="login-feature">
-            <span class="login-feature-icon">◆</span>
+            <span class="login-feature-icon">⚡</span>
             <div>
               <strong>Quick Setup</strong>
               <span>Create your account in under 2 minutes</span>
             </div>
           </div>
           <div class="login-feature">
-            <span class="login-feature-icon">◆</span>
+            <span class="login-feature-icon">📄</span>
             <div>
               <strong>Upload Documents</strong>
               <span>Securely submit W-2s, 1099s, and more</span>
             </div>
           </div>
           <div class="login-feature">
-            <span class="login-feature-icon">◆</span>
+            <span class="login-feature-icon">🔒</span>
             <div>
               <strong>Bank-Level Security</strong>
               <span>Your data is encrypted end-to-end</span>
@@ -47,11 +180,10 @@
     </div>
   </div>
 
-  <!-- Right side: Registration Form -->
+  <!-- Right: Form -->
   <div class="login-form-side">
     <div class="login-form-container register-container">
 
-      <!-- Step indicator -->
       <div class="step-indicator">
         <div class="step-dot-reg active" id="step-dot-1">1</div>
         <div class="step-line active" id="step-line-1"></div>
@@ -60,13 +192,12 @@
         <div class="step-dot-reg" id="step-dot-3">3</div>
       </div>
 
-      <!-- Step 1: Personal Info -->
+      <!-- Step 1 -->
       <div class="register-step" id="step-1">
         <div class="login-form-header">
           <h2>Personal information</h2>
           <p>Let's start with the basics.</p>
         </div>
-
         <div class="login-form">
           <div class="form-row-split">
             <div class="form-group">
@@ -78,30 +209,25 @@
               <input type="text" id="lastName" placeholder="Mitchell" autocomplete="off">
             </div>
           </div>
-
           <div class="form-group">
             <label for="reg-email">Email address</label>
             <input type="email" id="reg-email" placeholder="you@example.com" autocomplete="off">
           </div>
-
           <div class="form-group">
             <label for="phone">Phone number</label>
             <input type="tel" id="phone" placeholder="(555) 123-4567" autocomplete="off">
           </div>
-
           <button class="btn-login" onclick="nextStep(2)">Continue</button>
-
           <p class="login-help">Already have an account? <a href="login.html" class="register-link">Sign in</a></p>
         </div>
       </div>
 
-      <!-- Step 2: Security -->
-      <div class="register-step" id="step-2" style="display: none;">
+      <!-- Step 2 -->
+      <div class="register-step" id="step-2" style="display:none;">
         <div class="login-form-header">
           <h2>Create your password</h2>
           <p>Choose a strong password to protect your account.</p>
         </div>
-
         <div class="login-form">
           <div class="form-group">
             <label for="reg-password">Password</label>
@@ -112,12 +238,10 @@
               <div class="req" id="req-upper">Contains an uppercase letter</div>
             </div>
           </div>
-
           <div class="form-group">
             <label for="reg-confirm">Confirm password</label>
             <input type="password" id="reg-confirm" placeholder="Re-enter your password" autocomplete="new-password">
           </div>
-
           <div class="form-buttons">
             <button class="btn-back" onclick="prevStep(1)">Back</button>
             <button class="btn-login" onclick="nextStep(3)">Continue</button>
@@ -125,31 +249,27 @@
         </div>
       </div>
 
-      <!-- Step 3: Verification -->
-      <div class="register-step" id="step-3" style="display: none;">
+      <!-- Step 3 -->
+      <div class="register-step" id="step-3" style="display:none;">
         <div class="login-form-header">
           <h2>Identity verification</h2>
           <p>This helps us securely link your tax records to your account.</p>
         </div>
-
         <div class="login-form">
           <div class="form-group">
             <label for="ssn">Social Security Number or Tax ID</label>
             <input type="password" id="ssn" placeholder="XXX-XX-XXXX">
             <div class="field-note">Your SSN is encrypted and never stored in plain text. It is only used for account verification purposes.</div>
           </div>
-
           <div class="form-group">
             <label for="ssn-confirm">Confirm SSN / Tax ID</label>
             <input type="password" id="ssn-confirm" placeholder="Re-enter to confirm">
           </div>
-
-          <label class="checkbox-label" style="margin-bottom: 24px;">
+          <label class="checkbox-label" style="margin-bottom:20px;">
             <input type="checkbox" id="terms">
-            <span></span>
+            <span class="checkbox-custom"></span>
             I agree to the <a href="#" class="register-link">Terms of Service</a> and <a href="#" class="register-link">Privacy Policy</a>
           </label>
-
           <div class="form-buttons">
             <button class="btn-back" onclick="prevStep(2)">Back</button>
             <button class="btn-login" onclick="createAccount()">Create Account</button>
@@ -157,9 +277,9 @@
         </div>
       </div>
 
-      <!-- Success Screen -->
-      <div class="register-step" id="step-success" style="display: none;">
-        <div class="login-form-header" style="text-align: center;">
+      <!-- Success -->
+      <div class="register-step" id="step-success" style="display:none;">
+        <div class="login-form-header" style="text-align:center;">
           <div class="success-check">✓</div>
           <h2>You're all set!</h2>
           <p>Your account has been created. Redirecting to your portal...</p>
@@ -174,6 +294,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script src="register.js"></script>
 </body>
