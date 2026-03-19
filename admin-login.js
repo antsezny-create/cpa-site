@@ -84,21 +84,10 @@ function handleAdminLogin() {
                   showSuccess();
                 } else {
                   // Last fallback: check if email matches your admin email
-                  if (user.email === "sesnyanthony@gmail.com") {
-                    // Auto-create admin record for this UID
-                    return db.collection("admins").doc(user.uid).set({
-                      role: "admin",
-                      email: user.email,
-                      name: "Anthony Sesny",
-                      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                    }).then(function() {
-                      showSuccess();
-                    });
-                  } else {
-                    auth.signOut();
-                    btn.textContent = "Sign In to Dashboard";
-                    btn.disabled = false;
-                    alert("This account does not have practitioner access.");
+                 auth.signOut();
+btn.textContent = "Sign In to Dashboard";
+btn.disabled = false;
+alert("This account does not have practitioner access.");
                   }
                 }
               });
