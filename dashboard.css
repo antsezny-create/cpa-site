@@ -2374,7 +2374,7 @@ body {
 .coa-header,
 .coa-row-full {
   display: grid;
-  grid-template-columns: 70px 1fr 100px 150px 120px 80px 260px;
+  grid-template-columns: 70px 1fr 100px 160px 130px 160px;
   padding: 12px 20px;
   align-items: center;
 }

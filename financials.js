@@ -56,7 +56,7 @@ async function initChartOfAccounts() {
     let batch = db.batch();
     MASTER_COA.forEach(a => {
       let ref = db.collection("chartOfAccounts").doc();
-      batch.set(ref, { ...a, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      batch.set(ref, { ...a, isCore: true, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     });
     await batch.commit();
     snap = await db.collection("chartOfAccounts").get();
@@ -1103,7 +1103,6 @@ function renderMasterAccounts() {
         <span>Type</span>
         <span>Sub-Type</span>
         <span>Normal Balance</span>
-        <span>Status</span>
         <span>Actions</span>
       </div>
       <div id="master-coa-list">${renderMasterCOARows()}</div>
@@ -1119,26 +1118,26 @@ function renderMasterCOARows() {
     long_term_liability:"Long-Term Liability", paid_in_capital:"Paid-In Capital",
     retained_earnings:"Retained Earnings", distributions:"Distributions",
     contra_equity:"Contra Equity", operating_revenue:"Operating Revenue",
-    other_revenue:"Other Revenue", cogs:"COGS",
+    contra_revenue:"Contra-Revenue", other_revenue:"Other Revenue", cogs:"COGS",
     operating_expense:"Operating Expense", other_expense:"Other Expense", tax:"Tax"
   };
 
-  return chartOfAccounts.map(a => `
+  return chartOfAccounts.map(a => {
+    let isCore = a.isCore === true;
+    let actions = `<button class="form-action-btn" onclick="editAccountModal('${a._id}')">Edit</button>`;
+    if (!isCore) {
+      actions += `<button class="form-action-btn delete" onclick="deleteAccount('${a._id}','${a.name.replace(/'/g,"\\'")}')">Delete</button>`;
+    }
+    return `
     <div class="coa-row-full">
       <span class="coa-num">${a.number}</span>
       <span class="coa-name">${a.name}</span>
       <span class="coa-type">${a.type}</span>
       <span class="coa-subtype">${subTypeLabels[a.subType]||a.subType}</span>
       <span class="coa-bal ${a.normalBalance}">${a.normalBalance}</span>
-      <span class="status-pill ${a.isActive?"filed":"review"}">${a.isActive?"Active":"Inactive"}</span>
-      <div style="display:flex;gap:6px;">
-        <button class="form-action-btn" onclick="editAccountModal('${a._id}')">Edit</button>
-        <button class="form-action-btn ${a.isActive?"":"pinned"}" onclick="toggleAccountActive('${a._id}',${a.isActive})">
-          ${a.isActive?"Deactivate":"Activate"}
-        </button>
-        <button class="form-action-btn delete" onclick="deleteAccount('${a._id}','${a.name.replace(/'/g,"\\'")}')">Delete</button>
-      </div>
-    </div>`).join("");
+      <div style="display:flex;gap:8px;align-items:center;">${actions}</div>
+    </div>`;
+  }).join("");
 }
 
 function toggleAccountActive(id, current) {
@@ -1241,7 +1240,7 @@ function saveNewAccount() {
 
   db.collection("chartOfAccounts").add({
     number, name, type, subType:sub, normalBalance:nb,
-    isActive:true, createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    isActive:true, isCore:false, createdAt:firebase.firestore.FieldValue.serverTimestamp()
   }).then(ref => {
     chartOfAccounts.push({ _id:ref.id, number, name, type, subType:sub, normalBalance:nb, isActive:true });
     chartOfAccounts.sort((a,b)=>parseInt(a.number)-parseInt(b.number));
