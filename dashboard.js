@@ -15,6 +15,17 @@ let activeClientId        = null;
 let activeClientName      = "";
 let messageRefreshInterval = null;
 
+// ══════════════════════════════════════
+//  SECURITY HELPERS
+// ══════════════════════════════════════
+function esc(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
 
 // ══════════════════════════════════════
 //  TAB SWITCHING
@@ -86,8 +97,8 @@ function renderClients(filter) {
     row.className = "client-table-row";
 
     let clientCell = `<div class="client-cell" onclick="openClientPanel('${c.uid}')" style="cursor:pointer;">
-      <div class="client-cell-avatar ${c.color}">${c.initials}</div>
-      <div><div class="cell-name">${c.name}</div><div class="cell-sub">${c.email||""}</div></div>
+      <div class="client-cell-avatar ${c.color}">${esc(c.initials)}</div>
+      <div><div class="cell-name">${esc(c.name)}</div><div class="cell-sub">${esc(c.email)||""}</div></div>
     </div>`;
 
     let typeOpts = ["Individual","Joint","Business","Trust","Partnership"]
