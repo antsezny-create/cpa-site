@@ -85,7 +85,7 @@ function renderClients(filter) {
     let row = document.createElement("div");
     row.className = "client-table-row";
 
-    let clientCell = `<div class="client-cell">
+    let clientCell = `<div class="client-cell" onclick="openClientPanel('${c.uid}')" style="cursor:pointer;">
       <div class="client-cell-avatar ${c.color}">${c.initials}</div>
       <div><div class="cell-name">${c.name}</div><div class="cell-sub">${c.email||""}</div></div>
     </div>`;
@@ -1411,4 +1411,180 @@ function saveClientNote() {
     let activeFilter = document.querySelector(".filter-bar .filter-btn.active");
     renderClients(activeFilter ? activeFilter.textContent.toLowerCase().replace(" ", "-") : "all");
   }).catch(e => alert("Failed to save: " + e.message));
+}
+
+
+// ══════════════════════════════════════
+//  CLIENT SLIDE-OUT PANEL
+// ══════════════════════════════════════
+
+let panelListener = null;
+
+function openClientPanel(uid) {
+  let c = clients.find(x => x.uid === uid);
+  if (!c) return;
+
+  // Build status display
+  let statusMap = {
+    "pending":     { label:"Pending",     cls:"pending"  },
+    "in-progress": { label:"In Progress", cls:"progress" },
+    "review":      { label:"Review",      cls:"review"   },
+    "filed":       { label:"Filed",       cls:"filed"    }
+  };
+  let st = statusMap[c.status] || { label: c.status, cls:"pending" };
+
+  // Build panel HTML
+  let panel = document.getElementById("client-panel");
+  if (!panel) return;
+
+  panel.innerHTML = `
+    <div class="cp-header">
+      <div class="cp-avatar-wrap">
+        <div class="client-cell-avatar ${c.color} cp-avatar">${c.initials}</div>
+        <div>
+          <div class="cp-name">${c.name}</div>
+          <div class="cp-meta">${c.type} · ${c.year}</div>
+          <div class="cp-email">${c.email || ""}</div>
+        </div>
+      </div>
+      <button class="cp-close" onclick="closeClientPanel()">✕</button>
+    </div>
+
+    <div class="cp-section">
+      <div class="cp-row">
+        <span class="cp-label">Status</span>
+        <span class="status-pill ${st.cls}">${st.label}</span>
+      </div>
+      <div class="cp-row">
+        <span class="cp-label">Case</span>
+        <span class="cp-value">${c.caseOpen !== false ? "Open" : "Closed"}</span>
+      </div>
+      <div class="cp-row">
+        <span class="cp-label">Tax Year</span>
+        <span class="cp-value">${c.year}</span>
+      </div>
+      <div class="cp-row">
+        <span class="cp-label">Type</span>
+        <span class="cp-value">${c.type}</span>
+      </div>
+      <div class="cp-row">
+        <span class="cp-label">Bookkeeping</span>
+        <span class="cp-value">${c.bookkeeping ? "✓ Enabled" : "—"}</span>
+      </div>
+      ${c.phone ? `<div class="cp-row"><span class="cp-label">Phone</span><span class="cp-value">${c.phone}</span></div>` : ""}
+    </div>
+
+    ${c.notes ? `
+    <div class="cp-section">
+      <div class="cp-section-title">Notes</div>
+      <div class="cp-notes">${c.notes}</div>
+    </div>` : ""}
+
+    <div class="cp-section">
+      <div class="cp-section-title">Recent Activity</div>
+      <div id="cp-activity-list" class="cp-activity-list">
+        <div style="font-size:12px;color:var(--text-dim);padding:8px 0;">Loading...</div>
+      </div>
+    </div>
+
+    <div class="cp-section">
+      <div class="cp-section-title">Documents</div>
+      <div id="cp-docs-list" class="cp-docs-list">
+        <div style="font-size:12px;color:var(--text-dim);padding:8px 0;">Loading...</div>
+      </div>
+    </div>
+
+    <div class="cp-actions">
+      <button class="ghost-btn" style="flex:1;" onclick="closeClientPanel();openDocRequestModal('${uid}','${c.name.replace(/'/g,"\\'")}')">
+        Request Doc
+      </button>
+      <button class="ghost-btn" style="flex:1;" onclick="closeClientPanel();switchDashTab('messages')">
+        Message
+      </button>
+      <button class="primary-btn" style="flex:1;" onclick="closeClientPanel();switchDashTab('clients')">
+        Full View
+      </button>
+    </div>`;
+
+  // Show panel and overlay
+  panel.classList.add("cp-open");
+  document.getElementById("client-panel-overlay").style.display = "block";
+
+  // Load activity for this client
+  loadClientPanelActivity(uid);
+  loadClientPanelDocs(uid);
+
+  // Real-time listener for this client
+  if (panelListener) panelListener();
+  panelListener = db.collection("clients").doc(uid).onSnapshot(doc => {
+    if (!doc.exists) return;
+    let updated = doc.data();
+    // Update status pill
+    let stUpdated = statusMap[updated.status] || { label: updated.status, cls:"pending" };
+    let pill = panel.querySelector(".status-pill");
+    if (pill) { pill.className = `status-pill ${stUpdated.cls}`; pill.textContent = stUpdated.label; }
+    // Update notes
+    let notesEl = panel.querySelector(".cp-notes");
+    if (notesEl && updated.notes) notesEl.textContent = updated.notes;
+  });
+}
+
+function loadClientPanelActivity(uid) {
+  db.collection("activity")
+    .where("clientId", "==", uid)
+    .orderBy("createdAt", "desc")
+    .limit(5)
+    .get().then(snap => {
+      let el = document.getElementById("cp-activity-list");
+      if (!el) return;
+      if (snap.empty) { el.innerHTML = `<div style="font-size:12px;color:var(--text-dim);padding:8px 0;">No activity yet.</div>`; return; }
+      el.innerHTML = "";
+      snap.forEach(doc => {
+        let d = doc.data();
+        let timeStr = d.createdAt ? new Date(d.createdAt.seconds*1000).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
+        let iconMap = { upload:"📄", message:"💬", request:"📋", account:"✅", ready:"📊" };
+        let icon = iconMap[d.type] || "◆";
+        el.innerHTML += `<div class="cp-activity-item">
+          <span>${icon}</span>
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);">${d.text||""}</div>
+            <div style="font-size:11px;color:var(--text-dim);">${timeStr}</div>
+          </div>
+        </div>`;
+      });
+    }).catch(() => {
+      let el = document.getElementById("cp-activity-list");
+      if (el) el.innerHTML = `<div style="font-size:12px;color:var(--text-dim);">No activity yet.</div>`;
+    });
+}
+
+function loadClientPanelDocs(uid) {
+  db.collection("documents")
+    .where("clientId", "==", uid)
+    .orderBy("createdAt", "desc")
+    .limit(5)
+    .get().then(snap => {
+      let el = document.getElementById("cp-docs-list");
+      if (!el) return;
+      if (snap.empty) { el.innerHTML = `<div style="font-size:12px;color:var(--text-dim);padding:8px 0;">No documents uploaded yet.</div>`; return; }
+      el.innerHTML = "";
+      snap.forEach(doc => {
+        let d = doc.data();
+        el.innerHTML += `<div class="cp-doc-item">
+          <span style="font-size:13px;">📄</span>
+          <span style="font-size:12px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.name||"Document"}</span>
+          <span class="status-pill ${d.status==="approved"?"filed":d.status==="flagged"?"review":"pending"}" style="font-size:10px;">${d.status||"pending"}</span>
+        </div>`;
+      });
+    }).catch(() => {
+      let el = document.getElementById("cp-docs-list");
+      if (el) el.innerHTML = `<div style="font-size:12px;color:var(--text-dim);">No documents yet.</div>`;
+    });
+}
+
+function closeClientPanel() {
+  let panel = document.getElementById("client-panel");
+  if (panel) panel.classList.remove("cp-open");
+  document.getElementById("client-panel-overlay").style.display = "none";
+  if (panelListener) { panelListener(); panelListener = null; }
 }
