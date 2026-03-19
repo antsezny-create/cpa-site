@@ -38,59 +38,79 @@
 <div class="dash-layout">
 
   <!-- Sidebar -->
-  <aside class="dash-sidebar">
+  <aside class="dash-sidebar" id="dash-sidebar">
+    <div class="sidebar-collapse-btn" onclick="toggleSidebar()" title="Collapse sidebar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    </div>
+
     <div class="dash-sidebar-nav">
 
-      <div class="sidebar-section-label">Tax</div>
+      <div class="sidebar-section-label"><span class="sidebar-label-text">Tax</span></div>
 
-      <button class="dash-nav-btn active" onclick="switchDashTab('overview')">
-        <span class="nav-icon">◫</span> Overview
+      <button class="dash-nav-btn active" onclick="switchDashTab('overview')" title="Overview">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span class="nav-label">Overview</span>
       </button>
-      <button class="dash-nav-btn" onclick="switchDashTab('clients')">
-        <span class="nav-icon">◉</span> Clients
+      <button class="dash-nav-btn" onclick="switchDashTab('clients')" title="Clients">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><circle cx="19" cy="11" r="2"/><path d="M23 21v-1a2 2 0 0 0-2-2h-1"/></svg>
+        <span class="nav-label">Clients</span>
         <span class="msg-badge" id="clients-approval-badge" style="display:none;">0</span>
       </button>
-      <button class="dash-nav-btn" onclick="switchDashTab('documents')">
-        <span class="nav-icon">◧</span> Documents
+      <button class="dash-nav-btn" onclick="switchDashTab('documents')" title="Documents">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+        <span class="nav-label">Documents</span>
       </button>
-      <button class="dash-nav-btn" onclick="switchDashTab('returns')">
-        <span class="nav-icon">◑</span> Returns
+      <button class="dash-nav-btn" onclick="switchDashTab('returns')" title="Returns">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+        <span class="nav-label">Returns</span>
       </button>
-      <button class="dash-nav-btn" onclick="switchDashTab('forms')">
-        <span class="nav-icon">❐</span> Forms &amp; Schedules
+      <button class="dash-nav-btn" onclick="switchDashTab('forms')" title="Forms & Schedules">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <span class="nav-label">Forms &amp; Schedules</span>
       </button>
-      <button class="dash-nav-btn" onclick="switchDashTab('saved-forms')">
-        <span class="nav-icon">◈</span> Saved Forms
+      <button class="dash-nav-btn" onclick="switchDashTab('saved-forms')" title="Saved Forms">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        <span class="nav-label">Saved Forms</span>
       </button>
-      <button class="dash-nav-btn" onclick="switchDashTab('messages')">
-        <span class="nav-icon">◯</span> Messages
+      <button class="dash-nav-btn" onclick="switchDashTab('messages')" title="Messages">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="nav-label">Messages</span>
         <span class="msg-badge" id="msg-badge" style="display:none;">0</span>
       </button>
 
-      <div class="sidebar-section-label" style="margin-top:8px;">Accounting</div>
+      <div class="sidebar-section-label" style="margin-top:8px;"><span class="sidebar-label-text">Accounting</span></div>
 
-      <button class="dash-nav-btn" onclick="switchDashTab('gl')">
-        <span class="nav-icon">◎</span> General Ledger
+      <button class="dash-nav-btn" onclick="switchDashTab('gl')" title="General Ledger">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <span class="nav-label">General Ledger</span>
       </button>
-      <button class="dash-nav-btn" onclick="switchDashTab('is')">
-        <span class="nav-icon">◲</span> Income Statement
+      <button class="dash-nav-btn" onclick="switchDashTab('is')" title="Income Statement">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span class="nav-label">Income Statement</span>
       </button>
-      <button class="dash-nav-btn" onclick="switchDashTab('bs')">
-        <span class="nav-icon">◳</span> Balance Sheet
+      <button class="dash-nav-btn" onclick="switchDashTab('bs')" title="Balance Sheet">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="12" y1="3" x2="12" y2="17"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        <span class="nav-label">Balance Sheet</span>
       </button>
-      <button class="dash-nav-btn" onclick="switchDashTab('scf')">
-        <span class="nav-icon">◱</span> Cash Flow Statement
+      <button class="dash-nav-btn" onclick="switchDashTab('scf')" title="Cash Flow Statement">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        <span class="nav-label">Cash Flow</span>
       </button>
-      <button class="dash-nav-btn" onclick="switchDashTab('sshe')">
-        <span class="nav-icon">◰</span> Shareholders' Equity
+      <button class="dash-nav-btn" onclick="switchDashTab('sshe')" title="Shareholders' Equity">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        <span class="nav-label">Shareholders' Equity</span>
       </button>
-      <button class="dash-nav-btn" onclick="switchDashTab('master-accounts')">
-        <span class="nav-icon">≡</span> Master Accounts
+      <button class="dash-nav-btn" onclick="switchDashTab('master-accounts')" title="Master Accounts">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        <span class="nav-label">Master Accounts</span>
       </button>
 
     </div>
     <div class="dash-sidebar-footer">
-      <a href="index.html" class="sidebar-link">← Back to Site</a>
+      <a href="index.html" class="sidebar-link">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        <span class="sidebar-label-text"> Back to Site</span>
+      </a>
     </div>
   </aside>
 

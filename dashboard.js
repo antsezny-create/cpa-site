@@ -19,6 +19,26 @@ let messageRefreshInterval = null;
 // ══════════════════════════════════════
 //  TAB SWITCHING
 // ══════════════════════════════════════
+function toggleSidebar() {
+  let sidebar = document.getElementById("dash-sidebar");
+  let main    = document.querySelector(".dash-main");
+  let collapsed = sidebar.classList.toggle("sidebar-collapsed");
+  if (main) main.classList.toggle("sidebar-collapsed-main", collapsed);
+  localStorage.setItem("sidebarCollapsed", collapsed);
+}
+
+// Restore sidebar state on load
+(function() {
+  if (localStorage.getItem("sidebarCollapsed") === "true") {
+    document.addEventListener("DOMContentLoaded", function() {
+      let sidebar = document.getElementById("dash-sidebar");
+      let main    = document.querySelector(".dash-main");
+      if (sidebar) sidebar.classList.add("sidebar-collapsed");
+      if (main)    main.classList.add("sidebar-collapsed-main");
+    });
+  }
+})();
+
 function switchDashTab(tabName) {
   document.querySelectorAll(".dash-tab").forEach(t => t.style.display = "none");
   document.getElementById("tab-" + tabName).style.display = "block";
