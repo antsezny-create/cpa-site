@@ -20,3 +20,12 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const storage = firebase.storage();
+
+// ══════════════════════════════════════
+//  APP CHECK — blocks unauthorized API access
+// ══════════════════════════════════════
+const appCheck = firebase.appCheck();
+appCheck.activate(
+  '6LeehI8sAAAAAAq-yH2lumGxyGsWsSg8dD8QZHDi',
+  true
+);
