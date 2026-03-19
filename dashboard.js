@@ -138,32 +138,69 @@ function updateOverviewStats() {
     if (c.status==="review")      review++;
     if (c.status==="filed")       filed++;
   });
+
+  // Stat cards
   document.getElementById("stat-total").textContent    = total;
+  document.getElementById("stat-pending").textContent  = pending;
   document.getElementById("stat-progress").textContent = progress;
-  document.getElementById("stat-review").textContent   = review;
   document.getElementById("stat-filed").textContent    = filed;
+
+  // Filing progress bar
+  let pct = total > 0 ? Math.round((filed / total) * 100) : 0;
+  let fillEl = document.getElementById("filing-progress-fill");
+  let pctEl  = document.getElementById("filing-progress-pct");
+  let countEl= document.getElementById("filing-progress-count");
+  if (fillEl)  fillEl.style.width = pct + "%";
+  if (pctEl)   pctEl.textContent  = pct + "%";
+  if (countEl) countEl.textContent = filed + " / " + total + " filed";
+
+  // Greeting based on time of day
+  let hour = new Date().getHours();
+  let greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  let greetEl = document.getElementById("overview-greeting-text");
+  if (greetEl) greetEl.textContent = greeting + ", Anthony";
+
+  // Activity feed
+  loadOverviewActivity();
 }
-function updateRecentClientsList() {
-  let el = document.getElementById("recent-clients-list");
+
+function loadOverviewActivity() {
+  let el = document.getElementById("overview-activity-list");
   if (!el) return;
-  el.innerHTML = "";
-  let yearClients = clients.filter(c => c.year === activeYear);
-  if (!yearClients.length) {
-    el.innerHTML = `<div style="padding:16px;text-align:center;color:#6B7280;font-size:13px;">No clients for ${activeYear}.</div>`;
-    return;
-  }
-  yearClients.slice(0,5).forEach(c => {
-    let sc="pending", sl="Pending";
-    if (c.status==="in-progress"){sc="progress";sl="In Progress";}
-    if (c.status==="review")     {sc="review";  sl="Review";}
-    if (c.status==="filed")      {sc="filed";   sl="Filed";}
-    let item = document.createElement("div");
-    item.className = "client-mini";
-    item.innerHTML = `<div class="client-avatar ${c.color}">${c.initials}</div>
-      <div class="client-mini-info"><strong>${c.name}</strong><span>${c.type} · ${c.docs} docs</span></div>
-      <span class="status-pill ${sc}">${sl}</span>`;
-    el.appendChild(item);
-  });
+
+  db.collection("activity")
+    .orderBy("createdAt", "desc")
+    .limit(8)
+    .get().then(snap => {
+      if (snap.empty) {
+        el.innerHTML = `<div class="overview-empty">No recent activity yet.</div>`;
+        return;
+      }
+      el.innerHTML = "";
+      snap.forEach(doc => {
+        let d = doc.data();
+        let timeStr = d.createdAt
+          ? new Date(d.createdAt.seconds * 1000).toLocaleDateString("en-US", {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"})
+          : "";
+        let iconMap = { upload:"📄", message:"💬", request:"📋", account:"✅", ready:"📊", filed:"🎉" };
+        let icon = iconMap[d.type] || "◆";
+        let item = document.createElement("div");
+        item.className = "overview-activity-item";
+        item.innerHTML = `
+          <span class="overview-activity-icon">${icon}</span>
+          <div class="overview-activity-content">
+            <span class="overview-activity-text">${d.text || "Activity recorded"}</span>
+            <span class="overview-activity-time">${timeStr}</span>
+          </div>`;
+        el.appendChild(item);
+      });
+    }).catch(() => {
+      el.innerHTML = `<div class="overview-empty">Unable to load activity.</div>`;
+    });
+}
+
+function updateRecentClientsList() {
+  // No longer used — replaced by activity feed
 }
 function filterClients(filter, btn) {
   document.querySelectorAll(".filter-bar .filter-btn").forEach(b => b.classList.remove("active"));
