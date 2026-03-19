@@ -900,3 +900,82 @@ body {
     min-width: 16px; text-align: center;
   }
 }
+
+/* ── Anthony intro card ── */
+.anthony-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--ink);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+
+.anthony-monogram {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: var(--warm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  flex-shrink: 0;
+}
+
+.anthony-content { flex: 1; }
+
+.anthony-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 3px;
+}
+
+.anthony-name {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 500;
+  color: white;
+  margin-bottom: 3px;
+}
+
+.anthony-contact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+}
+
+.anthony-contact a {
+  color: var(--warm);
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+.anthony-contact a:hover { opacity: 0.75; }
+
+.anthony-msg-btn {
+  padding: 9px 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.8);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.anthony-msg-btn:hover {
+  background: var(--warm);
+  border-color: var(--warm);
+  color: white;
+}

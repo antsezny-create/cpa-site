@@ -333,15 +333,21 @@ function loadMessages() {
           let months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
           timeText = months[d.getMonth()] + " " + d.getDate() + ", " + h + ":" + mn + " " + ap;
         }
+
+        let wrapper = document.createElement("div");
+        wrapper.style.cssText = `display:flex;flex-direction:column;align-items:${isMe?"flex-end":"flex-start"};margin-bottom:4px;`;
+
         let bubble = document.createElement("div");
-        bubble.className = "message " + (isMe ? "sent" : "received");
-        bubble.innerHTML =
-          (!isMe ? '<div class="message-avatar">AS</div>' : "") +
-          '<div class="message-body">' +
-            '<div class="message-meta"><strong>' + msg.senderName + '</strong> <span>' + timeText + '</span></div>' +
-            '<div class="message-text">' + msg.text + '</div>' +
-          '</div>';
-        thread.appendChild(bubble);
+        bubble.className = "msg-bubble " + (isMe ? "sent" : "received");
+        bubble.textContent = msg.text;
+
+        let time = document.createElement("div");
+        time.className = "msg-time " + (isMe ? "" : "left");
+        time.textContent = (isMe ? "" : (msg.senderName || "Anthony") + " · ") + timeText;
+
+        wrapper.appendChild(bubble);
+        wrapper.appendChild(time);
+        thread.appendChild(wrapper);
       });
       thread.scrollTop = thread.scrollHeight;
 
@@ -535,6 +541,21 @@ function loadMyStatements() {
     .where("published", "==", true)
     .get().then(snap => {
       if (snap.empty) {
+        // Fallback — try without published filter in case index is missing
+        return db.collection("financialStatements")
+          .where("clientId", "==", currentUser.uid)
+          .get().then(snap2 => {
+            let filtered = [];
+            snap2.forEach(doc => {
+              let d = doc.data();
+              if (d.published === true) { d._id = doc.id; filtered.push(d); }
+            });
+            return { forEach: (fn) => filtered.forEach(d => fn({ data: () => d, id: d._id })), empty: filtered.length === 0 };
+          });
+      }
+      return snap;
+    }).then(snap => {
+      if (snap.empty) {
         container.innerHTML = `
           <div class="portal-card" style="text-align:center;padding:40px;">
             <div style="font-size:32px;margin-bottom:12px;">📊</div>
@@ -558,10 +579,10 @@ function loadMyStatements() {
       Object.entries(periods).forEach(([periodId, period]) => {
         html += `
           <div class="portal-card fin-period-card" style="margin-bottom:20px;">
-            <div class="card-header" style="margin-bottom:16px;">
+            <div class="portal-card-header" style="margin-bottom:16px;">
               <div>
-                <h2>${period.clientName || "Company"}</h2>
-                <span style="font-size:12px;color:var(--text-dim);">${period.label}</span>
+                <h2 style="font-family:var(--serif);font-size:20px;font-weight:500;">${period.clientName || "Company"}</h2>
+                <span style="font-size:12px;color:var(--ink-muted);">${period.label}</span>
               </div>
               <button class="download-btn" onclick="downloadStatementsExcel('${periodId}')">Download Excel ↓</button>
             </div>
