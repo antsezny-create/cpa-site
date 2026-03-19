@@ -4,7 +4,6 @@
 //  needs authentication or database access.
 //  Load the Firebase CDN scripts BEFORE this file.
 // ══════════════════════════════════════
-
 const firebaseConfig = {
   apiKey: "AIzaSyApBl6CcUwGaRij3y9IIwJWuzLhhII_ZLw",
   authDomain: "sesny-cpa.firebaseapp.com",
@@ -21,3 +20,13 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const storage = firebase.storage();
+
+// ══════════════════════════════════════
+//  APP CHECK — blocks unauthorized API access
+//  Paste your reCAPTCHA v3 site key below
+// ══════════════════════════════════════
+const appCheck = firebase.appCheck();
+appCheck.activate(
+  'PASTE_YOUR_RECAPTCHA_SITE_KEY_HERE',
+  true
+);
