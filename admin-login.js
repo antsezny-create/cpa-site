@@ -1,10 +1,8 @@
 // ── Route protection: redirect if already logged in ──
 auth.onAuthStateChanged(function(user) {
   if (!user) return;
-
   db.collection("admins").doc(user.uid).get().then(function(doc) {
     if (doc.exists) {
-      // Log session if not already logged
       let existingSession = sessionStorage.getItem("adminSessionId");
       if (!existingSession) {
         let sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -21,11 +19,11 @@ auth.onAuthStateChanged(function(user) {
         db.collection("adminSessions").doc(sessionId).set(sessionData)
           .then(() => console.log("Session logged:", sessionId))
           .catch(e => console.error("Session log failed:", e.message));
-        db.collection("admins").doc(user.uid).update({
+        db.collection("admins").doc(user.uid).set({
           activeSession: sessionId,
           lastSignIn:    firebase.firestore.FieldValue.serverTimestamp(),
           lastUserAgent: navigator.userAgent
-        });
+        }, { merge: true });
         sessionStorage.setItem("adminSessionId", sessionId);
         sessionStorage.setItem("adminSessionStart", Date.now().toString());
       }
@@ -65,19 +63,14 @@ function handleAdminLogin() {
   btn.textContent = "Signing in...";
   btn.disabled = true;
 
-  // Sign in with Firebase
   auth.signInWithEmailAndPassword(email, password)
     .then(function(userCredential) {
       let user = userCredential.user;
-
-      // Try reading from admins collection
       return db.collection("admins").doc(user.uid).get()
         .then(function(doc) {
           if (doc.exists && doc.data().role === "admin") {
-            // Found in admins collection
             showSuccess();
           } else {
-            // Not found by UID - try checking by email as fallback
             return db.collection("admins").where("email", "==", user.email).get()
               .then(function(snapshot) {
                 if (!snapshot.empty) {
@@ -92,22 +85,15 @@ function handleAdminLogin() {
           }
         })
         .catch(function(firestoreError) {
-          // Firestore read failed - likely a rules issue
-          // Fall back to email check
-          if (userCredential.user.email === "sesnyanthony@gmail.com") {
-            showSuccess();
-          } else {
-            auth.signOut();
-            btn.textContent = "Sign In to Dashboard";
-            btn.disabled = false;
-            alert("Database error: " + firestoreError.message + "\n\nPlease check your Firestore security rules in the Firebase console.");
-          }
+          auth.signOut();
+          btn.textContent = "Sign In to Dashboard";
+          btn.disabled = false;
+          alert("Database error: " + firestoreError.message);
         });
     })
     .catch(function(error) {
       btn.textContent = "Sign In to Dashboard";
       btn.disabled = false;
-
       if (error.code === "auth/user-not-found") {
         alert("No account found with this email.");
       } else if (error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
@@ -128,7 +114,6 @@ function showSuccess() {
     '<p>Loading your dashboard...</p>';
   document.querySelector(".login-form-header").style.textAlign = "center";
 
-  // Log session start
   let user = auth.currentUser;
   if (user) {
     let sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -142,20 +127,14 @@ function showSuccess() {
       userAgent:   navigator.userAgent,
       active:      true
     };
-
-    // Store session in Firestore
     db.collection("adminSessions").doc(sessionId).set(sessionData)
       .then(() => console.log("Session logged:", sessionId))
       .catch(e => console.error("Session log failed:", e.message));
-
-    // Mark admin as having an active session
-    db.collection("admins").doc(user.uid).update({
+    db.collection("admins").doc(user.uid).set({
       activeSession:   sessionId,
       lastSignIn:      firebase.firestore.FieldValue.serverTimestamp(),
       lastUserAgent:   navigator.userAgent
-    });
-
-    // Store sessionId locally so dashboard can reference it on sign out
+    }, { merge: true });
     sessionStorage.setItem("adminSessionId", sessionId);
     sessionStorage.setItem("adminSessionStart", Date.now().toString());
   }
