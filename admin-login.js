@@ -83,12 +83,10 @@ function handleAdminLogin() {
                 if (!snapshot.empty) {
                   showSuccess();
                 } else {
-                  // Last fallback: check if email matches your admin email
-                 auth.signOut();
-btn.textContent = "Sign In to Dashboard";
-btn.disabled = false;
-alert("This account does not have practitioner access.");
-                  }
+                  auth.signOut();
+                  btn.textContent = "Sign In to Dashboard";
+                  btn.disabled = false;
+                  alert("This account does not have practitioner access.");
                 }
               });
           }
