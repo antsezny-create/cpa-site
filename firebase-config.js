@@ -27,6 +27,6 @@ const storage = firebase.storage();
 // ══════════════════════════════════════
 const appCheck = firebase.appCheck();
 appCheck.activate(
-  'PASTE_YOUR_RECAPTCHA_SITE_KEY_HERE',
+  '6LeehI8sAAAAAAq-yH2lumGxyGsWsSg8dD8QZHDi',
   true
 );
