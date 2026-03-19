@@ -85,11 +85,11 @@ function handleAdminLogin() {
           }
         })
         .catch(function(firestoreError) {
-          auth.signOut();
-          btn.textContent = "Sign In to Dashboard";
-          btn.disabled = false;
-          alert("Database error: " + firestoreError.message);
-        });
+  auth.signOut();
+  btn.textContent = "Sign In to Dashboard";
+  btn.disabled = false;
+  alert("ERROR CODE: " + firestoreError.code + " | MESSAGE: " + firestoreError.message + " | UID: " + (firebase.auth().currentUser ? firebase.auth().currentUser.uid : "NO USER"));
+});
     })
     .catch(function(error) {
       btn.textContent = "Sign In to Dashboard";
