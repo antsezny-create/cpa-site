@@ -3,43 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Practitioner Login — Anthony Sesny</title>
+  <title>Practitioner Login — Sesny Advisory</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    .admin-brand { background: #0D0F18; }
+    .admin-brand { background: #060D1A; }
     .admin-badge {
       display: inline-block;
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 500;
       text-transform: uppercase;
-      letter-spacing: 2.5px;
-      color: var(--purple-light);
-      background: rgba(108,79,212,0.12);
-      border: 1px solid rgba(108,79,212,0.25);
+      letter-spacing: 3px;
+      color: var(--green);
+      background: rgba(0,166,81,0.08);
+      border: 1px solid rgba(0,166,81,0.2);
       padding: 5px 14px;
-      border-radius: 6px;
+      border-radius: var(--radius);
       margin-bottom: 20px;
     }
-    .admin-btn { background: var(--purple) !important; }
-    .admin-btn:hover { background: var(--purple-light) !important; }
+    .admin-btn { background: var(--green) !important; }
+    .admin-btn:hover { background: var(--green-light) !important; box-shadow: 0 6px 20px rgba(0,166,81,0.25) !important; }
   </style>
 </head>
 <body>
-
 <div class="login-page">
-
-  <!-- Left: Branding -->
   <div class="login-brand admin-brand">
     <div class="login-brand-content">
       <a href="index.html" class="login-back">← Back to site</a>
       <div class="login-brand-main">
         <div class="login-brand-logo">
-          <span class="login-brand-logo-dot"></span>
-          Sesny
+          <span class="login-brand-logo-bar"></span>
+          Sesny Advisory
         </div>
         <div class="admin-badge">Practitioner Access</div>
         <h1>TaxPro<br>Dashboard.</h1>
@@ -47,39 +44,28 @@
         <div class="login-features">
           <div class="login-feature">
             <span class="login-feature-icon">👥</span>
-            <div>
-              <strong>Client Management</strong>
-              <span>Track status across all active clients</span>
-            </div>
+            <div><strong>Client Management</strong><span>Track status across all active clients</span></div>
           </div>
           <div class="login-feature">
             <span class="login-feature-icon">📋</span>
-            <div>
-              <strong>Forms & Schedules</strong>
-              <span>Complete IRS form library with fillable editors</span>
-            </div>
+            <div><strong>Forms & Schedules</strong><span>Complete IRS form library with fillable editors</span></div>
           </div>
           <div class="login-feature">
             <span class="login-feature-icon">📊</span>
-            <div>
-              <strong>Accounting System</strong>
-              <span>Full GL, financial statements, and reporting</span>
-            </div>
+            <div><strong>Accounting System</strong><span>Full GL, financial statements, and reporting</span></div>
           </div>
         </div>
       </div>
-      <p class="login-brand-footer">Authorized personnel only · sesny-cpa</p>
+      <p class="login-brand-footer">authorized personnel only · sesny-cpa</p>
     </div>
   </div>
 
-  <!-- Right: Form -->
   <div class="login-form-side">
     <div class="login-form-container">
       <div class="login-form-header">
         <h2>Practitioner sign in</h2>
         <p>Enter your credentials to access the dashboard</p>
       </div>
-
       <div class="login-form">
         <div class="form-group">
           <label for="admin-email">Email address</label>
@@ -100,7 +86,6 @@
       </div>
     </div>
   </div>
-
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>

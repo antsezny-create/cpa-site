@@ -1,25 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><!-- v4 -->
+  <meta charset="UTF-8"><!-- v5 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Anthony Sesny — Tax & Advisory</title>
-  <meta name="description" content="Expert tax & accounting for everyone. Built on trust. Driven by results. New York-based CPA serving individuals and businesses.">
+  <meta name="description" content="Expert tax & accounting for everyone. Built on trust. Driven by results.">
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
+
 <nav class="nav">
   <div class="nav-inner">
-    <a href="#" class="nav-logo"><span class="nav-logo-dot"></span>Sesny</a>
+    <a href="#" class="nav-logo">
+      <span class="nav-logo-bar"></span>
+      Sesny Advisory
+    </a>
     <div class="nav-links">
       <a href="#services">Services</a>
       <a href="#about">About</a>
       <a href="#contact">Contact</a>
       <a href="login.html" class="nav-cta">Client Portal</a>
-      <a href="register.html" class="nav-register">New client?</a>
+      <a href="register.html" class="nav-register">New Client</a>
     </div>
     <button class="nav-mobile-menu" onclick="toggleMobileMenu()">☰</button>
   </div>
@@ -28,38 +32,69 @@
     <a href="#about" onclick="toggleMobileMenu()">About</a>
     <a href="#contact" onclick="toggleMobileMenu()">Contact</a>
     <a href="login.html" class="mobile-cta">Client Portal →</a>
-    <a href="register.html" class="mobile-register">New client? Register here</a>
+    <a href="register.html" class="mobile-register">New Client? Register Here</a>
   </div>
 </nav>
 
+<!-- Hero — split layout -->
 <section class="hero">
-  <div class="hero-inner">
-    <div class="hero-badge"><span class="badge-dot"></span>Now accepting new clients for 2026</div>
-    <h1 class="hero-headline">Built on trust.<br><em>Driven by results.</em></h1>
-    <p class="hero-tagline">Expert tax & accounting for everyone.</p>
-    <p class="hero-sub">I'm Anthony — a New York-based accounting professional who believes everyone deserves an accountant that actually listens. No confusing jargon. No unanswered calls. Just clear, honest guidance for your finances.</p>
+  <div class="hero-left">
+    <div class="hero-eyebrow">
+      <span class="hero-eyebrow-line"></span>
+      <span class="hero-eyebrow-text">Now accepting new clients · 2026</span>
+    </div>
+    <h1 class="hero-headline">
+      Built on trust.<br>
+      <em>Driven by results.</em>
+    </h1>
+    <p class="hero-tagline">
+      Expert tax & accounting for everyone — individuals, partnerships, corporations, and small businesses across New York.
+    </p>
     <div class="hero-actions">
       <a href="register.html" class="btn-primary">Get Started →</a>
-      <a href="#services" class="btn-ghost">See What I Do ↓</a>
+      <a href="#services" class="btn-ghost">Our Services ↓</a>
     </div>
     <div class="hero-trust">
-      <div class="trust-card"><span class="trust-form">1040</span><span class="trust-label">Individual Returns</span></div>
-      <div class="trust-card"><span class="trust-form">1065</span><span class="trust-label">Partnership Returns</span></div>
-      <div class="trust-card"><span class="trust-form">1120</span><span class="trust-label">Corporate Returns</span></div>
-      <div class="trust-card"><span class="trust-form">1120-S</span><span class="trust-label">S-Corp Returns</span></div>
+      <div class="trust-card"><span class="trust-form">1040</span><span class="trust-label">Individual</span></div>
+      <div class="trust-card"><span class="trust-form">1065</span><span class="trust-label">Partnership</span></div>
+      <div class="trust-card"><span class="trust-form">1120</span><span class="trust-label">Corporate</span></div>
+      <div class="trust-card"><span class="trust-form">1120-S</span><span class="trust-label">S-Corp</span></div>
+    </div>
+  </div>
+
+  <div class="hero-right">
+    <div class="hero-stat-card">
+      <div class="hero-stat-icon">📋</div>
+      <div class="hero-stat-content">
+        <div class="hero-stat-num">All Returns</div>
+        <div class="hero-stat-label">Individual, business, partnership & corporate</div>
+      </div>
+    </div>
+    <div class="hero-stat-card">
+      <div class="hero-stat-icon">⚡</div>
+      <div class="hero-stat-content">
+        <div class="hero-stat-num">24-Hour</div>
+        <div class="hero-stat-label">Response guarantee on all inquiries</div>
+      </div>
+    </div>
+    <div class="hero-stat-card">
+      <div class="hero-stat-icon">🔒</div>
+      <div class="hero-stat-content">
+        <div class="hero-stat-num">Secure Portal</div>
+        <div class="hero-stat-label">Bank-level encryption for all documents</div>
+      </div>
+    </div>
+    <div class="hero-stat-card">
+      <div class="hero-stat-icon">📍</div>
+      <div class="hero-stat-content">
+        <div class="hero-stat-num">New York</div>
+        <div class="hero-stat-label">Based in NYC · serving clients nationwide</div>
+      </div>
     </div>
   </div>
 </section>
 
-<div class="stats-bar">
-  <div class="stats-inner">
-    <div class="stat-item"><div class="stat-num">All<em>.</em></div><div class="stat-label">Return types handled</div></div>
-    <div class="stat-item"><div class="stat-num">24<em>hr</em></div><div class="stat-label">Response guarantee</div></div>
-    <div class="stat-item"><div class="stat-num">NY<em>C</em></div><div class="stat-label">Based in New York</div></div>
-    <div class="stat-item"><div class="stat-num">100<em>%</em></div><div class="stat-label">Personalized service</div></div>
-  </div>
-</div>
-
+<!-- Services -->
 <section class="services-section" id="services">
   <div class="section-inner">
     <div class="services-header">
@@ -67,15 +102,16 @@
         <div class="section-label">What I do</div>
         <h2 class="section-title">Everything your finances need,<br><em>nothing you don't.</em></h2>
       </div>
-      <p class="services-intro">From individual tax returns to full-service business accounting — I handle it all with precision, care, and a personal touch that larger firms simply can't offer.</p>
+      <p class="services-intro">From individual tax returns to full-service business accounting — I handle it all with the precision and care of a large firm, with the personal attention of a solo practitioner.</p>
     </div>
+
     <div class="services-grid">
       <div class="service-item">
         <div class="service-num">01</div>
         <div class="service-content">
           <h3>Tax Filing</h3>
-          <p>Individual, partnership, corporation, and small business returns. Every form, every schedule, every deduction — handled with precision and care.</p>
-          <div class="service-tags"><span>1040 Individual</span><span>1065 Partnership</span><span>1120 / 1120-S</span><span>Small Business</span></div>
+          <p>Individual, partnership, corporation, and small business returns. Every form, every schedule, every deduction handled with precision.</p>
+          <div class="service-tags"><span>1040</span><span>1065</span><span>1120</span><span>1120-S</span></div>
         </div>
       </div>
       <div class="service-item">
@@ -83,83 +119,136 @@
         <div class="service-content">
           <h3>Bookkeeping</h3>
           <p>Monthly reconciliation, financial statement preparation, and clean books you can actually understand and make decisions from.</p>
-          <div class="service-tags"><span>Monthly Bookkeeping</span><span>Financial Statements</span><span>Expense Tracking</span></div>
+          <div class="service-tags"><span>Monthly</span><span>Statements</span><span>Reconciliation</span></div>
         </div>
       </div>
       <div class="service-item">
         <div class="service-num">03</div>
         <div class="service-content">
           <h3>Tax Advisory</h3>
-          <p>Proactive planning and entity selection guidance. Strategy that saves you money before tax season even starts — not after.</p>
-          <div class="service-tags"><span>Tax Planning</span><span>Entity Selection</span><span>Business Formation</span></div>
+          <p>Proactive planning and entity selection guidance. Strategy that saves you money before tax season even starts.</p>
+          <div class="service-tags"><span>Planning</span><span>Entity Selection</span><span>Formation</span></div>
         </div>
       </div>
     </div>
 
     <div class="breakdown-header">
-      <div class="section-label" style="margin-top:72px;margin-bottom:16px;">Service breakdown</div>
+      <div class="section-label" style="margin-top:80px;margin-bottom:16px;">Service breakdown</div>
       <h3 class="breakdown-title">What's included</h3>
     </div>
     <div class="breakdown-grid">
-      <div class="breakdown-card"><div class="breakdown-num">01</div><h4>Individual Tax Filing</h4><p>Personal 1040 preparation, W-2 and 1099 income reporting, Schedule A itemizing, and state returns. Simple and complex returns handled with equal care.</p></div>
-      <div class="breakdown-card"><div class="breakdown-num">02</div><h4>Partnership Returns</h4><p>Form 1065, K-1 preparation, P&L allocation, and guaranteed payment reporting. Basis in partnership calculated correctly.</p></div>
-      <div class="breakdown-card"><div class="breakdown-num">03</div><h4>Corporation Tax Filing</h4><p>Form 1120 and 1120-S preparation for C-Corps and S-Corps. Shareholder basis tracking, reasonable compensation analysis, and E&P allocation.</p></div>
-      <div class="breakdown-card"><div class="breakdown-num">04</div><h4>Small Businesses</h4><p>End-to-end support — from entity selection and formation to monthly bookkeeping, sales tax compliance, and year-end tax strategy.</p></div>
-      <div class="breakdown-card"><div class="breakdown-num">05</div><h4>Bookkeeping Services</h4><p>Detailed record-keeping, real-time expense tracking, and comprehensive monthly reporting tailored to your business needs.</p></div>
-      <div class="breakdown-card"><div class="breakdown-num">06</div><h4>Financial Statement Preparation</h4><p>Compiled income statements, balance sheets, and cash flow statements for businesses — clean, accurate financials you can use for decisions, loans, and planning.</p></div>
+      <div class="breakdown-card">
+        <div class="breakdown-num">01</div>
+        <h4>Individual Tax Filing</h4>
+        <p>Personal 1040 preparation, W-2 and 1099 income reporting, Schedule A itemizing, and state returns. Simple and complex returns handled with equal care.</p>
+      </div>
+      <div class="breakdown-card">
+        <div class="breakdown-num">02</div>
+        <h4>Partnership Returns</h4>
+        <p>Form 1065, K-1 preparation, P&L allocation, and guaranteed payment reporting. Basis in partnership calculated correctly.</p>
+      </div>
+      <div class="breakdown-card">
+        <div class="breakdown-num">03</div>
+        <h4>Corporation Tax Filing</h4>
+        <p>Form 1120 and 1120-S preparation for C-Corps and S-Corps. Shareholder basis tracking, reasonable compensation analysis, and E&P allocation.</p>
+      </div>
+      <div class="breakdown-card">
+        <div class="breakdown-num">04</div>
+        <h4>Small Businesses</h4>
+        <p>End-to-end support — from entity selection and formation to monthly bookkeeping, sales tax compliance, and year-end tax strategy.</p>
+      </div>
+      <div class="breakdown-card">
+        <div class="breakdown-num">05</div>
+        <h4>Bookkeeping Services</h4>
+        <p>Detailed record-keeping, real-time expense tracking, and comprehensive monthly reporting tailored to your business needs.</p>
+      </div>
+      <div class="breakdown-card">
+        <div class="breakdown-num">06</div>
+        <h4>Financial Statement Preparation</h4>
+        <p>Compiled income statements, balance sheets, and cash flow statements — clean, accurate financials for decisions, loans, and planning.</p>
+      </div>
     </div>
   </div>
 </section>
 
+<!-- Process — dark section -->
 <section class="process-section">
   <div class="section-inner">
     <div class="section-label">How it works</div>
     <h2 class="section-title">Simple from start to finish.</h2>
     <div class="process-steps">
-      <div class="process-step"><div class="process-step-num">1</div><div class="process-step-content"><h4>Reach out</h4><p>Send me a message or call. I'll get back to you within 24 hours to learn about your situation and what you need.</p></div></div>
-      <div class="process-step"><div class="process-step-num">2</div><div class="process-step-content"><h4>Get set up</h4><p>I'll create your secure client portal where you can upload documents and track your return status in real time.</p></div></div>
-      <div class="process-step"><div class="process-step-num">3</div><div class="process-step-content"><h4>Leave it to me</h4><p>I handle everything. You'll be kept informed every step of the way — no surprises, no confusion, no stress.</p></div></div>
-    </div>
-  </div>
-</section>
-
-<section class="about-section" id="about">
-  <div class="section-inner">
-    <div class="about-grid">
-      <div class="about-left">
-        <div class="section-label">About me</div>
-        <h2 class="section-title">Hi, I'm<br>Anthony.</h2>
-        <div class="about-monogram">AS</div>
+      <div class="process-step">
+        <div class="process-step-num">01</div>
+        <div class="process-step-content">
+          <h4>Reach out</h4>
+          <p>Send a message or call. I'll respond within 24 hours to learn about your situation and what you need.</p>
+        </div>
       </div>
-      <div class="about-right">
-        <p class="about-lead">"I'm an accounting professional based in New York, and I built my practice around one thing: making your financial life easier."</p>
-        <p>Currently pursuing my CPA license, with a degree in accounting and a genuine passion for helping people take control of their finances. I offer tax preparation, small business accounting, bookkeeping, and financial statement services — all with a personal touch.</p>
-        <p>I believe every client deserves clear communication, attention to detail, and an accountant who actually picks up the phone. Whether you're filing a simple 1040 or managing the books for a growing business, I'm here to help you stay organized, compliant, and confident in your numbers.</p>
-        <div class="about-values">
-          <div class="about-value"><span class="value-icon">✓</span>Personal attention to every client</div>
-          <div class="about-value"><span class="value-icon">✓</span>Clear communication, always</div>
-          <div class="about-value"><span class="value-icon">✓</span>Available when you need me</div>
+      <div class="process-step">
+        <div class="process-step-num">02</div>
+        <div class="process-step-content">
+          <h4>Get set up</h4>
+          <p>I'll create your secure client portal where you upload documents and track your return status in real time.</p>
+        </div>
+      </div>
+      <div class="process-step">
+        <div class="process-step-num">03</div>
+        <div class="process-step-content">
+          <h4>Leave it to me</h4>
+          <p>I handle everything. You'll be kept informed every step of the way — no surprises, no confusion, no stress.</p>
         </div>
       </div>
     </div>
   </div>
 </section>
 
+<!-- About — split layout -->
+<section class="about-section" id="about">
+  <div class="about-left">
+    <div class="section-label">About</div>
+    <h2 class="section-title" style="margin-bottom:0;">Hi, I'm<br>Anthony.</h2>
+    <div class="about-monogram">AS</div>
+  </div>
+  <div class="about-right">
+    <p class="about-lead">"I built my practice around one thing: making your financial life easier — with the attention and care that larger firms simply can't offer."</p>
+    <p>Currently pursuing my CPA license, with a degree in accounting and a genuine passion for helping people take control of their finances. I offer tax preparation, small business accounting, bookkeeping, and financial statement services — all with a personal touch.</p>
+    <p>I believe every client deserves clear communication, meticulous attention to detail, and an accountant who actually picks up the phone. Whether you're filing a simple 1040 or managing the books for a growing business, I'm here to help you stay organized, compliant, and confident in your numbers.</p>
+    <div class="about-values">
+      <div class="about-value"><span class="value-icon">✓</span>Personal attention to every client</div>
+      <div class="about-value"><span class="value-icon">✓</span>Clear communication, always</div>
+      <div class="about-value"><span class="value-icon">✓</span>Available when you need me</div>
+    </div>
+  </div>
+</section>
+
+<!-- Contact -->
 <section class="contact-section" id="contact">
   <div class="section-inner">
     <div class="contact-grid">
       <div class="contact-left">
         <div class="section-label">Get in touch</div>
-        <h2 class="section-title">Ready to get<br><em>your finances right?</em></h2>
+        <h2 class="section-title">Ready to get your<br><em>finances right?</em></h2>
         <p class="contact-desc">Reach out and I'll get back to you within 24 hours. No pressure, no commitment — just a conversation about what you need.</p>
-        <a href="register.html" class="btn-primary" style="display:inline-flex;">Create Your Portal Account →</a>
+        <a href="register.html" class="btn-primary" style="display:inline-flex;background:var(--navy);">Create Your Portal Account →</a>
       </div>
       <div class="contact-right">
         <div class="contact-card">
-          <div class="contact-item"><div class="contact-item-label">Email</div><div class="contact-item-value">sesnyanthony&#64;gmail.com</div></div>
-          <div class="contact-item"><div class="contact-item-label">Phone</div><div class="contact-item-value">(718) 612-5911</div></div>
-          <div class="contact-item"><div class="contact-item-label">Location</div><div class="contact-item-value">New York, NY</div></div>
-          <div class="contact-item"><div class="contact-item-label">Hours</div><div class="contact-item-value">Mon–Fri, 9am–6pm EST</div></div>
+          <div class="contact-item">
+            <div class="contact-item-label">Email</div>
+            <div class="contact-item-value">sesnyanthony&#64;gmail.com</div>
+          </div>
+          <div class="contact-item">
+            <div class="contact-item-label">Phone</div>
+            <div class="contact-item-value">(718) 612-5911</div>
+          </div>
+          <div class="contact-item">
+            <div class="contact-item-label">Location</div>
+            <div class="contact-item-value">New York, NY</div>
+          </div>
+          <div class="contact-item">
+            <div class="contact-item-label">Hours</div>
+            <div class="contact-item-value">Mon–Fri, 9am–6pm EST</div>
+          </div>
           <button class="btn-copy" onclick="copyEmail()">Copy Email Address</button>
         </div>
       </div>
@@ -170,8 +259,8 @@
 <footer class="footer">
   <div class="footer-inner">
     <div class="footer-left">
-      <span class="footer-logo">Sesny</span>
-      <span class="footer-tagline">Tax & Advisory · New York</span>
+      <span class="footer-logo">Sesny Advisory</span>
+      <span class="footer-tagline">Tax & Accounting · New York</span>
     </div>
     <div class="footer-right">
       <span class="footer-copy">&copy; 2026 Anthony Sesny. All rights reserved.</span>

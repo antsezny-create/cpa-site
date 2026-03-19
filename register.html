@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Create Account — Anthony Sesny</title>
+  <title>Create Account — Sesny Advisory</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     .register-container { max-width: 420px; }
 
@@ -16,80 +16,62 @@
       align-items: center;
       justify-content: center;
       gap: 0;
-      margin-bottom: 36px;
+      margin-bottom: 40px;
     }
 
     .step-dot-reg {
       width: 28px; height: 28px;
       border-radius: 50%;
-      border: 1.5px solid var(--cream-border);
+      border: 1.5px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
+      font-family: var(--mono);
+      font-size: 11px;
       font-weight: 500;
-      color: var(--ink-light);
-      background: transparent;
+      color: var(--text-light);
+      background: var(--white);
       transition: all 0.3s;
       flex-shrink: 0;
-      font-family: var(--mono);
     }
 
-    .step-dot-reg.active {
-      border-color: var(--purple);
-      background: var(--purple);
-      color: white;
-    }
-
-    .step-dot-reg.done {
-      border-color: #22C55E;
-      background: #22C55E;
-      color: white;
-    }
+    .step-dot-reg.active { border-color: var(--green); background: var(--green); color: white; }
+    .step-dot-reg.done { border-color: var(--navy); background: var(--navy); color: white; }
 
     .step-line {
-      width: 48px; height: 1.5px;
-      background: var(--cream-border);
+      width: 48px; height: 1px;
+      background: var(--border);
       transition: background 0.3s;
     }
 
-    .step-line.active { background: var(--purple); }
-    .step-line.done { background: #22C55E; }
+    .step-line.active { background: var(--green); }
+    .step-line.done { background: var(--navy); }
 
-    .form-row-split {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
+    .form-row-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-    .password-requirements {
-      margin-top: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
+    .password-requirements { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
 
     .req {
       font-size: 12px;
-      color: var(--ink-light);
+      color: var(--text-light);
       font-weight: 400;
       padding-left: 18px;
       position: relative;
     }
 
     .req::before { content: "○"; position: absolute; left: 0; font-size: 10px; }
-    .req.met { color: #22C55E; }
-    .req.met::before { content: "●"; color: #22C55E; }
+    .req.met { color: var(--green); }
+    .req.met::before { content: "●"; color: var(--green); }
 
     .field-note {
       margin-top: 8px;
       font-size: 12px;
-      color: var(--ink-muted);
+      color: var(--text-muted);
       line-height: 1.6;
       padding: 10px 14px;
-      background: var(--cream-dark);
-      border-radius: 8px;
-      border: 1px solid var(--cream-border);
+      background: var(--light-gray);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
     }
 
     .form-buttons { display: flex; gap: 10px; }
@@ -97,33 +79,30 @@
     .btn-back {
       padding: 14px 24px;
       background: transparent;
-      color: var(--ink-muted);
-      border: 1px solid var(--cream-border);
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 400;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-weight: 600;
       font-family: var(--sans);
       cursor: pointer;
       transition: all 0.2s;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
     }
 
-    .btn-back:hover { border-color: var(--ink-light); color: var(--ink); }
+    .btn-back:hover { border-color: var(--navy); color: var(--navy); }
     .form-buttons .btn-login { flex: 1; }
 
-    .register-link {
-      color: var(--purple);
-      text-decoration: none;
-      font-weight: 500;
-    }
-
-    .register-link:hover { color: var(--purple-light); }
+    .register-link { color: var(--green); text-decoration: none; font-weight: 500; }
+    .register-link:hover { color: var(--green-light); }
 
     .success-check {
       width: 64px; height: 64px;
       border-radius: 50%;
-      background: var(--purple-glow);
-      border: 1px solid var(--purple-border);
-      color: var(--purple);
+      background: var(--green-glow);
+      border: 1px solid var(--green-border);
+      color: var(--green);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -138,52 +117,38 @@
   </style>
 </head>
 <body>
-
 <div class="login-page">
-
-  <!-- Left: Branding -->
   <div class="login-brand">
     <div class="login-brand-content">
       <a href="index.html" class="login-back">← Back to site</a>
       <div class="login-brand-main">
         <div class="login-brand-logo">
-          <span class="login-brand-logo-dot"></span>
-          Sesny
+          <span class="login-brand-logo-bar"></span>
+          Sesny Advisory
         </div>
         <h1>Get started<br>today.</h1>
-        <p class="login-tagline">Create your secure client portal account and get started with tax preparation in minutes.</p>
+        <p class="login-tagline">Create your secure client portal account and get started with professional tax preparation in minutes.</p>
         <div class="login-features">
           <div class="login-feature">
             <span class="login-feature-icon">⚡</span>
-            <div>
-              <strong>Quick Setup</strong>
-              <span>Create your account in under 2 minutes</span>
-            </div>
+            <div><strong>Quick Setup</strong><span>Create your account in under 2 minutes</span></div>
           </div>
           <div class="login-feature">
             <span class="login-feature-icon">📄</span>
-            <div>
-              <strong>Upload Documents</strong>
-              <span>Securely submit W-2s, 1099s, and more</span>
-            </div>
+            <div><strong>Upload Documents</strong><span>Securely submit W-2s, 1099s, and more</span></div>
           </div>
           <div class="login-feature">
             <span class="login-feature-icon">🔒</span>
-            <div>
-              <strong>Bank-Level Security</strong>
-              <span>Your data is encrypted end-to-end</span>
-            </div>
+            <div><strong>Bank-Level Security</strong><span>Your data is encrypted end-to-end</span></div>
           </div>
         </div>
       </div>
-      <p class="login-brand-footer">256-bit encrypted · Your information is never shared</p>
+      <p class="login-brand-footer">256-bit encrypted · your information is never shared</p>
     </div>
   </div>
 
-  <!-- Right: Form -->
   <div class="login-form-side">
     <div class="login-form-container register-container">
-
       <div class="step-indicator">
         <div class="step-dot-reg active" id="step-dot-1">1</div>
         <div class="step-line active" id="step-line-1"></div>
@@ -265,7 +230,7 @@
             <label for="ssn-confirm">Confirm SSN / Tax ID</label>
             <input type="password" id="ssn-confirm" placeholder="Re-enter to confirm">
           </div>
-          <label class="checkbox-label" style="margin-bottom:20px;">
+          <label class="checkbox-label" style="margin-bottom:16px;">
             <input type="checkbox" id="terms">
             <span class="checkbox-custom"></span>
             I agree to the <a href="#" class="register-link">Terms of Service</a> and <a href="#" class="register-link">Privacy Policy</a>
@@ -285,10 +250,8 @@
           <p>Your account has been created. Redirecting to your portal...</p>
         </div>
       </div>
-
     </div>
   </div>
-
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
