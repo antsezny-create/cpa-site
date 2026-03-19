@@ -1095,7 +1095,16 @@ function renderMasterAccounts() {
   let el = document.getElementById("master-accounts-main");
   if (!el) return;
 
+  // Check if any accounts have isCore as string — show migration button if so
+  let needsMigration = chartOfAccounts.some(a => a.isCore === "true" || a.isCore === "false");
+  let migrationBanner = needsMigration ? `
+    <div style="background:var(--orange-light);border:1px solid var(--orange);border-radius:10px;padding:14px 20px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;color:var(--orange);font-weight:600;">⚠ Some accounts have isCore set as text instead of boolean. Click Fix to correct this automatically.</span>
+      <button class="primary-btn" onclick="migrateIsCore()">Fix Now</button>
+    </div>` : "";
+
   el.innerHTML = `
+    ${migrationBanner}
     <div class="dash-card" style="padding:0;overflow:hidden;">
       <div class="coa-header">
         <span>Number</span>
@@ -1107,6 +1116,33 @@ function renderMasterAccounts() {
       </div>
       <div id="master-coa-list">${renderMasterCOARows()}</div>
     </div>`;
+}
+
+function migrateIsCore() {
+  let masterNumbers = new Set(MASTER_COA.map(a => a.number));
+  let batch = db.batch();
+  let count = 0;
+
+  chartOfAccounts.forEach(a => {
+    // Set isCore to proper boolean based on whether it's in the master list
+    let shouldBeCore = masterNumbers.has(a.number);
+    if (a.isCore !== shouldBeCore) {
+      let ref = db.collection("chartOfAccounts").doc(a._id);
+      batch.update(ref, { isCore: shouldBeCore });
+      a.isCore = shouldBeCore;
+      count++;
+    }
+  });
+
+  if (count === 0) {
+    alert("All accounts already have correct isCore values.");
+    return;
+  }
+
+  batch.commit().then(() => {
+    alert(`Fixed ${count} accounts successfully.`);
+    renderMasterAccounts();
+  }).catch(e => alert("Failed: " + e.message));
 }
 
 function renderMasterCOARows() {
@@ -1123,7 +1159,7 @@ function renderMasterCOARows() {
   };
 
   return chartOfAccounts.map(a => {
-    let isCore = a.isCore === true;
+    let isCore = a.isCore === true || a.isCore === "true";
     let actions = `<button class="form-action-btn" onclick="editAccountModal('${a._id}')">Edit</button>`;
     if (!isCore) {
       actions += `<button class="form-action-btn delete" onclick="deleteAccount('${a._id}','${a.name.replace(/'/g,"\\'")}')">Delete</button>`;
