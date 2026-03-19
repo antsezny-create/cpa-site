@@ -4,139 +4,132 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Client Portal — Anthony Sesny</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="portal.css">
 </head>
 <body>
 
-<!-- Top Bar -->
 <nav class="portal-nav">
   <div class="portal-nav-inner">
     <div class="portal-nav-left">
-      <span class="portal-logo">S</span>
-      <span class="portal-title">AcctgPro</span>
+      <div class="portal-logo">S</div>
+      <div class="portal-brand">
+        <span class="portal-title">Sesny</span>
+        <span class="portal-subtitle">Client Portal</span>
+      </div>
     </div>
     <div class="portal-nav-right">
-      <span class="portal-user" id="portal-user-name">Loading...</span>
-      <a href="index.html" class="portal-logout">Sign Out</a>
+      <span class="portal-user" id="portal-user-name"></span>
+      <button class="portal-logout" onclick="auth.signOut().then(()=>window.location.href='login.html')">Sign Out</button>
     </div>
   </div>
 </nav>
 
-<!-- Main Layout -->
 <div class="portal-layout">
-
-  <!-- Sidebar -->
   <aside class="portal-sidebar">
     <div class="portal-sidebar-nav">
       <button class="sidebar-btn active" onclick="switchTab('overview')">
-        <span class="sidebar-icon">◫</span> Overview
+        <svg class="sidebar-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Overview
       </button>
       <button class="sidebar-btn" onclick="switchTab('documents')">
-        <span class="sidebar-icon">◧</span> Documents
+        <svg class="sidebar-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Documents
       </button>
       <button class="sidebar-btn" onclick="switchTab('messages')">
-        <span class="sidebar-icon">◯</span> Messages
+        <svg class="sidebar-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Messages
         <span class="sidebar-badge" id="msg-badge" style="display:none;">0</span>
       </button>
       <button class="sidebar-btn" onclick="switchTab('returns'); loadMyReturns()">
-        <span class="sidebar-icon">❐</span> My Returns
+        <svg class="sidebar-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+        My Returns
       </button>
       <button class="sidebar-btn" id="sidebar-financials-btn" style="display:none;" onclick="switchTab('financials'); loadMyStatements()">
-        <span class="sidebar-icon">◈</span> Financials
+        <svg class="sidebar-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Financials
       </button>
     </div>
     <div class="sidebar-footer">
-      <div class="sidebar-help">Need help?</div>
-      <div class="sidebar-help-sub">sesnyanthony&#64;gmail.com</div>
+      <div class="sidebar-help-label">Need help?</div>
+      <a href="mailto:sesnyanthony&#64;gmail.com" class="sidebar-help-email">sesnyanthony&#64;gmail.com</a>
+      <div class="sidebar-help-phone">(718) 612-5911</div>
     </div>
   </aside>
 
-  <!-- Content Area -->
   <main class="portal-content">
 
-    <!-- OVERVIEW TAB -->
+    <!-- OVERVIEW -->
     <div class="tab-content" id="tab-overview">
-      <div class="portal-header">
-        <div>
-          <h1>Welcome back</h1>
-          <p class="portal-subtitle">Here's where things stand with your 2025 tax return.</p>
-        </div>
+      <div class="portal-welcome">
+        <h1 class="portal-welcome-heading">Welcome back, <em id="portal-user-first">there</em>.</h1>
+        <p class="portal-welcome-sub">Here's where things stand with your tax return.</p>
       </div>
 
-      <!-- Status Banner -->
-      <div class="status-banner">
-        <div class="status-banner-left">
+      <div class="status-card" id="status-card">
+        <div class="status-card-left">
           <span class="status-dot status-progress" id="status-dot-main"></span>
           <div>
-            <strong id="status-banner-text">Loading your status...</strong>
-            <span id="status-banner-sub"></span>
+            <div class="status-card-label">Current Status</div>
+            <strong class="status-card-text" id="status-banner-text">Loading...</strong>
+            <div class="status-card-sub" id="status-banner-sub"></div>
           </div>
         </div>
-        <div class="status-steps" id="status-steps">
-          <!-- Rendered dynamically by JS -->
-        </div>
+        <div class="status-steps" id="status-steps"></div>
       </div>
 
-      <!-- Two Column Layout -->
       <div class="portal-grid">
-
-        <!-- Document Checklist -->
         <div class="portal-card">
-          <div class="card-header">
+          <div class="portal-card-header">
             <h2>Document Checklist</h2>
-            <span class="card-badge" id="checklist-badge">0</span>
+            <span class="portal-card-badge" id="checklist-badge">0</span>
           </div>
-          <p class="card-desc">Documents Anthony has requested from you.</p>
+          <p class="portal-card-desc">Documents Anthony has requested from you.</p>
           <div class="checklist" id="checklist-container">
-            <div style="padding:16px;color:var(--text-dim);font-size:13px;">Loading...</div>
+            <div class="portal-loading">Loading...</div>
           </div>
         </div>
-
-        <!-- Recent Activity -->
         <div class="portal-card">
-          <div class="card-header">
+          <div class="portal-card-header">
             <h2>Recent Activity</h2>
           </div>
           <div class="activity-list" id="activity-list">
-            <div style="padding:16px;color:var(--text-dim);font-size:13px;">Loading...</div>
+            <div class="portal-loading">Loading...</div>
           </div>
         </div>
-
       </div>
     </div>
 
-    <!-- DOCUMENTS TAB -->
+    <!-- DOCUMENTS -->
     <div class="tab-content" id="tab-documents" style="display:none;">
-      <div class="portal-header">
-        <div>
-          <h1>Documents</h1>
-          <p class="portal-subtitle">Upload and manage your tax documents.</p>
-        </div>
+      <div class="portal-welcome">
+        <h1 class="portal-welcome-heading">Documents</h1>
+        <p class="portal-welcome-sub">Upload and manage your tax documents securely.</p>
       </div>
-
       <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
         <input type="file" id="file-input" style="display:none;" onchange="handleUpload(this)" multiple>
-        <div class="upload-icon">↑</div>
+        <div class="upload-icon-wrap">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
         <strong>Click to upload or drag files here</strong>
         <span>PDF, JPG, PNG up to 25MB</span>
       </div>
-
       <div class="portal-card" style="margin-top:20px;">
-        <div class="card-header">
+        <div class="portal-card-header">
           <h2>Uploaded Documents</h2>
-          <span class="card-badge" id="doc-count">0 files</span>
+          <span class="portal-card-badge" id="doc-count">0 files</span>
         </div>
         <div class="file-list" id="file-list"></div>
       </div>
     </div>
 
-    <!-- MESSAGES TAB -->
+    <!-- MESSAGES -->
     <div class="tab-content" id="tab-messages" style="display:none;">
-      <div class="portal-header">
-        <div>
-          <h1>Messages</h1>
-          <p class="portal-subtitle">Direct communication with Anthony.</p>
-        </div>
+      <div class="portal-welcome">
+        <h1 class="portal-welcome-heading">Messages</h1>
+        <p class="portal-welcome-sub">Direct communication with Anthony.</p>
       </div>
       <div class="portal-card messages-card">
         <div class="messages-thread" id="messages-thread"></div>
@@ -147,58 +140,54 @@
       </div>
     </div>
 
-    <!-- RETURNS TAB -->
+    <!-- RETURNS -->
     <div class="tab-content" id="tab-returns" style="display:none;">
-      <div class="portal-header">
-        <div>
-          <h1>My Returns</h1>
-          <p class="portal-subtitle">Your tax return forms and filing status.</p>
-        </div>
+      <div class="portal-welcome">
+        <h1 class="portal-welcome-heading">My Returns</h1>
+        <p class="portal-welcome-sub">Your tax return forms and filing status.</p>
       </div>
       <div class="portal-card">
         <div class="returns-list" id="my-returns-list">
-          <div style="padding:24px;color:var(--text-dim);font-size:13px;text-align:center;">Loading...</div>
+          <div class="portal-loading">Loading...</div>
         </div>
       </div>
     </div>
 
-    <!-- FINANCIALS TAB -->
+    <!-- FINANCIALS -->
     <div class="tab-content" id="tab-financials" style="display:none;">
-      <div class="portal-header">
-        <div>
-          <h1>Financial Statements</h1>
-          <p class="portal-subtitle">Your published financial statements from Anthony.</p>
-        </div>
+      <div class="portal-welcome">
+        <h1 class="portal-welcome-heading">Financial Statements</h1>
+        <p class="portal-welcome-sub">Your published financial statements from Anthony.</p>
       </div>
       <div id="financials-portal-content">
-        <div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;">Loading statements...</div>
+        <div class="portal-loading">Loading statements...</div>
       </div>
     </div>
 
   </main>
 </div>
 
-<!-- Mobile Bottom Navigation -->
+<!-- Mobile Nav -->
 <nav class="mobile-bottom-nav">
   <button class="mobile-nav-btn active" onclick="switchTab('overview'); setMobileActive(this)">
-    <span class="mobile-nav-icon">◫</span>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
     <span>Overview</span>
   </button>
   <button class="mobile-nav-btn" onclick="switchTab('documents'); setMobileActive(this)">
-    <span class="mobile-nav-icon">◧</span>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
     <span>Documents</span>
   </button>
   <button class="mobile-nav-btn" onclick="switchTab('messages'); setMobileActive(this)">
-    <span class="mobile-nav-icon">◯</span>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
     <span>Messages</span>
     <span class="mobile-msg-badge" id="mobile-msg-badge" style="display:none;">0</span>
   </button>
   <button class="mobile-nav-btn" onclick="switchTab('returns'); loadMyReturns(); setMobileActive(this)">
-    <span class="mobile-nav-icon">❐</span>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
     <span>Returns</span>
   </button>
   <button class="mobile-nav-btn" id="mobile-financials-btn" style="display:none;" onclick="switchTab('financials'); loadMyStatements(); setMobileActive(this)">
-    <span class="mobile-nav-icon">◈</span>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
     <span>Financials</span>
   </button>
 </nav>

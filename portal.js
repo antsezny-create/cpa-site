@@ -45,9 +45,9 @@ function loadUserData() {
       let lastName  = currentUserData.lastName  || "";
       let fullName  = (firstName + " " + lastName).trim();
 
-      // Update welcome heading
-      let h1 = document.querySelector("#tab-overview h1");
-      if (h1) h1.textContent = "Welcome back, " + firstName;
+      // Update welcome heading with first name
+      let h1First = document.getElementById("portal-user-first");
+      if (h1First) h1First.textContent = firstName || "there";
 
       // Update nav name
       let navUser = document.querySelector(".portal-user");
