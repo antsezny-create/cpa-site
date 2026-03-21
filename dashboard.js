@@ -70,6 +70,9 @@ function switchDashTab(tabName) {
   if (tabName === "scf")             loadStatementTab("scf");
   if (tabName === "sshe")            loadStatementTab("sshe");
   if (tabName === "master-accounts") loadMasterAccountsTab();
+  if (tabName === "trial-balance") loadTrialBalanceTab();
+  if (tabName === "import")        loadImportTab();
+  if (tabName === "manual-stmt")   loadManualStmtTab();
 }
 
 

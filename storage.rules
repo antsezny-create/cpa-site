@@ -1,0 +1,52 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ─────────────────────────────────────────────
+    //  HELPER FUNCTIONS
+    // ─────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Check admin status via Firestore admins collection
+    function isAdmin() {
+      return isSignedIn() &&
+        firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  CLIENT DOCUMENTS
+    //  Path: documents/{clientUID}/{filename}
+    //  Your portal.js uploads to: "documents/" + currentUser.uid + "/" + ...
+    //
+    //  - A client can upload to their own folder only.
+    //  - A client can read and delete files in their own folder only.
+    //  - Admins can read and delete any file.
+    //  - Max file size: 20MB. PDFs only (matches your accept=".pdf").
+    // ─────────────────────────────────────────────
+    match /documents/{clientUID}/{fileName} {
+      allow read:   if isAdmin() || (isSignedIn() && request.auth.uid == clientUID);
+      allow create: if isAdmin() ||
+        (isSignedIn() &&
+          request.auth.uid == clientUID &&
+          request.resource.size < 20 * 1024 * 1024 &&
+          request.resource.contentType.matches('application/pdf'));
+      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == clientUID);
+      allow update: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  EVERYTHING ELSE — deny by default
+    //  Any path not matched above is blocked.
+    // ─────────────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+  }
+}

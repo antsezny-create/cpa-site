@@ -1,0 +1,226 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─────────────────────────────────────────────
+    //  HELPER FUNCTIONS
+    // ─────────────────────────────────────────────
+
+    // Is the request coming from a logged-in user at all?
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Is this user an admin?
+    // Checks the admins collection — same check your dashboard.js already does.
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Is the request coming from the owner of this specific document?
+    // Used for client-owned records (their own client doc, their own messages, etc.)
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Does a field in the incoming data match the logged-in user's UID?
+    // Used for collections where clientId is a field (documents, messages, etc.)
+    function isClientOwned() {
+      return isSignedIn() && request.resource.data.clientId == request.auth.uid;
+    }
+
+    // Same check but for reading existing data (resource vs request.resource)
+    function isClientOwnedRead() {
+      return isSignedIn() && resource.data.clientId == request.auth.uid;
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  ADMINS COLLECTION
+    //  - Only admins can read or write this collection.
+    //  - To bootstrap: manually create your own doc in the
+    //    Firebase console (Document ID = your UID).
+    //    After that, only you can add other admins.
+    // ─────────────────────────────────────────────
+    match /admins/{uid} {
+      allow read:  if isAdmin() || isOwner(uid);
+      allow write: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  ADMIN SESSIONS
+    //  - Only the admin who owns the session can write it.
+    //  - Only admins can read session history.
+    // ─────────────────────────────────────────────
+    match /adminSessions/{sessionId} {
+      allow read:   if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin() && isOwner(resource.data.uid);
+      allow delete: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  CLIENTS COLLECTION
+    //  - A client can read and update only their own document.
+    //  - Only admins can create new client records or delete them.
+    //  - Clients cannot change their own role, status, or approvalStatus —
+    //    those fields are admin-only.
+    // ─────────────────────────────────────────────
+    match /clients/{uid} {
+      allow read:   if isAdmin() || isOwner(uid);
+      allow create: if isAdmin();
+      allow update: if isAdmin() ||
+        (isOwner(uid) &&
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['role', 'status', 'approvalStatus', 'bookkeeping', 'caseOpen', 'year', 'type']));
+      allow delete: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  DOCUMENTS (uploaded tax docs, W-2s, etc.)
+    //  - Clients can upload (create) their own documents.
+    //  - Clients can read and delete only their own documents.
+    //  - Admins can do everything.
+    // ─────────────────────────────────────────────
+    match /documents/{docId} {
+      allow read:   if isAdmin() || isClientOwnedRead();
+      allow create: if isAdmin() || isClientOwned();
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || isClientOwnedRead();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  DOCUMENT REQUESTS (admin requests docs from client)
+    //  - Clients can read their own requests and mark them fulfilled.
+    //  - Only admins can create or delete requests.
+    // ─────────────────────────────────────────────
+    match /documentRequests/{reqId} {
+      allow read:   if isAdmin() || isClientOwnedRead();
+      allow create: if isAdmin();
+      allow update: if isAdmin() ||
+        (isClientOwnedRead() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fulfilled']));
+      allow delete: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  MESSAGES
+    //  - Clients can read and send messages only in their own thread.
+    //  - Clients can mark their own messages as read.
+    //  - Admins can read and write everything.
+    // ─────────────────────────────────────────────
+    match /messages/{msgId} {
+      allow read:   if isAdmin() || isClientOwnedRead();
+      allow create: if isAdmin() || isClientOwned();
+      allow update: if isAdmin() ||
+        (isClientOwnedRead() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readByClient']));
+      allow delete: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  ACTIVITY LOG
+    //  - Clients can create activity entries for their own actions.
+    //  - Only admins can read the full activity log.
+    // ─────────────────────────────────────────────
+    match /activity/{actId} {
+      allow read:   if isAdmin();
+      allow create: if isAdmin() || isClientOwned();
+      allow update, delete: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  CLIENT RETURNS
+    //  - Clients can read their own returns.
+    //  - Only admins can create, update, or delete returns.
+    // ─────────────────────────────────────────────
+    match /clientReturns/{returnId} {
+      allow read:   if isAdmin() || isClientOwnedRead();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  FINANCIAL STATEMENTS (IS, BS, SCF, SSHE)
+    //  - Clients can read their own published statements.
+    //  - Only admins can create or update statements.
+    // ─────────────────────────────────────────────
+    match /financialStatements/{stmtId} {
+      allow read:   if isAdmin() ||
+        (isClientOwnedRead() && resource.data.published == true);
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  JOURNAL ENTRIES (GL entries — admin only)
+    // ─────────────────────────────────────────────
+    match /journalEntries/{entryId} {
+      allow read, write: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  CHART OF ACCOUNTS (admin only)
+    // ─────────────────────────────────────────────
+    match /chartOfAccounts/{acctId} {
+      allow read, write: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  CLIENT LEDGER (subcollection under clientId)
+    // ─────────────────────────────────────────────
+    match /clientLedger/{clientId}/periods/{periodId} {
+      allow read, write: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  PRACTITIONER FORMS (forms library — admin only)
+    // ─────────────────────────────────────────────
+    match /practitionerForms/{formId} {
+      allow read, write: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  ASSIGNED FORMS (forms sent to clients)
+    //  - Clients can read forms assigned to them.
+    //  - Only admins can assign forms.
+    // ─────────────────────────────────────────────
+    match /assignedForms/{formId} {
+      allow read:   if isAdmin() || isClientOwnedRead();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  SAVED FORMS
+    //  - Clients can read and write their own saved forms.
+    //  - Admins can read everything.
+    // ─────────────────────────────────────────────
+    match /savedForms/{formId} {
+      allow read:   if isAdmin() || isClientOwnedRead();
+      allow create: if isAdmin() || isClientOwned();
+      allow update: if isAdmin() || isClientOwnedRead();
+      allow delete: if isAdmin() || isClientOwnedRead();
+    }
+
+  }
+}
