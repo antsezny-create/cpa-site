@@ -281,6 +281,7 @@ function renderWorkspace() {
           ` : `
             <span style="font-size:12px;color:var(--green);font-weight:600;">✓ Signed off ${wsData.lockedAt ? new Date(wsData.lockedAt.seconds*1000).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : ""}</span>
             <button class="ghost-btn" onclick="exportWorkspacePDF()">Export Summary ↓</button>
+			<button class="ghost-btn" style="color:var(--orange);border-color:var(--orange);" onclick="unlockWorkspace()">Unlock</button>
           `}
         </div>
       </div>
@@ -646,4 +647,13 @@ function exportWorkspacePDF() {
   a.download  = `${wsData.clientName.replace(/\s+/g,"-")}_${wsData.taxYear}_ReturnSummary.txt`;
   a.click();
   URL.revokeObjectURL(url);
+  
+  async function unlockWorkspace() {
+  if (!confirm("Unlock this workspace? It will return to In Progress and become editable again.")) return;
+  wsData.status   = "in-progress";
+  wsData.lockedAt = null;
+  wsData.lockedBy = null;
+  await saveWorkspace();
+  renderWorkspace();
+}
 }
