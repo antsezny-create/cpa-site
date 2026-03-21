@@ -385,9 +385,7 @@ function renderImportPreview(proposed) {
       .map(a => `<option value="${a._id}" data-number="${a.number}" data-name="${a.name}">${a.number} — ${a.name}</option>`)
       .join("");
 
-  // Group transactions by description for smarter account suggestion
-  let totalDr = proposed.reduce((s,r)=>s+r.debit,0);
-  let totalCr = proposed.reduce((s,r)=>s+r.credit,0);
+  let totalAmt = proposed.reduce((s,r)=>s+r.debit+r.credit,0);
 
   card.innerHTML = `
     <div class="dash-card">
@@ -395,51 +393,47 @@ function renderImportPreview(proposed) {
         <div>
           <h3 style="font-size:15px;font-weight:700;margin-bottom:4px;">Step 4 — Review & Map Accounts</h3>
           <p style="font-size:13px;color:var(--text-muted);">
-            ${proposed.length} transactions detected · $${fmtMoney(totalDr)} debits · $${fmtMoney(totalCr)} credits.<br>
-            Assign an account to each side. Use "Skip" to exclude a row.
+            ${proposed.length} transactions detected.<br>
+            Each row needs a <strong>Debit Account</strong> and a <strong>Credit Account</strong> to create a balanced journal entry.
+            Use "Skip" to exclude a row.
           </p>
         </div>
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="ghost-btn" onclick="importSkipAll()">Skip All</button>
-          <button class="ghost-btn" onclick="importSelectAllDr()">Bulk DR Account</button>
-          <button class="ghost-btn" onclick="importSelectAllCr()">Bulk CR Account</button>
+          <button class="ghost-btn" onclick="importBulkAccount('dr')">Bulk Set DR</button>
+          <button class="ghost-btn" onclick="importBulkAccount('cr')">Bulk Set CR</button>
         </div>
       </div>
 
       <div style="overflow-x:auto;">
-        <div class="import-preview-header">
+        <div style="display:grid;grid-template-columns:90px 1fr 90px 180px 180px 50px;gap:8px;padding:8px 12px;background:var(--bg-secondary);border-radius:8px 8px 0 0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);border:1px solid var(--border);">
           <span>Date</span>
-          <span style="flex:3;">Description</span>
-          <span>Debit ($)</span>
-          <span>DR Account</span>
-          <span>Credit ($)</span>
-          <span>CR Account</span>
+          <span>Description</span>
+          <span>Amount</span>
+          <span>Debit Account (DR)</span>
+          <span>Credit Account (CR)</span>
           <span>Skip</span>
         </div>
         <div id="import-preview-rows">
-          ${proposed.map((r,i) => `
-            <div class="import-preview-row" id="ipr-${i}" ${r.skip?"style='opacity:0.4;'":""}>
-              <span class="import-cell-date">${r.dateStr}</span>
-              <span class="import-cell-desc" title="${esc(r.desc)}">${esc(r.desc.slice(0,40))}${r.desc.length>40?"…":""}</span>
-              <span class="import-cell-amt">${r.debit ? "$"+fmtMoney(r.debit) : ""}</span>
-              <span class="import-cell-acct">
-                ${r.debit ? `<select class="assign-select import-acct-sel" style="font-size:12px;" onchange="setImportAccount(${i},'dr',this)">
-                  ${acctOpts}
-                </select>` : `<span style="color:var(--text-muted);font-size:12px;">—</span>`}
-              </span>
-              <span class="import-cell-amt">${r.credit ? "$"+fmtMoney(r.credit) : ""}</span>
-              <span class="import-cell-acct">
-                ${r.credit ? `<select class="assign-select import-acct-sel" style="font-size:12px;" onchange="setImportAccount(${i},'cr',this)">
-                  ${acctOpts}
-                </select>` : `<span style="color:var(--text-muted);font-size:12px;">—</span>`}
-              </span>
-              <span>
-                <label class="checkbox-label" style="font-size:12px;">
-                  <input type="checkbox" ${r.skip?"checked":""} onchange="toggleImportSkip(${i},this.checked)">
-                  <span class="checkbox-custom"></span>
-                </label>
-              </span>
-            </div>`).join("")}
+          ${proposed.map((r,i) => {
+            let amt = r.debit || r.credit;
+            return `
+            <div style="display:grid;grid-template-columns:90px 1fr 90px 180px 180px 50px;gap:8px;padding:8px 12px;border:1px solid var(--border);border-top:none;align-items:center;" id="ipr-${i}" ${r.skip?"style='display:grid;grid-template-columns:90px 1fr 90px 180px 180px 50px;gap:8px;padding:8px 12px;border:1px solid var(--border);border-top:none;align-items:center;opacity:0.4;'":""}>
+              <span style="font-size:12px;color:var(--text-muted);">${r.dateStr}</span>
+              <span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(r.desc)}">${esc(r.desc.slice(0,45))}${r.desc.length>45?"…":""}</span>
+              <span style="font-size:13px;font-weight:600;">$${fmtMoney(amt)}</span>
+              <select class="assign-select" style="font-size:12px;" id="ipr-dr-${i}" onchange="setImportAccount(${i},'dr',this)">
+                ${acctOpts}
+              </select>
+              <select class="assign-select" style="font-size:12px;" id="ipr-cr-${i}" onchange="setImportAccount(${i},'cr',this)">
+                ${acctOpts}
+              </select>
+              <label class="checkbox-label" style="font-size:12px;justify-content:center;">
+                <input type="checkbox" ${r.skip?"checked":""} onchange="toggleImportSkip(${i},this.checked)">
+                <span class="checkbox-custom"></span>
+              </label>
+            </div>`;
+          }).join("")}
         </div>
       </div>
 
@@ -469,30 +463,22 @@ function importSkipAll() {
   });
 }
 
-function importSelectAllDr() {
-  let acct = prompt("Enter account number for ALL debit entries (e.g. 100 for Cash):");
+function importBulkAccount(side) {
+  let label = side === "dr" ? "DEBIT (DR)" : "CREDIT (CR)";
+  let acct = prompt("Enter account number to set for ALL " + label + " entries (e.g. 100 for Cash):");
   if (!acct) return;
   let match = chartOfAccounts.find(a => a.number === acct.trim());
-  if (!match) { alert("Account not found: " + acct); return; }
+  if (!match) { alert("Account not found: " + acct.trim()); return; }
   importPreviewJEs.forEach((r,i) => {
-    if (r.debit) {
+    if (r.skip) return;
+    if (side === "dr") {
       r.drAccountId = match._id;
-      let row = document.getElementById("ipr-" + i);
-      if (row) { let sel = row.querySelectorAll(".import-acct-sel")[0]; if (sel) sel.value = match._id; }
-    }
-  });
-}
-
-function importSelectAllCr() {
-  let acct = prompt("Enter account number for ALL credit entries (e.g. 400 for Revenue):");
-  if (!acct) return;
-  let match = chartOfAccounts.find(a => a.number === acct.trim());
-  if (!match) { alert("Account not found: " + acct); return; }
-  importPreviewJEs.forEach((r,i) => {
-    if (r.credit) {
+      let sel = document.getElementById("ipr-dr-" + i);
+      if (sel) sel.value = match._id;
+    } else {
       r.crAccountId = match._id;
-      let row = document.getElementById("ipr-" + i);
-      if (row) { let sel = row.querySelectorAll(".import-acct-sel")[1] || row.querySelectorAll(".import-acct-sel")[0]; if (sel) sel.value = match._id; }
+      let sel = document.getElementById("ipr-cr-" + i);
+      if (sel) sel.value = match._id;
     }
   });
 }
@@ -501,42 +487,43 @@ async function postImportEntries() {
   let toPost = importPreviewJEs.filter(r => !r.skip);
   let errEl  = document.getElementById("import-post-error");
 
-  // Validation
-  let unmapped = toPost.filter(r => (r.debit && !r.drAccountId) || (r.credit && !r.crAccountId));
+  if (!toPost.length) { errEl.textContent = "No entries to post — all rows are skipped."; return; }
+
+  // Every row needs both a DR and CR account to create a balanced entry
+  let unmapped = toPost.filter(r => !r.drAccountId || !r.crAccountId);
   if (unmapped.length) {
-    errEl.textContent = `${unmapped.length} row(s) still need account assignments. Map all accounts or skip those rows.`;
+    errEl.textContent = `${unmapped.length} row(s) are missing a debit or credit account. Assign both sides or skip the row.`;
     return;
   }
-  if (!toPost.length) { errEl.textContent = "No entries to post — all rows are skipped."; return; }
   errEl.textContent = "";
 
-  // Build journal entries — one per transaction row
+  // Build one balanced journal entry per row: DR side + CR side
   let batch = db.batch();
   let count = 0;
 
   toPost.forEach(r => {
-    let lines = [];
-    if (r.debit && r.drAccountId) {
-      let acct = chartOfAccounts.find(a => a._id === r.drAccountId);
-      lines.push({ accountId: r.drAccountId, accountNumber: acct?.number||"", accountName: acct?.name||"", debit: r.debit, credit: 0 });
-    }
-    if (r.credit && r.crAccountId) {
-      let acct = chartOfAccounts.find(a => a._id === r.crAccountId);
-      lines.push({ accountId: r.crAccountId, accountNumber: acct?.number||"", accountName: acct?.name||"", debit: 0, credit: r.credit });
-    }
-    if (lines.length < 1) return;
+    let amt = r.debit || r.credit;
+    if (!amt) return;
+
+    let drAcct = chartOfAccounts.find(a => a._id === r.drAccountId);
+    let crAcct = chartOfAccounts.find(a => a._id === r.crAccountId);
+
+    let lines = [
+      { accountId: r.drAccountId, accountNumber: drAcct?.number||"", accountName: drAcct?.name||"", debit: amt, credit: 0 },
+      { accountId: r.crAccountId, accountNumber: crAcct?.number||"", accountName: crAcct?.name||"", debit: 0, credit: amt }
+    ];
 
     let ref = db.collection("journalEntries").doc();
     batch.set(ref, {
-      clientId:    importClientId,
-      periodId:    importPeriodId,
-      entryDate:   firebase.firestore.Timestamp.fromDate(new Date(r.dateStr + "T12:00:00")),
-      description: r.desc,
-      isAdjusting: false,
-      lines:       lines,
+      clientId:     importClientId,
+      periodId:     importPeriodId,
+      entryDate:    firebase.firestore.Timestamp.fromDate(new Date(r.dateStr + "T12:00:00")),
+      description:  r.desc,
+      isAdjusting:  false,
+      lines:        lines,
       importedFrom: importFileName,
-      postedBy:    "Import Tool",
-      createdAt:   firebase.firestore.FieldValue.serverTimestamp()
+      postedBy:     "Import Tool",
+      createdAt:    firebase.firestore.FieldValue.serverTimestamp()
     });
     count++;
   });

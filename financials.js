@@ -978,7 +978,7 @@ function editGLEntry(id) {
     if (!doc.exists) return;
     let e = doc.data();
 
-    // Load the existing lines into the form
+    // Load existing lines into form state
     glJeLines = e.lines.map(l => ({
       accountId:     l.accountId,
       accountNumber: l.accountNumber,
@@ -987,36 +987,42 @@ function editGLEntry(id) {
       credit:        l.credit > 0 ? l.credit.toString() : ""
     }));
 
+    // Pre-fill glFormState so dropdown date fields render with the right values
+    if (e.entryDate) {
+      let d = new Date(e.entryDate.seconds * 1000);
+      glFormState.month = String(d.getMonth() + 1).padStart(2, "0");
+      glFormState.day   = String(d.getDate()).padStart(2, "0");
+      glFormState.year  = String(d.getFullYear());
+    }
+    glFormState.desc        = e.description || "";
+    glFormState.isAdjusting = e.isAdjusting || false;
+
     let area = document.getElementById("gl-new-entry-area");
     area.style.display = "block";
     renderGLEntryForm();
 
-    // Pre-fill date and description
-    let dateInput = document.getElementById("gl-je-date");
-    let descInput = document.getElementById("gl-je-desc");
-    let adjCheck  = document.getElementById("gl-is-adjusting");
-    if (dateInput && e.entryDate) {
-      dateInput.value = new Date(e.entryDate.seconds*1000).toISOString().slice(0,10);
-    }
-    if (descInput) descInput.value = e.description || "";
-    if (adjCheck)  adjCheck.checked = e.isAdjusting || false;
-
-    // Change Post button to Update
-    let postBtn = document.getElementById("gl-post-btn");
-    if (postBtn) {
-      postBtn.textContent = "Update Entry";
-      postBtn.disabled    = false;
-      postBtn.onclick     = () => updateGLEntry(id);
-    }
+    // Switch Post button to Update after render settles
+    setTimeout(() => {
+      let postBtn = document.getElementById("gl-post-btn");
+      if (postBtn) {
+        postBtn.textContent = "Update Entry";
+        postBtn.disabled    = false;
+        postBtn.onclick     = () => updateGLEntry(id);
+      }
+    }, 50);
 
     area.scrollIntoView({ behavior:"smooth" });
   });
 }
 
 function updateGLEntry(id) {
-  let date = document.getElementById("gl-je-date").value;
-  let desc = document.getElementById("gl-je-desc").value.trim();
-  let isAdj= document.getElementById("gl-is-adjusting").checked;
+  // Read from the three dropdown fields, same as postGLEntry
+  let month = document.getElementById("gl-je-date-month")?.value;
+  let day   = document.getElementById("gl-je-date-day")?.value;
+  let year  = document.getElementById("gl-je-date-year")?.value;
+  let date  = year && month && day ? year + "-" + month + "-" + day : "";
+  let desc  = document.getElementById("gl-je-desc").value.trim();
+  let isAdj = document.getElementById("gl-is-adjusting").checked;
 
   if (!date) { alert("Please enter a date."); return; }
   if (!desc) { alert("Please enter a description."); return; }
