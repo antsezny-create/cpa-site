@@ -222,5 +222,12 @@ service cloud.firestore {
       allow delete: if isAdmin() || isClientOwnedRead();
     }
 
+
+// ─────────────────────────────────────────────
+    //  RETURN WORKSPACES (admin only)
+    // ─────────────────────────────────────────────
+    match /returnWorkspaces/{wsId} {
+      allow read, write: if isAdmin();
+    }
   }
 }
