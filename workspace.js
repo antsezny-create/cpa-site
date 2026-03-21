@@ -648,12 +648,13 @@ function exportWorkspacePDF() {
   a.click();
   URL.revokeObjectURL(url);
   
-  async function unlockWorkspace() {
+}
+
+async function unlockWorkspace() {
   if (!confirm("Unlock this workspace? It will return to In Progress and become editable again.")) return;
   wsData.status   = "in-progress";
   wsData.lockedAt = null;
   wsData.lockedBy = null;
   await saveWorkspace();
   renderWorkspace();
-}
 }
