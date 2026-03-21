@@ -1,0 +1,423 @@
+/* ══════════════════════════════════════
+   RETURN ASSEMBLY WORKSPACE
+══════════════════════════════════════ */
+
+.ws-selector-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* ── Header Card ── */
+.ws-header-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.ws-client-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.4px;
+  margin-bottom: 8px;
+}
+
+.ws-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ws-meta-tag {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  padding: 3px 10px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+
+.ws-status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid;
+  letter-spacing: 0.3px;
+}
+
+.ws-header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.ws-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ws-progress-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.ws-progress-bar {
+  width: 140px;
+  height: 5px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.ws-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+.ws-progress-pct {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 32px;
+  text-align: right;
+}
+
+.ws-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.ws-signoff-btn {
+  background: var(--green) !important;
+}
+
+/* ── Body Layout ── */
+.ws-body {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 16px;
+  align-items: start;
+}
+
+/* ── Panel Headers ── */
+.ws-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+}
+
+/* ── Forms Panel ── */
+.ws-forms-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.ws-panel-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.ws-form-category {
+  border-bottom: 1px solid var(--border);
+}
+
+.ws-form-category:last-child {
+  border-bottom: none;
+}
+
+.ws-category-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  padding: 10px 20px 6px;
+  background: var(--bg-surface);
+}
+
+.ws-form-row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.ws-form-row:last-child { border-bottom: none; }
+.ws-form-row:hover { background: var(--bg-hover); }
+
+.ws-form-row.complete { border-left: 3px solid var(--green); }
+.ws-form-row.flagged  { border-left: 3px solid var(--orange); }
+.ws-form-row.na       { opacity: 0.45; }
+
+.ws-form-status-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.ws-icon-complete { background: rgba(0,166,81,0.12); color: var(--green); }
+.ws-icon-pending  { background: var(--bg-surface); color: var(--text-dim); border: 1px solid var(--border); }
+.ws-icon-flagged  { background: rgba(245,158,11,0.12); color: var(--orange); }
+.ws-icon-na       { background: var(--bg-surface); color: var(--text-dim); }
+
+.ws-form-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.ws-form-note-preview {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-style: italic;
+}
+
+.ws-form-doc-links {
+  font-size: 11px;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+.ws-form-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.ws-status-sel {
+  font-size: 11px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ws-note-btn,
+.ws-link-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.ws-note-btn:hover,
+.ws-link-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.ws-form-status-locked {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* ── Right Panel ── */
+.ws-right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Review Checklist ── */
+.ws-review-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.ws-review-panel .ws-panel-header {
+  padding: 14px 16px;
+}
+
+.ws-review-list {
+  padding: 8px 0;
+}
+
+.ws-review-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.ws-review-item:last-child { border-bottom: none; }
+.ws-review-item:hover { background: var(--bg-hover); }
+
+.ws-review-checked {
+  color: var(--text);
+}
+
+.ws-review-checkbox {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.ws-review-checkbox.checked {
+  background: var(--green);
+  border-color: var(--green);
+  color: white;
+}
+
+.ws-review-time {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* ── Documents Panel ── */
+.ws-docs-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.ws-docs-panel .ws-panel-header {
+  padding: 14px 16px;
+}
+
+.ws-doc-list {
+  padding: 4px 0;
+}
+
+.ws-doc-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.ws-doc-item:last-child { border-bottom: none; }
+.ws-doc-icon { font-size: 14px; flex-shrink: 0; }
+.ws-doc-name { flex: 1; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-doc-view { font-size: 11px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+.ws-doc-view:hover { text-decoration: underline; }
+
+/* ── Engagement Notes Textarea ── */
+.ws-notes-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.ws-notes-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── Doc Linker ── */
+.ws-doc-link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.ws-doc-link-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-muted);
+  transition: all 0.15s;
+}
+
+.ws-doc-link-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.ws-doc-link-item input[type=checkbox] {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .ws-body { grid-template-columns: 1fr; }
+  .ws-header-card { flex-direction: column; }
+  .ws-header-right { align-items: flex-start; }
+}
