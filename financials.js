@@ -614,6 +614,7 @@ function renderSSHE(accounts, periodLabel, companyName) {
 let glClientId   = "";
 let glPeriodId   = "";
 let glJeLines    = [];
+let glEditingId  = null;   // null = new entry, string = editing existing entry id
 
 function loadGLTab() {
   initChartOfAccounts();
@@ -756,6 +757,7 @@ async function loadGLEntries() {
 }
 
 function openGLNewEntry() {
+  glEditingId = null;
   glJeLines = [
     {accountId:"",accountNumber:"",accountName:"",debit:"",credit:""},
     {accountId:"",accountNumber:"",accountName:"",debit:"",credit:""}
@@ -858,7 +860,7 @@ function renderGLEntryForm() {
       </div>
       <div class="je-form-actions">
         <button class="ghost-btn" onclick="cancelGLEntry()">Cancel</button>
-        <button class="primary-btn" id="gl-post-btn" onclick="postGLEntry()" ${balanced?"":"disabled"}>Post Entry</button>
+        <button class="primary-btn" id="gl-post-btn" onclick="${glEditingId ? 'updateGLEntry(\'' + glEditingId + '\')' : 'postGLEntry()'}" ${balanced?"":"disabled"}>${glEditingId ? "Update Entry" : "Post Entry"}</button>
       </div>
     </div>`;
 
@@ -915,8 +917,9 @@ function removeGLLine(i) {
 function cancelGLEntry() {
   let area = document.getElementById("gl-new-entry-area");
   if (area) { area.style.display = "none"; area.innerHTML = ""; }
-  glJeLines = [];
-  glFormState = { date:"", desc:"", isAdjusting:false, month:"", day:"", year:"" };
+  glJeLines    = [];
+  glEditingId  = null;
+  glFormState  = { date:"", desc:"", isAdjusting:false, month:"", day:"", year:"" };
 }
 
 function postGLEntry() {
@@ -978,6 +981,9 @@ function editGLEntry(id) {
     if (!doc.exists) return;
     let e = doc.data();
 
+    // Set editing mode — renderGLEntryForm checks this to label the button correctly
+    glEditingId = id;
+
     // Load existing lines into form state
     glJeLines = e.lines.map(l => ({
       accountId:     l.accountId,
@@ -1000,17 +1006,6 @@ function editGLEntry(id) {
     let area = document.getElementById("gl-new-entry-area");
     area.style.display = "block";
     renderGLEntryForm();
-
-    // Switch Post button to Update after render settles
-    setTimeout(() => {
-      let postBtn = document.getElementById("gl-post-btn");
-      if (postBtn) {
-        postBtn.textContent = "Update Entry";
-        postBtn.disabled    = false;
-        postBtn.onclick     = () => updateGLEntry(id);
-      }
-    }, 50);
-
     area.scrollIntoView({ behavior:"smooth" });
   });
 }
