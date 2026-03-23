@@ -108,29 +108,108 @@ async function loadPeriodsForClient(clientId, periodSelectId) {
   sel.disabled = true;
   sel.innerHTML = `<option value="">Loading...</option>`;
 
-  let snap = await db.collection("clientLedger").doc(clientId)
-    .collection("periods").get();
+  let periodsRef = db.collection("clientLedger").doc(clientId).collection("periods");
+  let snap = await periodsRef.get();
+
+  // ── Auto-create standard periods if none exist ──
+  if (snap.empty) {
+    let now        = new Date().getFullYear();
+    let client     = clients.find(c => c.uid === clientId);
+    let clientName = client ? client.name : "";
+    let batch      = db.batch();
+
+    // Current year + 2 years back
+    for (let y = now; y >= now - 2; y--) {
+      let ref = periodsRef.doc("fy" + y);
+      batch.set(ref, {
+        periodLabel:  "FY " + y,
+        period:       "FY " + y,
+        periodType:   "annual",
+        companyName:  clientName,
+        taxYear:      y,
+        createdAt:    firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    await batch.commit();
+    // Re-fetch after creation
+    snap = await periodsRef.get();
+  }
+
+  let currentYear = new Date().getFullYear().toString();
+  let bestMatch   = null;
+
+  // Build sorted options — most recent year first
+  let periods = [];
+  snap.forEach(doc => { let d = doc.data(); d._id = doc.id; periods.push(d); });
+  periods.sort((a, b) => (b.taxYear || 0) - (a.taxYear || 0));
 
   sel.innerHTML = `<option value="">— Select Period —</option>`;
-  let currentYear = new Date().getFullYear().toString();
-  let bestMatch = null;
 
-  snap.forEach(doc => {
-    let p = doc.data();
+  periods.forEach(p => {
     let opt = document.createElement("option");
-    opt.value = doc.id;
+    opt.value = p._id;
     opt.textContent = p.periodLabel || p.period;
     opt.dataset.companyName = p.companyName || "";
     opt.dataset.periodType  = p.periodType  || "annual";
     sel.appendChild(opt);
-    // Auto-select period matching current year
+    // Auto-select the period matching current year
     if ((p.periodLabel || p.period || "").includes(currentYear)) {
       bestMatch = opt;
     }
   });
 
+  // If no current-year match, auto-select the most recent
+  if (!bestMatch && sel.options.length > 1) {
+    bestMatch = sel.options[1]; // index 0 is the placeholder
+  }
+
   if (bestMatch) bestMatch.selected = true;
   sel.disabled = false;
+
+  // Add "＋ Add Period" option at the bottom
+  let addOpt = document.createElement("option");
+  addOpt.value = "__add__";
+  addOpt.textContent = "+ Add Period";
+  sel.appendChild(addOpt);
+
+  // Handle + Add Period selection
+  sel.onchange = function() {
+    if (sel.value === "__add__") {
+      sel.value = bestMatch ? bestMatch.value : "";
+      showInputModal({
+        title: "Add Period",
+        fields: [
+          { id:"year", label:"Tax Year", type:"number", placeholder:"e.g. 2023", value: new Date().getFullYear() - 3 },
+          { id:"type", label:"Period Type", placeholder:"annual" }
+        ],
+        confirmText: "Add",
+        onConfirm: async function(vals) {
+          let year = parseInt(vals.year);
+          let type = vals.type.trim() || "annual";
+          if (!year || isNaN(year)) { toast("Please enter a valid year", "warning"); return; }
+          let client     = clients.find(c => c.uid === clientId);
+          let clientName = client ? client.name : "";
+          let label      = "FY " + year;
+          if (type === "quarterly") label = "Q1 " + year;
+          if (type === "monthly")   label = "Jan " + year;
+          let ref = periodsRef.doc("fy" + year);
+          await ref.set({
+            periodLabel: label,
+            period:      label,
+            periodType:  type,
+            companyName: clientName,
+            taxYear:     year,
+            createdAt:   firebase.firestore.FieldValue.serverTimestamp()
+          });
+          toast("Period " + label + " added", "success");
+          // Reload the dropdown
+          await loadPeriodsForClient(clientId, periodSelectId);
+          // Re-fire the change event if there's a handler
+          sel.dispatchEvent(new Event("change"));
+        }
+      });
+    }
+  };
 }
 
 async function computeBalances(clientId, periodId, dateFrom, dateTo) {
@@ -909,7 +988,7 @@ function addGLLine() {
 }
 
 function removeGLLine(i) {
-  if (glJeLines.length <= 2) { toast("Need at least 2 lines", "warning"); return; }
+  if (glJeLines.length <= 2) { alert("Need at least 2 lines."); return; }
   glJeLines.splice(i,1);
   renderGLEntryForm();
 }
@@ -930,11 +1009,11 @@ function postGLEntry() {
   let desc  = document.getElementById("gl-je-desc").value.trim();
   let isAdj = document.getElementById("gl-is-adjusting").checked;
 
-  if (!date) { toast("Please enter a date", "warning"); return; }
-  if (!desc) { toast("Please enter a description", "warning"); return; }
+  if (!date) { alert("Please enter a date."); return; }
+  if (!desc) { alert("Please enter a description."); return; }
 
   let lines = glJeLines.filter(l=>l.accountId && (parseFloat(l.debit)||0)+(parseFloat(l.credit)||0)>0);
-  if (lines.length < 2) { toast("Add at least 2 account lines", "warning"); return; }
+  if (lines.length < 2) { alert("Add at least 2 account lines."); return; }
 
   db.collection("journalEntries").add({
     clientId:    glClientId,
@@ -951,7 +1030,7 @@ function postGLEntry() {
   }).then(() => {
     cancelGLEntry();
     loadGLEntries();
-  }).catch(e => toast(e.message, "error"));
+  }).catch(e => alert("Failed: " + e.message));
 }
 
 function expandGLEntry(id, btn) {
@@ -1019,15 +1098,15 @@ function updateGLEntry(id) {
   let desc  = document.getElementById("gl-je-desc").value.trim();
   let isAdj = document.getElementById("gl-is-adjusting").checked;
 
-  if (!date) { toast("Please enter a date", "warning"); return; }
-  if (!desc) { toast("Please enter a description", "warning"); return; }
+  if (!date) { alert("Please enter a date."); return; }
+  if (!desc) { alert("Please enter a description."); return; }
 
   let lines = glJeLines.filter(l=>l.accountId && (parseFloat(l.debit)||0)+(parseFloat(l.credit)||0)>0);
-  if (lines.length < 2) { toast("Add at least 2 account lines", "warning"); return; }
+  if (lines.length < 2) { alert("Add at least 2 account lines."); return; }
 
   let totalDr = lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
   let totalCr = lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
-  if (Math.abs(totalDr-totalCr) > 0.01) { toast("Entry not balanced — debits must equal credits", "warning"); return; }
+  if (Math.abs(totalDr-totalCr) > 0.01) { alert("Entry is not balanced. Debits must equal credits."); return; }
 
   db.collection("journalEntries").doc(id).update({
     entryDate:   firebase.firestore.Timestamp.fromDate(new Date(date+"T12:00:00")),
@@ -1041,15 +1120,12 @@ function updateGLEntry(id) {
   }).then(() => {
     cancelGLEntry();
     loadGLEntries();
-  }).catch(e => toast(e.message, "error"));
+  }).catch(e => alert("Failed to update: " + e.message));
 }
 
 function deleteGLEntry(id) {
-  showModal({ title:"Delete Entry", message:"Delete this journal entry? This cannot be undone.",
-    confirmText:"Delete", type:"danger", onConfirm: function() {
-      db.collection("journalEntries").doc(id).delete().then(() => loadGLEntries());
-    }
-  });
+  if (!confirm("Delete this journal entry? This cannot be undone.")) return;
+  db.collection("journalEntries").doc(id).delete().then(() => loadGLEntries());
 }
 
 function filterGLByAccount() {
@@ -1139,14 +1215,14 @@ function migrateIsCore() {
   });
 
   if (count === 0) {
-    toast("All accounts already correct", "info");
+    alert("All accounts already have correct isCore values.");
     return;
   }
 
   batch.commit().then(() => {
-    toast(`Fixed ${count} accounts`, "success");
+    alert(`Fixed ${count} accounts successfully.`);
     renderMasterAccounts();
-  }).catch(e => toast(e.message, "error"));
+  }).catch(e => alert("Failed: " + e.message));
 }
 
 function renderMasterCOARows() {
@@ -1190,14 +1266,11 @@ function toggleAccountActive(id, current) {
 }
 
 function deleteAccount(id, name) {
-  showModal({ title:"Delete Account", message:`Delete "${name}"? This cannot be undone.`,
-    confirmText:"Delete", type:"danger", onConfirm: function() {
-      db.collection("chartOfAccounts").doc(id).delete().then(() => {
-        chartOfAccounts = chartOfAccounts.filter(a=>a._id!==id);
-        let list = document.getElementById("master-coa-list");
-        if (list) list.innerHTML = renderMasterCOARows();
-      });
-    }
+  if (!confirm(`Delete account "${name}"? This cannot be undone.`)) return;
+  db.collection("chartOfAccounts").doc(id).delete().then(() => {
+    chartOfAccounts = chartOfAccounts.filter(a=>a._id!==id);
+    let list = document.getElementById("master-coa-list");
+    if (list) list.innerHTML = renderMasterCOARows();
   });
 }
 
@@ -1225,7 +1298,7 @@ function updateAccount(id) {
   let sub    = document.getElementById("aa-subtype").value;
   let nb     = document.getElementById("aa-normal").value;
 
-  if (!number || !name) { toast("Account number and name required", "warning"); return; }
+  if (!number || !name) { alert("Number and name are required."); return; }
 
   db.collection("chartOfAccounts").doc(id).update({ number, name, type, subType: sub, normalBalance: nb })
     .then(() => {
@@ -1235,7 +1308,7 @@ function updateAccount(id) {
       closeAddAccountModal();
       let list = document.getElementById("master-coa-list");
       if (list) list.innerHTML = renderMasterCOARows();
-    }).catch(e => toast(e.message, "error"));
+    }).catch(e => alert("Failed: " + e.message));
 }
 
 // ══════════════════════════════════════
@@ -1277,9 +1350,9 @@ function saveNewAccount() {
   let sub    = document.getElementById("aa-subtype").value;
   let nb     = document.getElementById("aa-normal").value;
 
-  if (!number) { toast("Please enter an account number", "warning"); return; }
-  if (!name)   { toast("Please enter an account name", "warning"); return; }
-  if (chartOfAccounts.find(a=>a.number===number)) { toast("Account number " + number + " already exists", "warning"); return; }
+  if (!number) { alert("Please enter an account number."); return; }
+  if (!name)   { alert("Please enter an account name."); return; }
+  if (chartOfAccounts.find(a=>a.number===number)) { alert("Account number " + number + " already exists."); return; }
 
   db.collection("chartOfAccounts").add({
     number, name, type, subType:sub, normalBalance:nb,
@@ -1291,7 +1364,7 @@ function saveNewAccount() {
     // Refresh master accounts list if visible
     let list = document.getElementById("master-coa-list");
     if (list) list.innerHTML = renderMasterCOARows();
-  }).catch(e => toast(e.message, "error"));
+  }).catch(e => alert("Failed: " + e.message));
 }
 
 // ══════════════════════════════════════
@@ -1299,8 +1372,8 @@ function saveNewAccount() {
 // ══════════════════════════════════════
 
 function exportCurrentStatement(tabId) {
-  if (!window._finData) { toast("Please select a client and period first", "warning"); return; }
-  if (typeof XLSX === "undefined") { toast("Excel library not loaded", "error"); return; }
+  if (!window._finData) { alert("Please select a client and period first."); return; }
+  if (typeof XLSX === "undefined") { alert("Excel library not loaded."); return; }
 
   let { accounts, periodLabel, clientName } = window._finData;
   let wb   = XLSX.utils.book_new();
@@ -1335,10 +1408,10 @@ function exportCurrentStatement(tabId) {
 }
 
 function publishCurrentStatement(tabId) {
-  if (!window._finData) { toast("Please select a client and period first", "warning"); return; }
+  if (!window._finData) { alert("Please select a client and period first."); return; }
+  if (!confirm("Publish statements to the client portal?")) return;
+
   let { accounts, periodLabel, clientId, periodId, clientName } = window._finData;
-  showModal({ title:"Publish Statements", message:"Publish financial statements to the client portal?",
-    confirmText:"Publish", type:"success", onConfirm: function() {
   let batch = db.batch();
 
   ["income","balance","cashflow","equity"].forEach(type => {
@@ -1353,13 +1426,11 @@ function publishCurrentStatement(tabId) {
   });
 
   batch.commit().then(() => {
-    toast("Statements published to portal", "success");
+    alert("Statements published to client portal!");
     db.collection("activity").add({
       clientId, type:"ready",
       text:"Financial statements published for " + periodLabel,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
-  }).catch(e => toast(e.message, "error"));
-    } // end onConfirm
-  }); // end showModal
+  }).catch(e => alert("Failed: " + e.message));
 }
