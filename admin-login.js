@@ -1,16 +1,33 @@
 // ── Route protection: redirect if already logged in ──
-// Only redirects — does NOT create a new session.
-// Session creation happens exclusively in showSuccess() to avoid ID conflicts.
 auth.onAuthStateChanged(function(user) {
   if (!user) return;
   db.collection("admins").doc(user.uid).get().then(function(doc) {
     if (doc.exists) {
-      // Only redirect if we already have a valid session (came from showSuccess)
       let existingSession = sessionStorage.getItem("adminSessionId");
-      if (existingSession) {
-        window.location.href = "dashboard.html";
+      if (!existingSession) {
+        let sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+        let sessionData = {
+          sessionId:  sessionId,
+          uid:        user.uid,
+          email:      user.email,
+          signInAt:   firebase.firestore.FieldValue.serverTimestamp(),
+          signOutAt:  null,
+          duration:   null,
+          userAgent:  navigator.userAgent,
+          active:     true
+        };
+        db.collection("adminSessions").doc(sessionId).set(sessionData)
+          .then(() => console.log("Session logged:", sessionId))
+          .catch(e => console.error("Session log failed:", e.message));
+        db.collection("admins").doc(user.uid).set({
+          activeSession: sessionId,
+          lastSignIn:    firebase.firestore.FieldValue.serverTimestamp(),
+          lastUserAgent: navigator.userAgent
+        }, { merge: true });
+        sessionStorage.setItem("adminSessionId", sessionId);
+        sessionStorage.setItem("adminSessionStart", Date.now().toString());
       }
-      // If no existing session, do nothing — wait for handleAdminLogin → showSuccess
+      window.location.href = "dashboard.html";
     } else {
       window.location.href = "portal.html";
     }
@@ -46,7 +63,14 @@ function handleAdminLogin() {
   btn.textContent = "Signing in...";
   btn.disabled = true;
 
-  auth.signInWithEmailAndPassword(email, password)
+  // Persistent login for primary admin only — all others use session
+  let persistence = (email.toLowerCase() === "sesnyanthony@gmail.com")
+    ? firebase.auth.Auth.Persistence.LOCAL
+    : firebase.auth.Auth.Persistence.SESSION;
+
+  auth.setPersistence(persistence)
+  .then(function() {
+  return auth.signInWithEmailAndPassword(email, password)})
     .then(function(userCredential) {
       let user = userCredential.user;
       return db.collection("admins").doc(user.uid).get()
