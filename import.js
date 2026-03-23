@@ -464,26 +464,27 @@ function importSkipAll() {
 }
 
 function importBulkAccount(side) {
-  let label = side === "dr" ? "DEBIT (DR)" : "CREDIT (CR)";
-  showInputModal({
-    title: "Bulk Set " + label.toUpperCase() + " Account",
-    fields: [{ id:"acct", label:"Account Number", placeholder:"e.g. 100 for Cash, 400 for Revenue" }],
-    confirmText: "Apply to All",
+  let label = side === "dr" ? "Debit (DR)" : "Credit (CR)";
+  showInputModal({ title: "Bulk Set " + label + " Account",
+    fields:[{id:"acct", label:"Account Number", placeholder:"e.g. 100 for Cash, 400 for Revenue"}],
+    confirmText:"Apply to All",
     onConfirm: function(vals) {
       let acct = vals.acct.trim();
-  if (!acct) return;
-  let match = chartOfAccounts.find(a => a.number === acct.trim());
-  if (!match) { toast("Account not found: " + acct, "error"); return; }
-  importPreviewJEs.forEach((r,i) => {
-    if (r.skip) return;
-    if (side === "dr") {
-      r.drAccountId = match._id;
-      let sel = document.getElementById("ipr-dr-" + i);
-      if (sel) sel.value = match._id;
-    } else {
-      r.crAccountId = match._id;
-      let sel = document.getElementById("ipr-cr-" + i);
-      if (sel) sel.value = match._id;
+      if (!acct) return;
+      let match = chartOfAccounts.find(a => a.number === acct);
+      if (!match) { toast("Account not found: " + acct, "error"); return; }
+      importPreviewJEs.forEach((r,i) => {
+        if (r.skip) return;
+        if (side === "dr") {
+          r.drAccountId = match._id;
+          let sel = document.getElementById("ipr-dr-" + i);
+          if (sel) sel.value = match._id;
+        } else {
+          r.crAccountId = match._id;
+          let sel = document.getElementById("ipr-cr-" + i);
+          if (sel) sel.value = match._id;
+        }
+      });
     }
   });
 }
@@ -899,11 +900,13 @@ function renderManualStmtForm() {
 }
 
 function clearManualStmt() {
-  showModal({ title:"Clear All", message:"Clear all entered values?",
-    confirmText:"Clear", type:"danger", onConfirm: function() {
-  manualStmtData = {};
-  document.querySelectorAll(".ms-input").forEach(i => i.value = "");
-  updateManualTotals();
+  showModal({ title:"Clear All", message:"Clear all entered values?", confirmText:"Clear", type:"danger",
+    onConfirm: function() {
+      manualStmtData = {};
+      document.querySelectorAll(".ms-input").forEach(i => i.value = "");
+      updateManualTotals();
+    }
+  });
 }
 
 function updateManualTotals() {
@@ -1024,8 +1027,7 @@ async function publishManualStmt() {
     return;
   }
   showModal({ title:"Publish Statement", message:"Publish this manual statement to the client portal?",
-    confirmText:"Publish", type:"success", onConfirm: function() {
-
+    confirmText:"Publish", type:"success", onConfirm: async function() {
   // Collect line items
   let lines = [];
   document.querySelectorAll(".ms-form-row").forEach(row => {
@@ -1060,10 +1062,12 @@ async function publishManualStmt() {
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
 
-    toast("Published to client portal", "success");
-  } catch(e) {
-    toast(e.message, "error");
-  }
+    toast("Published to portal", "success");
+    } catch(e) {
+      toast(e.message, "error");
+    }
+    } // end onConfirm
+  }); // end showModal
 }
 
 
@@ -1195,7 +1199,7 @@ function renderTrialBalance(accounts, periodLabel, clientName) {
 
 function exportTrialBalance() {
   if (!window._tbData) return;
-  if (typeof XLSX === "undefined") { toast("Excel library not loaded — please refresh", "error"); return; }
+  if (typeof XLSX === "undefined") { toast("Excel library not loaded", "error"); return; }
   let { accounts, periodLabel, clientName } = window._tbData;
 
   let data = [

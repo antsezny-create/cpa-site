@@ -523,14 +523,10 @@ async function saveEngagementNotes() {
 // ══════════════════════════════════════
 
 function addCustomForm() {
-  showInputModal({
-    title: "Add Custom Form",
-    fields: [{ id:"name", label:"Form Name", placeholder:"e.g. Form 8829 — Home Office" }],
-    confirmText: "Add Form",
-    onConfirm: function(vals) {
-      let name = vals.name.trim();
-      if (!name) return;
-  wsData.forms.push({
+  showInputModal({ title:"Add Custom Form", fields:[{id:"name",label:"Form Name",placeholder:"e.g. Form 8829 — Home Office"}],
+    confirmText:"Add", onConfirm: function(vals) {
+      let name = vals.name.trim(); if (!name) return;
+      wsData.forms.push({
     id:       "custom_" + Date.now(),
     name:     name.trim(),
     required: false,
@@ -555,11 +551,14 @@ async function setWSStatus(status) {
     review: "Send this return for review?",
     filed:  "Mark this return as filed?"
   };
-  showModal({ title:"Update Status", message: confirmMsg[status] || "Update status?",
-    confirmText:"Confirm", type:"default", onConfirm: function() {
-  wsData.status = status;
-  await saveWorkspace();
-  renderWorkspace();
+  let msg = confirmMsg[status] || "Update status?";
+  showModal({ title:"Update Status", message: msg, confirmText:"Confirm", type:"default",
+    onConfirm: async function() {
+      wsData.status = status;
+      await saveWorkspace();
+      renderWorkspace();
+    }
+  });
 }
 
 // ══════════════════════════════════════
@@ -567,9 +566,8 @@ async function setWSStatus(status) {
 // ══════════════════════════════════════
 
 async function signOffWorkspace() {
-  showModal({ title:"Sign Off & Lock", message:"Lock this return permanently? It will be frozen as a permanent record and cannot be edited.",
-    confirmText:"Sign Off & Lock", type:"success", onConfirm: function() {
-
+  showModal({ title:"Sign Off & Lock", message:"Lock this return permanently as a permanent record? This cannot be undone.",
+    confirmText:"Sign Off & Lock", type:"success", onConfirm: async function() {
   wsData.status   = "locked";
   wsData.lockedAt = firebase.firestore.FieldValue.serverTimestamp();
   wsData.lockedBy = "Anthony Sesny";
@@ -597,6 +595,8 @@ async function signOffWorkspace() {
   });
 
   renderWorkspace();
+    }
+  });
 }
 
 // ══════════════════════════════════════
@@ -660,11 +660,13 @@ function exportWorkspacePDF() {
 }
 
 async function unlockWorkspace() {
-  showModal({ title:"Unlock Workspace", message:"Unlock this workspace? It will return to In Progress and become editable again.",
-    confirmText:"Unlock", type:"warning", onConfirm: function() {
-  wsData.status   = "in-progress";
-  wsData.lockedAt = null;
-  wsData.lockedBy = null;
-  await saveWorkspace();
-  renderWorkspace();
+  showModal({ title:"Unlock Workspace", message:"Return this workspace to In Progress and make it editable again?",
+    confirmText:"Unlock", type:"warning", onConfirm: async function() {
+      wsData.status   = "in-progress";
+      wsData.lockedAt = null;
+      wsData.lockedBy = null;
+      await saveWorkspace();
+      renderWorkspace();
+    }
+  });
 }

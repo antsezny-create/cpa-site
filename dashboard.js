@@ -142,7 +142,7 @@ function toggleBookkeeping(uid, current) {
     if (c) c.bookkeeping = newVal;
     let activeFilter = document.querySelector(".filter-bar .filter-btn.active");
     renderClients(activeFilter ? activeFilter.textContent.toLowerCase().replace(" ","-") : "all");
-  }).catch(e => toast(e.message, 'error'));
+  }).catch(e => toast(e.message, "error"));
 }
 function toggleCase(btn) {
   let uid = btn.getAttribute("data-uid");
@@ -152,7 +152,7 @@ function toggleCase(btn) {
     if (c) c.caseOpen = newState;
     btn.className = "case-toggle " + (newState ? "case-btn-open" : "case-btn-closed");
     btn.textContent = newState ? "Open" : "Closed";
-  }).catch(e => toast(e.message, 'error'));
+  }).catch(e => toast(e.message, "error"));
 }
 function updateClientField(uid, field, value) {
   let update = {}; update[field] = value;
@@ -161,7 +161,7 @@ function updateClientField(uid, field, value) {
     if (c) c[field] = value;
     updateOverviewStats();
     updateRecentClientsList();
-  }).catch(e => toast(e.message, 'error'));
+  }).catch(e => toast(e.message, "error"));
 }
 function updateOverviewStats() {
   let yearClients = clients.filter(c => c.year === activeYear);
@@ -479,70 +479,69 @@ function renderFormsGrid(forms, cat) {
 function handleFormUpload(input) {
   let file = input.files[0];
   if (!file) return;
-
   showInputModal({
     title: "Upload Form",
-    message: "Enter details for this form before uploading.",
     fields: [
       { id:"name", label:"Form Name", placeholder:"e.g. Form 1040", value: file.name.replace(/\.pdf$/i,"") },
       { id:"desc", label:"Description", placeholder:"Short description (optional)" },
-      { id:"year", label:"Tax Year", type:"number", placeholder:"" + (new Date().getFullYear()-1), value: new Date().getFullYear()-1 }
+      { id:"year", label:"Tax Year", type:"number", value: new Date().getFullYear()-1 }
     ],
     confirmText: "Upload",
     onConfirm: function(vals) {
-      let name = vals.name.trim();
-      let desc = vals.desc.trim();
-      let year = vals.year;
+      let name = vals.name.trim(); let desc = vals.desc; let year = vals.year;
       if (!name) { toast("Please enter a form name", "warning"); input.value=""; return; }
 
-      let category = currentFormsCategory ? currentFormsCategory.id : "other";
-      let path = "practitioner-forms/" + Date.now() + "_" + file.name;
-      let ref  = storage.ref(path);
+  // Category is already known from which category we're in
+  let category = currentFormsCategory ? currentFormsCategory.id : "other";
 
-      let container = document.getElementById("forms-container");
-      let uploading = document.createElement("div");
-      uploading.className = "form-upload-progress";
-      uploading.style.marginBottom = "16px";
-      uploading.innerHTML = `<span>Uploading ${name}...</span><div class="upload-bar"><div class="upload-bar-fill" id="upload-fill"></div></div>`;
-      container.insertBefore(uploading, container.firstChild);
+  let path = "practitioner-forms/" + Date.now() + "_" + file.name;
+  let ref  = storage.ref(path);
 
-      let uploadTask = ref.put(file);
-      uploadTask.on("state_changed",
-        snap => {
-          let pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-          let fill = document.getElementById("upload-fill");
-          if (fill) fill.style.width = pct + "%";
-        },
-        err => { toast(err.message, "error"); uploading.remove(); input.value=""; },
-        () => {
-          uploadTask.snapshot.ref.getDownloadURL().then(url => {
-            return db.collection("practitionerForms").add({
-              name, desc: desc||"", taxYear: year||"", category,
-              storagePath: path, storageUrl: url,
-              uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-          }).then(() => {
-            uploading.remove();
-            input.value = "";
-            toast(name + " uploaded successfully", "success");
-            if (currentFormsCategory) openCategory(currentFormsCategory);
-            else renderCategoryGrid();
-          }).catch(e => { toast(e.message, "error"); uploading.remove(); input.value=""; });
-        }
-      );
+  // Show progress
+  let container = document.getElementById("forms-container");
+  let uploading = document.createElement("div");
+  uploading.className = "form-upload-progress";
+  uploading.style.marginBottom = "16px";
+  uploading.innerHTML = `<span>Uploading ${name}...</span><div class="upload-bar"><div class="upload-bar-fill" id="upload-fill"></div></div>`;
+  container.insertBefore(uploading, container.firstChild);
+
+  let uploadTask = ref.put(file);
+  uploadTask.on("state_changed",
+    snap => {
+      let pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+      let fill = document.getElementById("upload-fill");
+      if (fill) fill.style.width = pct + "%";
+    },
+    err => { toast(err.message, "error"); uploading.remove(); input.value=""; },
+    () => {
+      uploadTask.snapshot.ref.getDownloadURL().then(url => {
+        return db.collection("practitionerForms").add({
+          name, desc: desc||"", taxYear: year||"", category,
+          storagePath: path, storageUrl: url,
+          uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }).then(() => {
+        uploading.remove();
+        input.value = "";
+        if (currentFormsCategory) openCategory(currentFormsCategory);
+        else renderCategoryGrid();
+      }).catch(e => { toast(e.message, "error"); uploading.remove(); input.value=""; });
     }
-  });
+  );
+    } // end onConfirm
+  }); // end showInputModal
 }
 
-
 function deleteUploadedForm(docId, storagePath) {
-  showModal({ title:"Delete Form", message:"This will permanently delete the form and cannot be undone.",
-    confirmText:"Delete", type:"danger", onConfirm: function() {
-  db.collection("practitionerForms").doc(docId).delete().then(() => {
-    if (storagePath) storage.ref(storagePath).delete().catch(()=>{});
-    if (currentFormsCategory) openCategory(currentFormsCategory);
-    else renderCategoryGrid();
-  }).catch(e => toast(e.message, 'error'));
+  showModal({ title:"Delete Form", message:"Permanently delete this form?", confirmText:"Delete", type:"danger",
+    onConfirm: function() {
+      db.collection("practitionerForms").doc(docId).delete().then(() => {
+        if (storagePath) storage.ref(storagePath).delete().catch(()=>{});
+        if (currentFormsCategory) openCategory(currentFormsCategory);
+        else renderCategoryGrid();
+      }).catch(e => toast(e.message, "error"));
+    }
+  });
 }
 
 
@@ -581,7 +580,7 @@ function openFormInNewTab() {
 function assignFormToClient() {
   let sel  = document.getElementById("assign-client-select");
   let uid  = sel.value;
-  if (!uid) { toast("Please select a client first", 'warning'); return; }
+  if (!uid) { toast("Please select a client first", "warning"); return; }
   let name = sel.options[sel.selectedIndex].text;
   if (!confirm("Assign " + currentFormName + " to " + name + "?")) return;
   db.collection("assignedForms").add({
@@ -590,8 +589,8 @@ function assignFormToClient() {
     formName:   currentFormName,
     formUrl:    currentFormUrl,
     assignedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).then(() => toast(currentFormName + " assigned to " + name, 'success'))
-    .catch(e => toast(e.message, 'error'));
+  }).then(() => toast(currentFormName + " assigned to " + name, "success"))
+    .catch(e => toast(e.message, "error"));
 }
 
 
@@ -634,12 +633,11 @@ function loadSavedForms() {
 }
 
 function deleteSavedForm(docId, storagePath) {
-  showModal({ title:"Delete Saved Form", message:"This will permanently delete this saved form.",
-    confirmText:"Delete", type:"danger", onConfirm: function() {
+  if (!confirm("Delete this saved form?")) return;
   db.collection("savedForms").doc(docId).delete().then(() => {
     if (storagePath) storage.ref(storagePath).delete().catch(()=>{});
     loadSavedForms();
-  }).catch(e => toast(e.message, 'error'));
+  }).catch(e => toast(e.message, "error"));
 }
 
 
@@ -731,16 +729,15 @@ function reviewDocument(docId, newStatus) {
     let d = allDocuments.find(x => x._id===docId);
     if (d) d.reviewStatus = newStatus;
     renderDocuments();
-  }).catch(e => toast(e.message, 'error'));
+  }).catch(e => toast(e.message, "error"));
 }
 function deleteDocumentAdmin(docId, fileURL) {
-  showModal({ title:"Delete Document", message:"This will permanently delete this document and cannot be undone.",
-    confirmText:"Delete", type:"danger", onConfirm: function() {
+  if (!confirm("Delete this document permanently?")) return;
   db.collection("documents").doc(docId).delete().then(() => {
     allDocuments = allDocuments.filter(x => x._id !== docId);
     renderDocuments();
     if (fileURL) { try { storage.refFromURL(fileURL).delete().catch(()=>{}); } catch(e){} }
-  }).catch(e => toast(e.message, 'error'));
+  }).catch(e => toast(e.message, "error"));
 }
 
 
@@ -901,7 +898,7 @@ auth.onAuthStateChanged(user => {
 
     if (firestoreSession && localSessionId && firestoreSession !== localSessionId) {
       auth.signOut().then(() => {
-        toast("Your session was ended — a new sign-in was detected", "warning", 6000);
+        toast("Session ended — new sign-in detected", "warning", 6000);
         window.location.href = "admin.html";
       });
       return;
@@ -968,7 +965,7 @@ function verifySession(uid) {
     if (!doc.exists) { secureSignOut(); return; }
     let firestoreSession = doc.data().activeSession;
     if (firestoreSession && localSessionId && firestoreSession !== localSessionId) {
-      toast("Your session was ended — a new sign-in was detected", "warning", 6000);
+      toast("Session ended — new sign-in detected", "warning", 6000);
       secureSignOut();
     }
   });
@@ -1042,7 +1039,7 @@ function togglePinForm(docId, currentlyPinned, btn) {
     btn.title = newPinned ? "Unpin from Quick Access" : "Pin to Quick Access";
     btn.classList.toggle("pinned", newPinned);
     loadQuickAccessForms();
-  }).catch(e => toast(e.message, 'error'));
+  }).catch(e => toast(e.message, "error"));
 }
 
 
@@ -1108,12 +1105,11 @@ function sendDocRequest() {
     });
     input.value = "";
     loadExistingRequests(docRequestClientId);
-  }).catch(e => toast(e.message, 'error'));
+  }).catch(e => toast(e.message, "error"));
 }
 
 function deleteDocRequest(docId) {
-  showModal({ title:"Remove Request", message:"Remove this document request?",
-    confirmText:"Remove", type:"danger", onConfirm: function() {
+  if (!confirm("Remove this request?")) return;
   db.collection("documentRequests").doc(docId).delete().then(() => {
     loadExistingRequests(docRequestClientId);
   });
@@ -1144,7 +1140,7 @@ function updateClientField(uid, field, value) {
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
     }
-  }).catch(e => toast(e.message, 'error'));
+  }).catch(e => toast(e.message, "error"));
 }
 
 
@@ -1238,19 +1234,18 @@ function updateReturnStatus(sel) {
   let status = sel.value;
   sel.className = "cell-dropdown return-status-select status-return-" + status;
   db.collection("clientReturns").doc(rid).update({ returnStatus: status })
-    .catch(e => toast(e.message, 'error'));
+    .catch(e => toast(e.message, "error"));
 }
 
 function deleteClientReturn(rid) {
-  showModal({ title:"Remove Return", message:"Remove this return entry?",
-    confirmText:"Remove", type:"danger", onConfirm: function() {
+  if (!confirm("Remove this return entry?")) return;
   db.collection("clientReturns").doc(rid).delete().then(() => {
     if (returnsSelectedClientId) loadClientReturns(returnsSelectedClientId);
   });
 }
 
 function openAddReturnModal() {
-  if (!returnsSelectedClientId) { toast("Please select a client first", 'warning'); return; }
+  if (!returnsSelectedClientId) { toast("Please select a client first", "warning"); return; }
 
   // Populate form dropdown from cached practitioner forms
   let sel = document.getElementById("add-return-form-select");
@@ -1274,8 +1269,8 @@ function closeAddReturnModal() {
 function saveNewReturn() {
   let formVal = document.getElementById("add-return-form-select").value;
   let year    = document.getElementById("add-return-year").value;
-  if (!formVal) { toast("Please select a form", 'warning'); return; }
-  if (!year)    { toast("Please enter a tax year", 'warning'); return; }
+  if (!formVal) { toast("Please select a form", "warning"); return; }
+  if (!year)    { toast("Please enter a tax year", "warning"); return; }
 
   let formData = JSON.parse(formVal);
   let client   = clients.find(c => c.uid === returnsSelectedClientId);
@@ -1292,7 +1287,7 @@ function saveNewReturn() {
   }).then(() => {
     closeAddReturnModal();
     loadClientReturns(returnsSelectedClientId);
-  }).catch(e => toast(e.message, 'error'));
+  }).catch(e => toast(e.message, "error"));
 }
 
 function openReturnFormViewer(rid, formUrl, formName, formDesc) {
@@ -1382,8 +1377,7 @@ function renderPendingApprovalBanner(snapshot) {
 }
 
 function approveClient(uid, name, email) {
-  showModal({ title:"Approve Client", message:"Approve " + name + "? They will get immediate access to the portal.",
-    confirmText:"Approve", type:"success", onConfirm: function() {
+  if (!confirm("Approve " + name + "? They will get access to the portal immediately.")) return;
   db.collection("clients").doc(uid).update({
     approvalStatus: "approved",
     status: "pending"
@@ -1397,16 +1391,15 @@ function approveClient(uid, name, email) {
     });
     checkPendingApprovals();
     loadAllClientsFromFirebase();
-  }).catch(e => toast(e.message, 'error'));
+  }).catch(e => toast(e.message, "error"));
 }
 
 function denyClient(uid, name) {
-  showModal({ title:"Deny Client", message:"Deny and delete " + name + "'s account? This cannot be undone.",
-    confirmText:"Deny & Delete", type:"danger", onConfirm: function() {
+  if (!confirm("Deny and delete " + name + "'s account? This cannot be undone.")) return;
   // Delete from Firestore first, then Auth deletion happens via Cloud Function
   db.collection("clients").doc(uid).delete().then(() => {
     checkPendingApprovals();
-  }).catch(e => toast(e.message, 'error'));
+  }).catch(e => toast(e.message, "error"));
 }
 
 
@@ -1443,7 +1436,7 @@ function saveClientNote() {
     closeNotesModal();
     let activeFilter = document.querySelector(".filter-bar .filter-btn.active");
     renderClients(activeFilter ? activeFilter.textContent.toLowerCase().replace(" ", "-") : "all");
-  }).catch(e => toast(e.message, 'error'));
+  }).catch(e => toast(e.message, "error"));
 }
 
 

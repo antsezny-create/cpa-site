@@ -1047,7 +1047,9 @@ function updateGLEntry(id) {
 function deleteGLEntry(id) {
   showModal({ title:"Delete Entry", message:"Delete this journal entry? This cannot be undone.",
     confirmText:"Delete", type:"danger", onConfirm: function() {
-  db.collection("journalEntries").doc(id).delete().then(() => loadGLEntries());
+      db.collection("journalEntries").doc(id).delete().then(() => loadGLEntries());
+    }
+  });
 }
 
 function filterGLByAccount() {
@@ -1137,7 +1139,7 @@ function migrateIsCore() {
   });
 
   if (count === 0) {
-    toast("All accounts already have correct isCore values", "info");
+    toast("All accounts already correct", "info");
     return;
   }
 
@@ -1188,12 +1190,14 @@ function toggleAccountActive(id, current) {
 }
 
 function deleteAccount(id, name) {
-  showModal({ title:"Delete Account", message:`Delete account "${name}"? This cannot be undone.`,
+  showModal({ title:"Delete Account", message:`Delete "${name}"? This cannot be undone.`,
     confirmText:"Delete", type:"danger", onConfirm: function() {
-  db.collection("chartOfAccounts").doc(id).delete().then(() => {
-    chartOfAccounts = chartOfAccounts.filter(a=>a._id!==id);
-    let list = document.getElementById("master-coa-list");
-    if (list) list.innerHTML = renderMasterCOARows();
+      db.collection("chartOfAccounts").doc(id).delete().then(() => {
+        chartOfAccounts = chartOfAccounts.filter(a=>a._id!==id);
+        let list = document.getElementById("master-coa-list");
+        if (list) list.innerHTML = renderMasterCOARows();
+      });
+    }
   });
 }
 
@@ -1221,7 +1225,7 @@ function updateAccount(id) {
   let sub    = document.getElementById("aa-subtype").value;
   let nb     = document.getElementById("aa-normal").value;
 
-  if (!number || !name) { toast("Account number and name are required", "warning"); return; }
+  if (!number || !name) { toast("Account number and name required", "warning"); return; }
 
   db.collection("chartOfAccounts").doc(id).update({ number, name, type, subType: sub, normalBalance: nb })
     .then(() => {
@@ -1296,7 +1300,7 @@ function saveNewAccount() {
 
 function exportCurrentStatement(tabId) {
   if (!window._finData) { toast("Please select a client and period first", "warning"); return; }
-  if (typeof XLSX === "undefined") { toast("Excel library not loaded — please refresh", "error"); return; }
+  if (typeof XLSX === "undefined") { toast("Excel library not loaded", "error"); return; }
 
   let { accounts, periodLabel, clientName } = window._finData;
   let wb   = XLSX.utils.book_new();
@@ -1332,10 +1336,9 @@ function exportCurrentStatement(tabId) {
 
 function publishCurrentStatement(tabId) {
   if (!window._finData) { toast("Please select a client and period first", "warning"); return; }
-  showModal({ title:"Publish Statements", message:"Publish all four financial statements to the client portal?",
-    confirmText:"Publish", type:"success", onConfirm: function() {
-
   let { accounts, periodLabel, clientId, periodId, clientName } = window._finData;
+  showModal({ title:"Publish Statements", message:"Publish financial statements to the client portal?",
+    confirmText:"Publish", type:"success", onConfirm: function() {
   let batch = db.batch();
 
   ["income","balance","cashflow","equity"].forEach(type => {
@@ -1350,11 +1353,13 @@ function publishCurrentStatement(tabId) {
   });
 
   batch.commit().then(() => {
-    toast("Statements published to client portal", "success");
+    toast("Statements published to portal", "success");
     db.collection("activity").add({
       clientId, type:"ready",
       text:"Financial statements published for " + periodLabel,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
   }).catch(e => toast(e.message, "error"));
+    } // end onConfirm
+  }); // end showModal
 }
