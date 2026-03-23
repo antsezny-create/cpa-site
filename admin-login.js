@@ -1,12 +1,14 @@
-// ── Route protection: redirect if already logged in ──
+// ── Route protection: redirect if already logged in (handles persistent login) ──
 auth.onAuthStateChanged(function(user) {
   if (!user) return;
   db.collection("admins").doc(user.uid).get().then(function(doc) {
     if (doc.exists) {
+      // Already authenticated admin — create/restore session and redirect
       let existingSession = sessionStorage.getItem("adminSessionId");
       if (!existingSession) {
+        // Create a fresh session for this browser session
         let sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
-        let sessionData = {
+        db.collection("adminSessions").doc(sessionId).set({
           sessionId:  sessionId,
           uid:        user.uid,
           email:      user.email,
@@ -15,10 +17,7 @@ auth.onAuthStateChanged(function(user) {
           duration:   null,
           userAgent:  navigator.userAgent,
           active:     true
-        };
-        db.collection("adminSessions").doc(sessionId).set(sessionData)
-          .then(() => console.log("Session logged:", sessionId))
-          .catch(e => console.error("Session log failed:", e.message));
+        }).catch(e => console.error("Session log failed:", e.message));
         db.collection("admins").doc(user.uid).set({
           activeSession: sessionId,
           lastSignIn:    firebase.firestore.FieldValue.serverTimestamp(),
