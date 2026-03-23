@@ -881,6 +881,9 @@ auth.onAuthStateChanged(user => {
     }
 
     // ── Session firewall ──
+    // Only block if BOTH sides have a session ID and they don't match.
+    // If localSessionId is missing it means we just logged in and sessionStorage
+    // hasn't been written yet — not a conflict, just a fresh sign-in.
     let localSessionId   = sessionStorage.getItem("adminSessionId");
     let firestoreSession = doc.data().activeSession;
 
@@ -890,6 +893,12 @@ auth.onAuthStateChanged(user => {
         window.location.href = "admin.html";
       });
       return;
+    }
+
+    // If Firestore has a session but we have none locally, adopt it
+    // (this happens on fresh login redirect)
+    if (firestoreSession && !localSessionId) {
+      sessionStorage.setItem("adminSessionId", firestoreSession);
     }
 
     let overlay = document.getElementById("auth-loading");
