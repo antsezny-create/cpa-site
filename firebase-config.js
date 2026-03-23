@@ -22,10 +22,8 @@ const db = firebase.firestore();
 const storage = firebase.storage();
 
 // ══════════════════════════════════════
-//  APP CHECK — blocks unauthorized API access
+//  APP CHECK — disabled (monitoring mode only, was blocking auth)
+//  Re-enable once reCAPTCHA site key is properly configured
 // ══════════════════════════════════════
-const appCheck = firebase.appCheck();
-appCheck.activate(
-  '6LeehI8sAAAAAAq-yH2lumGxyGsWsSg8dD8QZHDi',
-  true
-);
+// const appCheck = firebase.appCheck();
+// appCheck.activate('6LeehI8sAAAAAAq-yH2lumGxyGsWsSg8dD8QZHDi', true);
