@@ -582,15 +582,18 @@ function assignFormToClient() {
   let uid  = sel.value;
   if (!uid) { toast("Please select a client first", "warning"); return; }
   let name = sel.options[sel.selectedIndex].text;
-  if (!confirm("Assign " + currentFormName + " to " + name + "?")) return;
-  db.collection("assignedForms").add({
-    clientId:   uid,
-    formId:     currentFormId,
-    formName:   currentFormName,
-    formUrl:    currentFormUrl,
-    assignedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).then(() => toast(currentFormName + " assigned to " + name, "success"))
-    .catch(e => toast(e.message, "error"));
+  showModal({ title:"Assign Form", message:"Assign " + currentFormName + " to " + name + "?",
+    confirmText:"Assign", type:"success", onConfirm: function() {
+      db.collection("assignedForms").add({
+        clientId:   uid,
+        formId:     currentFormId,
+        formName:   currentFormName,
+        formUrl:    currentFormUrl,
+        assignedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(() => toast(currentFormName + " assigned to " + name, "success"))
+        .catch(e => toast(e.message, "error"));
+    }
+  });
 }
 
 
@@ -633,11 +636,14 @@ function loadSavedForms() {
 }
 
 function deleteSavedForm(docId, storagePath) {
-  if (!confirm("Delete this saved form?")) return;
-  db.collection("savedForms").doc(docId).delete().then(() => {
-    if (storagePath) storage.ref(storagePath).delete().catch(()=>{});
-    loadSavedForms();
-  }).catch(e => toast(e.message, "error"));
+  showModal({ title:"Delete Saved Form", message:"Delete this saved form permanently?",
+    confirmText:"Delete", type:"danger", onConfirm: function() {
+      db.collection("savedForms").doc(docId).delete().then(() => {
+        if (storagePath) storage.ref(storagePath).delete().catch(()=>{});
+        loadSavedForms();
+      }).catch(e => toast(e.message, "error"));
+    }
+  });
 }
 
 
@@ -732,12 +738,15 @@ function reviewDocument(docId, newStatus) {
   }).catch(e => toast(e.message, "error"));
 }
 function deleteDocumentAdmin(docId, fileURL) {
-  if (!confirm("Delete this document permanently?")) return;
-  db.collection("documents").doc(docId).delete().then(() => {
-    allDocuments = allDocuments.filter(x => x._id !== docId);
-    renderDocuments();
-    if (fileURL) { try { storage.refFromURL(fileURL).delete().catch(()=>{}); } catch(e){} }
-  }).catch(e => toast(e.message, "error"));
+  showModal({ title:"Delete Document", message:"Delete this document permanently? This cannot be undone.",
+    confirmText:"Delete", type:"danger", onConfirm: function() {
+      db.collection("documents").doc(docId).delete().then(() => {
+        allDocuments = allDocuments.filter(x => x._id !== docId);
+        renderDocuments();
+        if (fileURL) { try { storage.refFromURL(fileURL).delete().catch(()=>{}); } catch(e){} }
+      }).catch(e => toast(e.message, "error"));
+    }
+  });
 }
 
 
@@ -1109,9 +1118,12 @@ function sendDocRequest() {
 }
 
 function deleteDocRequest(docId) {
-  if (!confirm("Remove this request?")) return;
-  db.collection("documentRequests").doc(docId).delete().then(() => {
-    loadExistingRequests(docRequestClientId);
+  showModal({ title:"Remove Request", message:"Remove this document request?",
+    confirmText:"Remove", type:"danger", onConfirm: function() {
+      db.collection("documentRequests").doc(docId).delete().then(() => {
+        loadExistingRequests(docRequestClientId);
+      });
+    }
   });
 }
 
@@ -1238,9 +1250,12 @@ function updateReturnStatus(sel) {
 }
 
 function deleteClientReturn(rid) {
-  if (!confirm("Remove this return entry?")) return;
-  db.collection("clientReturns").doc(rid).delete().then(() => {
-    if (returnsSelectedClientId) loadClientReturns(returnsSelectedClientId);
+  showModal({ title:"Remove Return", message:"Remove this return entry?",
+    confirmText:"Remove", type:"danger", onConfirm: function() {
+      db.collection("clientReturns").doc(rid).delete().then(() => {
+        if (returnsSelectedClientId) loadClientReturns(returnsSelectedClientId);
+      });
+    }
   });
 }
 
@@ -1377,29 +1392,33 @@ function renderPendingApprovalBanner(snapshot) {
 }
 
 function approveClient(uid, name, email) {
-  if (!confirm("Approve " + name + "? They will get access to the portal immediately.")) return;
-  db.collection("clients").doc(uid).update({
-    approvalStatus: "approved",
-    status: "pending"
-  }).then(() => {
-    // Log welcome activity
-    db.collection("activity").add({
-      clientId:  uid,
-      type:      "account",
-      text:      "Account approved — welcome to AcctgPro!",
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    checkPendingApprovals();
-    loadAllClientsFromFirebase();
-  }).catch(e => toast(e.message, "error"));
+  showModal({ title:"Approve Client", message:"Approve " + name + "? They will get immediate portal access.",
+    confirmText:"Approve", type:"success", onConfirm: function() {
+      db.collection("clients").doc(uid).update({
+        approvalStatus: "approved",
+        status: "pending"
+      }).then(() => {
+        db.collection("activity").add({
+          clientId:  uid,
+          type:      "account",
+          text:      "Account approved — welcome to AcctgPro!",
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        checkPendingApprovals();
+        loadAllClientsFromFirebase();
+      }).catch(e => toast(e.message, "error"));
+    }
+  });
 }
 
 function denyClient(uid, name) {
-  if (!confirm("Deny and delete " + name + "'s account? This cannot be undone.")) return;
-  // Delete from Firestore first, then Auth deletion happens via Cloud Function
-  db.collection("clients").doc(uid).delete().then(() => {
-    checkPendingApprovals();
-  }).catch(e => toast(e.message, "error"));
+  showModal({ title:"Deny Client", message:"Deny and delete " + name + "'s account? This cannot be undone.",
+    confirmText:"Deny & Delete", type:"danger", onConfirm: function() {
+      db.collection("clients").doc(uid).delete().then(() => {
+        checkPendingApprovals();
+      }).catch(e => toast(e.message, "error"));
+    }
+  });
 }
 
 
