@@ -56,8 +56,7 @@ body {
 }
 
 .nav-inner {
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
   padding: 0 48px;
   height: 72px;
   display: flex;
