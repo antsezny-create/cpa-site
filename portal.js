@@ -434,44 +434,81 @@ function deleteDocument(docId, fileURL) {
 function handleUpload(input) {
   let files = input.files;
   for (let i = 0; i < files.length; i++) {
-    let file = files[i];
-    let size = file.size;
-    let sizeText = size < 1024 ? size + " B" : size < 1048576 ? Math.round(size/1024) + " KB" : (size/1048576).toFixed(1) + " MB";
-    let ref = storage.ref("documents/" + currentUser.uid + "/" + Date.now() + "_" + file.name);
-    ref.put(file).then(function(snap) {
-      return snap.ref.getDownloadURL();
-    }).then(function(url) {
-      return db.collection("documents").add({
-        clientId:   currentUser.uid,
-        fileName:   file.name,
-        fileSize:   sizeText,
-        fileURL:    url,
-        status:     "received",
-        uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    }).then(function() {
-      // Log activity
-      db.collection("activity").add({
-        clientId:  currentUser.uid,
-        type:      "upload",
-        text:      "You uploaded " + file.name,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+    (function(file) {
+      let size = file.size;
+      let sizeText = size < 1024 ? size + " B" : size < 1048576 ? Math.round(size/1024) + " KB" : (size/1048576).toFixed(1) + " MB";
 
-      // Mark any matching document request as fulfilled
-      db.collection("documentRequests")
-        .where("clientId", "==", currentUser.uid)
-        .where("fulfilled", "==", false)
-        .get().then(function(snapshot) {
-          snapshot.forEach(function(doc) {
-            let req = doc.data();
-            if (file.name.toLowerCase().includes(req.documentName.toLowerCase()) ||
-                req.documentName.toLowerCase().includes(file.name.toLowerCase().replace(/\.[^.]+$/, ""))) {
-              db.collection("documentRequests").doc(doc.id).update({ fulfilled: true });
-            }
+      // Show progress bar in upload zone
+      let zone = document.getElementById("upload-zone");
+      let progressId = "up-prog-" + Date.now();
+      let progressEl = document.createElement("div");
+      progressEl.id = progressId;
+      progressEl.style.cssText = "margin-top:12px;width:100%;";
+      progressEl.innerHTML = `
+        <div style="font-size:12px;color:var(--ink-muted);margin-bottom:6px;text-align:left;">Uploading ${file.name}...</div>
+        <div style="height:4px;background:var(--cream-border);border-radius:99px;overflow:hidden;">
+          <div id="${progressId}-bar" style="height:100%;width:0%;background:var(--green);border-radius:99px;transition:width 0.2s;"></div>
+        </div>`;
+      if (zone) zone.appendChild(progressEl);
+
+      let ref = storage.ref("documents/" + currentUser.uid + "/" + Date.now() + "_" + file.name);
+      let uploadTask = ref.put(file);
+
+      uploadTask.on("state_changed",
+        function(snap) {
+          let pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+          let bar = document.getElementById(progressId + "-bar");
+          if (bar) bar.style.width = pct + "%";
+        },
+        function(e) {
+          let el = document.getElementById(progressId);
+          if (el) el.remove();
+          // Show error in upload zone
+          let errEl = document.createElement("div");
+          errEl.style.cssText = "font-size:12px;color:#C0392B;margin-top:8px;text-align:center;";
+          errEl.textContent = "Upload failed: " + e.message;
+          if (zone) { zone.appendChild(errEl); setTimeout(() => errEl.remove(), 4000); }
+        },
+        function() {
+          uploadTask.snapshot.ref.getDownloadURL().then(function(url) {
+            return db.collection("documents").add({
+              clientId:   currentUser.uid,
+              fileName:   file.name,
+              fileSize:   sizeText,
+              fileURL:    url,
+              status:     "received",
+              uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          }).then(function() {
+            let el = document.getElementById(progressId);
+            if (el) el.remove();
+
+            db.collection("activity").add({
+              clientId:  currentUser.uid,
+              type:      "upload",
+              text:      "You uploaded " + file.name,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            db.collection("documentRequests")
+              .where("clientId", "==", currentUser.uid)
+              .where("fulfilled", "==", false)
+              .get().then(function(snapshot) {
+                snapshot.forEach(function(doc) {
+                  let req = doc.data();
+                  if (file.name.toLowerCase().includes(req.documentName.toLowerCase()) ||
+                      req.documentName.toLowerCase().includes(file.name.toLowerCase().replace(/\.[^.]+$/, ""))) {
+                    db.collection("documentRequests").doc(doc.id).update({ fulfilled: true });
+                  }
+                });
+              });
+          }).catch(function(e) {
+            let el = document.getElementById(progressId);
+            if (el) el.remove();
           });
-        });
-    }).catch(function(e) { alert("Upload failed: " + e.message); });
+        }
+      );
+    })(files[i]);
   }
   input.value = "";
 }
@@ -709,7 +746,41 @@ function renderPortalStatement(stmt, periodLabel, clientName) {
   }
 
   else if (stmt.statementType === "cashflow") {
-    html += `<div style="padding:16px;color:var(--text-dim);font-size:13px;text-align:center;">Cash flow statement available. Contact Anthony for details.</div>`;
+    let g = num => accounts.filter(a=>a.number===num).reduce((s,a)=>s+a.balance,0);
+    let depr  = g("640") + g("650");
+    let cfOps = ni + depr - g("110") - g("120") - g("130") + g("200") + g("210");
+    let cfInv = -(g("150") + g("170"));
+    let cfFin = g("220") + g("250") + g("300") + g("310") - g("330");
+    let net   = cfOps + cfInv + cfFin;
+    let beg   = g("100");
+    let end   = beg + net;
+
+    html += section("CASH FLOWS FROM OPERATING ACTIVITIES");
+    html += row("","Net Income",ni,24,false,false);
+    if (depr)    html += row("640/650","Depreciation & Amortization",depr,32,false,false);
+    if (g("110")) html += row("110","Change in Accounts Receivable",-g("110"),32,false,false);
+    if (g("120")) html += row("120","Change in Inventory",-g("120"),32,false,false);
+    if (g("200")) html += row("200","Change in Accounts Payable",g("200"),32,false,false);
+    if (g("210")) html += row("210","Change in Accrued Liabilities",g("210"),32,false,false);
+    html += row("","Net Cash from Operating Activities",cfOps,0,true,true);
+    html += divider();
+
+    html += section("CASH FLOWS FROM INVESTING ACTIVITIES");
+    if (g("150")) html += row("150","Purchase of PP&E",-g("150"),24,false,false);
+    if (g("170")) html += row("170","Purchase of Intangibles",-g("170"),24,false,false);
+    html += row("","Net Cash from Investing Activities",cfInv,0,true,true);
+    html += divider();
+
+    html += section("CASH FLOWS FROM FINANCING ACTIVITIES");
+    if (g("220")||g("250")) html += row("220/250","Proceeds from Notes Payable",g("220")+g("250"),24,false,false);
+    if (g("300")||g("310")) html += row("300/310","Proceeds from Equity Issuance",g("300")+g("310"),24,false,false);
+    if (g("330")) html += row("330","Dividends / Distributions Paid",-g("330"),24,false,false);
+    html += row("","Net Cash from Financing Activities",cfFin,0,true,true);
+    html += divider();
+
+    html += row("","Net Increase (Decrease) in Cash",net,0,true,true);
+    html += row("","Cash at Beginning of Period",beg,0,false,false);
+    html += `<div class="portal-stmt-net"><span>CASH AT END OF PERIOD</span><span>${fmt(end)}</span></div>`;
   }
 
   else if (stmt.statementType === "equity") {

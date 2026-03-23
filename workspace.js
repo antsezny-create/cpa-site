@@ -523,8 +523,13 @@ async function saveEngagementNotes() {
 // ══════════════════════════════════════
 
 function addCustomForm() {
-  let name = prompt("Enter form name (e.g. Form 8829 — Home Office):");
-  if (!name || !name.trim()) return;
+  showInputModal({
+    title: "Add Custom Form",
+    fields: [{ id:"name", label:"Form Name", placeholder:"e.g. Form 8829 — Home Office" }],
+    confirmText: "Add Form",
+    onConfirm: function(vals) {
+      let name = vals.name.trim();
+      if (!name) return;
   wsData.forms.push({
     id:       "custom_" + Date.now(),
     name:     name.trim(),
@@ -536,6 +541,8 @@ function addCustomForm() {
     completedAt: null,
   });
   saveWorkspace().then(() => renderWorkspace());
+    }
+  });
 }
 
 // ══════════════════════════════════════
@@ -548,7 +555,8 @@ async function setWSStatus(status) {
     review: "Send this return for review?",
     filed:  "Mark this return as filed?"
   };
-  if (!confirm(confirmMsg[status] || "Update status?")) return;
+  showModal({ title:"Update Status", message: confirmMsg[status] || "Update status?",
+    confirmText:"Confirm", type:"default", onConfirm: function() {
   wsData.status = status;
   await saveWorkspace();
   renderWorkspace();
@@ -559,7 +567,8 @@ async function setWSStatus(status) {
 // ══════════════════════════════════════
 
 async function signOffWorkspace() {
-  if (!confirm("Sign off and lock this return? This cannot be undone — the workspace will be frozen as a permanent record.")) return;
+  showModal({ title:"Sign Off & Lock", message:"Lock this return permanently? It will be frozen as a permanent record and cannot be edited.",
+    confirmText:"Sign Off & Lock", type:"success", onConfirm: function() {
 
   wsData.status   = "locked";
   wsData.lockedAt = firebase.firestore.FieldValue.serverTimestamp();
@@ -651,7 +660,8 @@ function exportWorkspacePDF() {
 }
 
 async function unlockWorkspace() {
-  if (!confirm("Unlock this workspace? It will return to In Progress and become editable again.")) return;
+  showModal({ title:"Unlock Workspace", message:"Unlock this workspace? It will return to In Progress and become editable again.",
+    confirmText:"Unlock", type:"warning", onConfirm: function() {
   wsData.status   = "in-progress";
   wsData.lockedAt = null;
   wsData.lockedBy = null;

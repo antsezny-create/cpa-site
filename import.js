@@ -465,10 +465,15 @@ function importSkipAll() {
 
 function importBulkAccount(side) {
   let label = side === "dr" ? "DEBIT (DR)" : "CREDIT (CR)";
-  let acct = prompt("Enter account number to set for ALL " + label + " entries (e.g. 100 for Cash):");
+  showInputModal({
+    title: "Bulk Set " + label.toUpperCase() + " Account",
+    fields: [{ id:"acct", label:"Account Number", placeholder:"e.g. 100 for Cash, 400 for Revenue" }],
+    confirmText: "Apply to All",
+    onConfirm: function(vals) {
+      let acct = vals.acct.trim();
   if (!acct) return;
   let match = chartOfAccounts.find(a => a.number === acct.trim());
-  if (!match) { alert("Account not found: " + acct.trim()); return; }
+  if (!match) { toast("Account not found: " + acct, "error"); return; }
   importPreviewJEs.forEach((r,i) => {
     if (r.skip) return;
     if (side === "dr") {
@@ -894,7 +899,8 @@ function renderManualStmtForm() {
 }
 
 function clearManualStmt() {
-  if (!confirm("Clear all entered values?")) return;
+  showModal({ title:"Clear All", message:"Clear all entered values?",
+    confirmText:"Clear", type:"danger", onConfirm: function() {
   manualStmtData = {};
   document.querySelectorAll(".ms-input").forEach(i => i.value = "");
   updateManualTotals();
@@ -1014,10 +1020,11 @@ function previewManualStmt() {
 
 async function publishManualStmt() {
   if (!manualStmtClient || !manualStmtPeriod) {
-    alert("Please select a client and period first.");
+    toast("Please select a client and period first", "warning");
     return;
   }
-  if (!confirm("Publish this manual statement to the client portal?")) return;
+  showModal({ title:"Publish Statement", message:"Publish this manual statement to the client portal?",
+    confirmText:"Publish", type:"success", onConfirm: function() {
 
   // Collect line items
   let lines = [];
@@ -1053,9 +1060,9 @@ async function publishManualStmt() {
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
 
-    alert("Published to client portal!");
+    toast("Published to client portal", "success");
   } catch(e) {
-    alert("Failed: " + e.message);
+    toast(e.message, "error");
   }
 }
 
@@ -1188,7 +1195,7 @@ function renderTrialBalance(accounts, periodLabel, clientName) {
 
 function exportTrialBalance() {
   if (!window._tbData) return;
-  if (typeof XLSX === "undefined") { alert("Excel library not loaded."); return; }
+  if (typeof XLSX === "undefined") { toast("Excel library not loaded — please refresh", "error"); return; }
   let { accounts, periodLabel, clientName } = window._tbData;
 
   let data = [
