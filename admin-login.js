@@ -69,8 +69,9 @@ function handleAdminLogin() {
     : firebase.auth.Auth.Persistence.SESSION;
 
   auth.setPersistence(persistence)
-  .then(function() {
-  return auth.signInWithEmailAndPassword(email, password)})
+    .then(function() {
+      return auth.signInWithEmailAndPassword(email, password);
+    })
     .then(function(userCredential) {
       let user = userCredential.user;
       return db.collection("admins").doc(user.uid).get()
