@@ -63,6 +63,20 @@
   </div>
 
   <div class="hero-right">
+    <div class="hero-counters">
+      <div class="hero-counter">
+        <div class="hero-counter-num" data-target="5"><span>5</span>+</div>
+        <div class="hero-counter-label">Return Types</div>
+      </div>
+      <div class="hero-counter">
+        <div class="hero-counter-num"><span>24</span>hr</div>
+        <div class="hero-counter-label">Response Time</div>
+      </div>
+      <div class="hero-counter">
+        <div class="hero-counter-num" data-target="100"><span>100</span>%</div>
+        <div class="hero-counter-label">Secure Portal</div>
+      </div>
+    </div>
     <div class="hero-stat-card">
       <div class="hero-stat-icon">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -290,5 +304,35 @@
 </footer>
 
 <script src="script.js"></script>
+<script>
+// Animate counters on page load
+(function() {
+  function animateCounter(el, target, suffix) {
+    let start = 0;
+    let duration = 1800;
+    let startTime = null;
+    function step(timestamp) {
+      if (!startTime) startTime = timestamp;
+      let progress = Math.min((timestamp - startTime) / duration, 1);
+      let eased = 1 - Math.pow(1 - progress, 3);
+      let current = Math.floor(eased * target);
+      el.textContent = current;
+      if (progress < 1) requestAnimationFrame(step);
+      else el.textContent = target;
+    }
+    requestAnimationFrame(step);
+  }
+
+  document.addEventListener("DOMContentLoaded", function() {
+    setTimeout(function() {
+      document.querySelectorAll(".hero-counter-num[data-target]").forEach(function(el) {
+        let target = parseInt(el.getAttribute("data-target"));
+        let span = el.querySelector("span");
+        if (span) animateCounter(span, target, "");
+      });
+    }, 400);
+  });
+})();
+</script>
 </body>
 </html>
