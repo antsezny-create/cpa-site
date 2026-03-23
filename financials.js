@@ -163,53 +163,57 @@ async function loadPeriodsForClient(clientId, periodSelectId) {
     bestMatch = sel.options[1]; // index 0 is the placeholder
   }
 
-  if (bestMatch) bestMatch.selected = true;
+  if (bestMatch) {
+    bestMatch.selected = true;
+    // Fire the change event so the tab loads automatically
+    setTimeout(function() {
+      sel.dispatchEvent(new Event("change"));
+    }, 50);
+  }
   sel.disabled = false;
 
-  // Add "＋ Add Period" option at the bottom
+  // Add "+ Add Period" option at the bottom
   let addOpt = document.createElement("option");
   addOpt.value = "__add__";
   addOpt.textContent = "+ Add Period";
   sel.appendChild(addOpt);
 
-  // Handle + Add Period selection
-  sel.onchange = function() {
-    if (sel.value === "__add__") {
-      sel.value = bestMatch ? bestMatch.value : "";
-      showInputModal({
-        title: "Add Period",
-        fields: [
-          { id:"year", label:"Tax Year", type:"number", placeholder:"e.g. 2023", value: new Date().getFullYear() - 3 },
-          { id:"type", label:"Period Type", placeholder:"annual" }
-        ],
-        confirmText: "Add",
-        onConfirm: async function(vals) {
-          let year = parseInt(vals.year);
-          let type = vals.type.trim() || "annual";
-          if (!year || isNaN(year)) { toast("Please enter a valid year", "warning"); return; }
-          let client     = clients.find(c => c.uid === clientId);
-          let clientName = client ? client.name : "";
-          let label      = "FY " + year;
-          if (type === "quarterly") label = "Q1 " + year;
-          if (type === "monthly")   label = "Jan " + year;
-          let ref = periodsRef.doc("fy" + year);
-          await ref.set({
-            periodLabel: label,
-            period:      label,
-            periodType:  type,
-            companyName: clientName,
-            taxYear:     year,
-            createdAt:   firebase.firestore.FieldValue.serverTimestamp()
-          });
-          toast("Period " + label + " added", "success");
-          // Reload the dropdown
-          await loadPeriodsForClient(clientId, periodSelectId);
-          // Re-fire the change event if there's a handler
-          sel.dispatchEvent(new Event("change"));
-        }
-      });
-    }
-  };
+  // Intercept + Add Period without overriding the existing onchange handler
+  // We use a capturing listener that resets the value before the original fires
+  sel.addEventListener("change", function handleAddPeriod(e) {
+    if (sel.value !== "__add__") return;
+    // Reset to previous valid value immediately
+    sel.value = bestMatch ? bestMatch.value : "";
+    showInputModal({
+      title: "Add Period",
+      fields: [
+        { id:"year", label:"Tax Year", type:"number", placeholder:"e.g. 2022", value: new Date().getFullYear() - 3 },
+        { id:"type", label:"Period Type", placeholder:"annual" }
+      ],
+      confirmText: "Add",
+      onConfirm: async function(vals) {
+        let year = parseInt(vals.year);
+        let type = vals.type.trim() || "annual";
+        if (!year || isNaN(year)) { toast("Please enter a valid year", "warning"); return; }
+        let client     = clients.find(c => c.uid === clientId);
+        let clientName = client ? client.name : "";
+        let label      = "FY " + year;
+        if (type === "quarterly") label = "Q1 " + year;
+        if (type === "monthly")   label = "Jan " + year;
+        let ref = periodsRef.doc("fy" + year);
+        await ref.set({
+          periodLabel: label,
+          period:      label,
+          periodType:  type,
+          companyName: clientName,
+          taxYear:     year,
+          createdAt:   firebase.firestore.FieldValue.serverTimestamp()
+        });
+        toast("Period " + label + " added", "success");
+        await loadPeriodsForClient(clientId, periodSelectId);
+      }
+    });
+  }, true); // capture phase so we intercept before original handler
 }
 
 async function computeBalances(clientId, periodId, dateFrom, dateTo) {
