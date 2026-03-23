@@ -63,20 +63,6 @@
   </div>
 
   <div class="hero-right">
-    <div class="hero-counters">
-      <div class="hero-counter">
-        <div class="hero-counter-num" data-target="5"><span>5</span>+</div>
-        <div class="hero-counter-label">Return Types</div>
-      </div>
-      <div class="hero-counter">
-        <div class="hero-counter-num"><span>24</span>hr</div>
-        <div class="hero-counter-label">Response Time</div>
-      </div>
-      <div class="hero-counter">
-        <div class="hero-counter-num" data-target="100"><span>100</span>%</div>
-        <div class="hero-counter-label">Secure Portal</div>
-      </div>
-    </div>
     <div class="hero-stat-card">
       <div class="hero-stat-icon">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -241,7 +227,13 @@
   <div class="about-left">
     <div class="section-label">About</div>
     <h2 class="section-title" style="margin-bottom:0;">Hi, I'm<br>Anthony.</h2>
-    <div class="about-monogram">AS</div>
+    <div class="about-photo-wrap">
+      <img src="anthony.jpg" alt="Anthony Sesny" class="about-photo">
+      <div class="about-photo-badge">
+        <span class="about-photo-badge-dot"></span>
+        Available for new clients
+      </div>
+    </div>
   </div>
   <div class="about-right">
     <p class="about-lead">"I built my practice around one thing: making your financial life easier — with the attention and care that larger firms simply can't offer."</p>
@@ -298,41 +290,13 @@
     </div>
     <div class="footer-right">
       <span class="footer-copy">&copy; 2026 Anthony Sesny. All rights reserved.</span>
+      <a href="terms.html" class="footer-admin">Terms</a>
+      <a href="privacy.html" class="footer-admin">Privacy</a>
       <a href="admin.html" class="footer-admin">Practitioner</a>
     </div>
   </div>
 </footer>
 
 <script src="script.js"></script>
-<script>
-// Animate counters on page load
-(function() {
-  function animateCounter(el, target, suffix) {
-    let start = 0;
-    let duration = 1800;
-    let startTime = null;
-    function step(timestamp) {
-      if (!startTime) startTime = timestamp;
-      let progress = Math.min((timestamp - startTime) / duration, 1);
-      let eased = 1 - Math.pow(1 - progress, 3);
-      let current = Math.floor(eased * target);
-      el.textContent = current;
-      if (progress < 1) requestAnimationFrame(step);
-      else el.textContent = target;
-    }
-    requestAnimationFrame(step);
-  }
-
-  document.addEventListener("DOMContentLoaded", function() {
-    setTimeout(function() {
-      document.querySelectorAll(".hero-counter-num[data-target]").forEach(function(el) {
-        let target = parseInt(el.getAttribute("data-target"));
-        let span = el.querySelector("span");
-        if (span) animateCounter(span, target, "");
-      });
-    }, 400);
-  });
-})();
-</script>
 </body>
 </html>
