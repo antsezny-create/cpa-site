@@ -46,9 +46,11 @@ const MASTER_COA = [
   { number:"800", name:"Income Tax Expense",           type:"tax",       subType:"tax",                 normalBalance:"debit",  isActive:true },
 ];
 
-let chartOfAccounts = [];
-let coaLoaded = false;
+let chartOfAccounts = [];   // current client's accounts (or master if no client loaded)
+let coaLoaded       = false; // for master accounts tab
+let coaClientCache  = {};    // { clientId: [accounts] } — per-client cache
 
+// ── Master COA (global template) ──
 async function initChartOfAccounts() {
   if (coaLoaded) return;
   let snap = await db.collection("chartOfAccounts").get();
@@ -65,6 +67,47 @@ async function initChartOfAccounts() {
   snap.forEach(doc => { let d = doc.data(); d._id = doc.id; chartOfAccounts.push(d); });
   chartOfAccounts.sort((a,b) => parseInt(a.number) - parseInt(b.number));
   coaLoaded = true;
+}
+
+// ── Per-client COA ──
+// Loads client's own chart of accounts.
+// If the client has no accounts yet, copies the master template into their subcollection.
+async function initClientChartOfAccounts(clientId) {
+  if (!clientId) return;
+
+  // Return cached version if already loaded
+  if (coaClientCache[clientId]) {
+    chartOfAccounts = coaClientCache[clientId];
+    return;
+  }
+
+  let clientCoaRef = db.collection("clients").doc(clientId).collection("chartOfAccounts");
+  let snap = await clientCoaRef.get();
+
+  if (snap.empty) {
+    // First time — copy master template into client's subcollection
+    await initChartOfAccounts(); // ensure master is loaded
+    let batch = db.batch();
+    chartOfAccounts.forEach(a => {
+      let ref = clientCoaRef.doc();
+      let { _id, ...data } = a;
+      batch.set(ref, { ...data, copiedFromMaster: true, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+    await batch.commit();
+    snap = await clientCoaRef.get();
+  }
+
+  let accounts = [];
+  snap.forEach(doc => { let d = doc.data(); d._id = doc.id; accounts.push(d); });
+  accounts.sort((a,b) => parseInt(a.number) - parseInt(b.number));
+
+  coaClientCache[clientId] = accounts;
+  chartOfAccounts = accounts;
+}
+
+// Helper to get the active client COA ref
+function clientCoaRef(clientId) {
+  return db.collection("clients").doc(clientId).collection("chartOfAccounts");
 }
 
 // ══════════════════════════════════════
@@ -223,15 +266,13 @@ async function computeBalances(clientId, periodId, dateFrom, dateTo) {
     .get();
 
   let balMap = {};
+  // Use current chartOfAccounts (already loaded per-client by caller)
   chartOfAccounts.forEach(a => {
     balMap[a._id] = { ...a, debit:0, credit:0, balance:0 };
   });
 
   snap.forEach(doc => {
     let e = doc.data();
-
-    // Exclude drafts from financial statement calculations
-    if (e.status === "draft") return;
 
     // Date range filter — only include entries within the period's date range
     if (e.entryDate && (dateFrom || dateTo)) {
@@ -407,7 +448,7 @@ async function onStmtPeriodChange(tabId) {
   let output = document.getElementById(tabId + "-stmt-output");
   if (output) output.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;">Computing from journal entries...</div>`;
 
-  await initChartOfAccounts();
+  await initClientChartOfAccounts(clientId);
 
   // Get date range for this period and filter entries accordingly
   let { from, to } = getPeriodDateRange(periodLabel, periodType);
@@ -697,11 +738,10 @@ function renderSSHE(accounts, periodLabel, companyName) {
 //  GENERAL LEDGER
 // ══════════════════════════════════════
 
-let glClientId    = "";
-let glPeriodId    = "";
-let glJeLines     = [];
-let glEditingId   = null;   // null = new entry, string = editing existing entry id
-let glCurrentView = "posted"; // "posted" or "drafts"
+let glClientId   = "";
+let glPeriodId   = "";
+let glJeLines    = [];
+let glEditingId  = null;   // null = new entry, string = editing existing entry id
 
 function loadGLTab() {
   initChartOfAccounts();
@@ -748,6 +788,8 @@ async function onGLClientChange() {
   let sel = document.getElementById("gl-client-sel");
   glClientId = sel.value;
   if (!glClientId) return;
+  // Load this client's chart of accounts
+  await initClientChartOfAccounts(glClientId);
   await loadPeriodsForClient(glClientId, "gl-period-sel");
 }
 
@@ -775,15 +817,10 @@ async function loadGLEntries() {
     .where("periodId", "==", glPeriodId)
     .get();
 
-  let allEntries = [];
-  snap.forEach(doc => { let d = doc.data(); d._id = doc.id; allEntries.push(d); });
+  let entries = [];
+  snap.forEach(doc => { let d = doc.data(); d._id = doc.id; entries.push(d); });
 
-  // Split posted vs drafts
-  let postedEntries = allEntries.filter(e => e.status === "posted" || (!e.status && e.isBalanced !== false));
-  let draftEntries  = allEntries.filter(e => e.status === "draft"  || (!e.status && e.isBalanced === false));
-
-  let entries = glCurrentView === "drafts" ? draftEntries : postedEntries;
-
+  // Date filter
   if (dateFrom || dateTo) {
     entries = entries.filter(e => {
       if (!e.entryDate) return true;
@@ -795,19 +832,14 @@ async function loadGLEntries() {
     });
   }
 
+  // Store for filtering
   window._glEntries = entries;
+
   entries.sort((a,b) => (a.entryDate&&b.entryDate) ? a.entryDate.seconds - b.entryDate.seconds : 0);
 
   let html = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap;">
-      <div class="gl-view-toggle">
-        <button class="gl-toggle-btn ${glCurrentView==="posted"?"active":""}" onclick="switchGLView('posted')">
-          Posted Entries <span class="gl-toggle-count">${postedEntries.length}</span>
-        </button>
-        <button class="gl-toggle-btn ${glCurrentView==="drafts"?"active":""}" onclick="switchGLView('drafts')">
-          Drafts <span class="gl-toggle-count">${draftEntries.length}</span>
-        </button>
-      </div>
+      <h3 style="font-size:15px;font-weight:700;">Journal Entries (${entries.length})</h3>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <select id="gl-acct-filter" class="assign-select" style="min-width:220px;" onchange="filterGLByAccount()">
           <option value="">— Filter by Account —</option>
@@ -827,32 +859,22 @@ async function loadGLEntries() {
       <div id="gl-entries-list">`;
 
   if (!entries.length) {
-    let msg = glCurrentView === "drafts"
-      ? "No drafts. Use Save as Draft to save an unfinished entry."
-      : 'No posted entries. Post a balanced entry to see it here.';
-    html += `<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:13px;">${msg}</div>`;
+    html += `<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:13px;">No entries found. Click "+ New Entry" to record the first journal entry.</div>`;
   } else {
     entries.forEach(e => {
-      let totalDr  = e.lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
-      let totalCr  = e.lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
+      let totalDr = e.lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
+      let totalCr = e.lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
       let balanced = Math.abs(totalDr-totalCr) < 0.01;
       let dateStr  = e.entryDate ? new Date(e.entryDate.seconds*1000).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—";
-      let statusPill = e.status === "draft"
-        ? `<span class="status-pill draft">Draft</span>`
-        : `<span class="status-pill filed">Posted</span>`;
-      let postBtn = e.status === "draft"
-        ? `<button class="ghost-btn" onclick="postDraftEntry('${e._id}')">Post</button>`
-        : "";
       html += `<div class="je-list-row">
         <span class="je-date">${dateStr}</span>
         <span class="je-desc">${e.description||"—"}${e.isAdjusting?` <span class="je-adj-tag">ADJ</span>`:""}</span>
         <span class="je-amount">$${fmtMoney(totalDr)}</span>
         <span class="je-amount">$${fmtMoney(totalCr)}</span>
-        ${statusPill}
+        <span class="status-pill ${balanced?"filed":"review"}">${balanced?"Balanced":"Unbalanced"}</span>
         <div style="display:flex;gap:6px;">
           <button class="ghost-btn" onclick="expandGLEntry('${e._id}',this)">View</button>
           <button class="ghost-btn" onclick="editGLEntry('${e._id}')">Edit</button>
-          ${postBtn}
           <button class="action-btn-delete" onclick="deleteGLEntry('${e._id}')">Delete</button>
         </div>
       </div>`;
@@ -861,11 +883,6 @@ async function loadGLEntries() {
 
   html += `</div></div>`;
   content.innerHTML = html;
-}
-
-function switchGLView(view) {
-  glCurrentView = view;
-  loadGLEntries();
 }
 
 function openGLNewEntry() {
@@ -1054,20 +1071,16 @@ function postGLEntry() {
     entryDate:   firebase.firestore.Timestamp.fromDate(new Date(date+"T12:00:00")),
     description: desc,
     isAdjusting: isAdj,
-    status:      "posted",
-    isBalanced:  true,
     lines: lines.map(l=>({
       accountId:l.accountId, accountNumber:l.accountNumber,
       accountName:l.accountName, debit:parseFloat(l.debit)||0, credit:parseFloat(l.credit)||0
     })),
-    postedBy:  "Anthony Sesny",
+    postedBy: "Anthony Sesny",
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(() => {
-    glCurrentView = "posted";
     cancelGLEntry();
     loadGLEntries();
-    toast("Entry posted", "success");
-  }).catch(e => toast(e.message, "error"));
+  }).catch(e => alert("Failed: " + e.message));
 }
 
 function expandGLEntry(id, btn) {
@@ -1149,129 +1162,20 @@ function updateGLEntry(id) {
     entryDate:   firebase.firestore.Timestamp.fromDate(new Date(date+"T12:00:00")),
     description: desc,
     isAdjusting: isAdj,
-    status:      "posted",
-    isBalanced:  true,
     lines: lines.map(l=>({
       accountId:l.accountId, accountNumber:l.accountNumber,
       accountName:l.accountName, debit:parseFloat(l.debit)||0, credit:parseFloat(l.credit)||0
     })),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(() => {
-    glCurrentView = "posted";
     cancelGLEntry();
     loadGLEntries();
-    toast("Entry updated", "success");
-  }).catch(e => toast(e.message, "error"));
+  }).catch(e => alert("Failed to update: " + e.message));
 }
 
 function deleteGLEntry(id) {
-  showModal({ title:"Delete Entry", message:"Delete this journal entry? This cannot be undone.",
-    confirmText:"Delete", type:"danger", onConfirm: function() {
-      db.collection("journalEntries").doc(id).delete().then(() => loadGLEntries());
-    }
-  });
-}
-
-// ── Save as Draft ──
-function saveAsDraft() {
-  let month = document.getElementById("gl-je-date-month")?.value;
-  let day   = document.getElementById("gl-je-date-day")?.value;
-  let year  = document.getElementById("gl-je-date-year")?.value;
-  let date  = (year && month && day) ? `${year}-${month}-${day}` : "";
-  let desc  = document.getElementById("gl-je-desc").value.trim();
-  let isAdj = document.getElementById("gl-is-adjusting").checked;
-  let lines = glJeLines.filter(l => l.accountId || (parseFloat(l.debit)||0)+(parseFloat(l.credit)||0)>0);
-
-  if (!desc) { toast("Please enter a description", "warning"); return; }
-  if (lines.length < 1) { toast("Add at least one account line", "warning"); return; }
-
-  let totalDr  = lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
-  let totalCr  = lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
-  let balanced = Math.abs(totalDr-totalCr) < 0.01 && totalDr > 0;
-
-  db.collection("journalEntries").add({
-    clientId:    glClientId,
-    periodId:    glPeriodId,
-    entryDate:   date ? firebase.firestore.Timestamp.fromDate(new Date(date+"T12:00:00")) : null,
-    description: desc,
-    isAdjusting: isAdj,
-    status:      "draft",
-    isBalanced:  balanced,
-    lines: lines.map(l=>({
-      accountId:     l.accountId||"",
-      accountNumber: l.accountNumber||"",
-      accountName:   l.accountName||"",
-      debit:         parseFloat(l.debit)||0,
-      credit:        parseFloat(l.credit)||0
-    })),
-    postedBy:  "Anthony Sesny",
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).then(() => {
-    glCurrentView = "drafts";
-    cancelGLEntry();
-    loadGLEntries();
-    toast("Saved as draft", "info");
-  }).catch(e => toast(e.message, "error"));
-}
-
-function saveDraftUpdate(id) {
-  let month = document.getElementById("gl-je-date-month")?.value;
-  let day   = document.getElementById("gl-je-date-day")?.value;
-  let year  = document.getElementById("gl-je-date-year")?.value;
-  let date  = (year && month && day) ? year+"-"+month+"-"+day : "";
-  let desc  = document.getElementById("gl-je-desc").value.trim();
-  let isAdj = document.getElementById("gl-is-adjusting").checked;
-  let lines = glJeLines.filter(l => l.accountId || (parseFloat(l.debit)||0)+(parseFloat(l.credit)||0)>0);
-
-  if (!desc) { toast("Please enter a description", "warning"); return; }
-
-  let totalDr  = lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
-  let totalCr  = lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
-  let balanced = Math.abs(totalDr-totalCr) < 0.01 && totalDr > 0;
-
-  db.collection("journalEntries").doc(id).update({
-    entryDate:   date ? firebase.firestore.Timestamp.fromDate(new Date(date+"T12:00:00")) : null,
-    description: desc,
-    isAdjusting: isAdj,
-    status:      "draft",
-    isBalanced:  balanced,
-    lines: lines.map(l=>({
-      accountId:l.accountId||"", accountNumber:l.accountNumber||"",
-      accountName:l.accountName||"", debit:parseFloat(l.debit)||0, credit:parseFloat(l.credit)||0
-    })),
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).then(() => {
-    glCurrentView = "drafts";
-    cancelGLEntry();
-    loadGLEntries();
-    toast("Draft saved", "info");
-  }).catch(e => toast(e.message, "error"));
-}
-
-function postDraftEntry(id) {
-  db.collection("journalEntries").doc(id).get().then(doc => {
-    if (!doc.exists) return;
-    let e = doc.data();
-    let totalDr = e.lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
-    let totalCr = e.lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
-    if (Math.abs(totalDr-totalCr) > 0.01) {
-      toast("Cannot post — entry is not balanced. Edit it first.", "warning");
-      return;
-    }
-    showModal({ title:"Post Entry", message:"Post this draft to the General Ledger? It will be included in financial statements.",
-      confirmText:"Post", type:"success", onConfirm: function() {
-        db.collection("journalEntries").doc(id).update({
-          status:     "posted",
-          isBalanced: true,
-          postedAt:   firebase.firestore.FieldValue.serverTimestamp()
-        }).then(() => {
-          glCurrentView = "posted";
-          loadGLEntries();
-          toast("Entry posted", "success");
-        }).catch(e => toast(e.message, "error"));
-      }
-    });
-  });
+  if (!confirm("Delete this journal entry? This cannot be undone.")) return;
+  db.collection("journalEntries").doc(id).delete().then(() => loadGLEntries());
 }
 
 function filterGLByAccount() {
@@ -1331,6 +1235,13 @@ function renderMasterAccounts() {
 
   el.innerHTML = `
     ${migrationBanner}
+    <div style="background:var(--accent-light);border:1px solid var(--accent);border-radius:10px;padding:14px 20px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <span style="font-size:13px;font-weight:600;color:var(--accent);">Master Template</span>
+        <span style="font-size:13px;color:var(--text-muted);margin-left:8px;">Changes here apply to new clients only — existing client charts are not affected.</span>
+      </div>
+      <button class="ghost-btn" onclick="openAddAccountModal()">+ Add Account</button>
+    </div>
     <div class="dash-card" style="padding:0;overflow:hidden;">
       <div class="coa-header">
         <span>Number</span>
@@ -1403,20 +1314,39 @@ function renderMasterCOARows() {
 }
 
 function toggleAccountActive(id, current) {
-  db.collection("chartOfAccounts").doc(id).update({ isActive: !current }).then(() => {
+  // If we have a GL client loaded, update that client's COA; otherwise update master
+  let ref = glClientId
+    ? db.collection("clients").doc(glClientId).collection("chartOfAccounts").doc(id)
+    : db.collection("chartOfAccounts").doc(id);
+  ref.update({ isActive: !current }).then(() => {
     let a = chartOfAccounts.find(x=>x._id===id);
-    if (a) a.isActive = !current;
+    if (a) {
+      a.isActive = !current;
+      if (glClientId && coaClientCache[glClientId]) {
+        let ca = coaClientCache[glClientId].find(x=>x._id===id);
+        if (ca) ca.isActive = !current;
+      }
+    }
     let list = document.getElementById("master-coa-list");
     if (list) list.innerHTML = renderMasterCOARows();
   });
 }
 
 function deleteAccount(id, name) {
-  if (!confirm(`Delete account "${name}"? This cannot be undone.`)) return;
-  db.collection("chartOfAccounts").doc(id).delete().then(() => {
-    chartOfAccounts = chartOfAccounts.filter(a=>a._id!==id);
-    let list = document.getElementById("master-coa-list");
-    if (list) list.innerHTML = renderMasterCOARows();
+  showModal({ title:"Delete Account", message:`Delete "${name}"? This cannot be undone.`,
+    confirmText:"Delete", type:"danger", onConfirm: function() {
+      let ref = glClientId
+        ? db.collection("clients").doc(glClientId).collection("chartOfAccounts").doc(id)
+        : db.collection("chartOfAccounts").doc(id);
+      ref.delete().then(() => {
+        chartOfAccounts = chartOfAccounts.filter(a=>a._id!==id);
+        if (glClientId && coaClientCache[glClientId]) {
+          coaClientCache[glClientId] = coaClientCache[glClientId].filter(a=>a._id!==id);
+        }
+        let list = document.getElementById("master-coa-list");
+        if (list) list.innerHTML = renderMasterCOARows();
+      });
+    }
   });
 }
 
@@ -1446,15 +1376,23 @@ function updateAccount(id) {
 
   if (!number || !name) { alert("Number and name are required."); return; }
 
-  db.collection("chartOfAccounts").doc(id).update({ number, name, type, subType: sub, normalBalance: nb })
+  let ref = glClientId
+    ? db.collection("clients").doc(glClientId).collection("chartOfAccounts").doc(id)
+    : db.collection("chartOfAccounts").doc(id);
+  ref.update({ number, name, type, subType: sub, normalBalance: nb })
     .then(() => {
       let a = chartOfAccounts.find(x=>x._id===id);
       if (a) { a.number=number; a.name=name; a.type=type; a.subType=sub; a.normalBalance=nb; }
       chartOfAccounts.sort((a,b)=>parseInt(a.number)-parseInt(b.number));
+      if (glClientId && coaClientCache[glClientId]) {
+        let ca = coaClientCache[glClientId].find(x=>x._id===id);
+        if (ca) { ca.number=number; ca.name=name; ca.type=type; ca.subType=sub; ca.normalBalance=nb; }
+        coaClientCache[glClientId].sort((a,b)=>parseInt(a.number)-parseInt(b.number));
+      }
       closeAddAccountModal();
       let list = document.getElementById("master-coa-list");
       if (list) list.innerHTML = renderMasterCOARows();
-    }).catch(e => alert("Failed: " + e.message));
+    }).catch(e => toast(e.message, "error"));
 }
 
 // ══════════════════════════════════════
@@ -1498,19 +1436,26 @@ function saveNewAccount() {
 
   if (!number) { alert("Please enter an account number."); return; }
   if (!name)   { alert("Please enter an account name."); return; }
-  if (chartOfAccounts.find(a=>a.number===number)) { alert("Account number " + number + " already exists."); return; }
+  if (chartOfAccounts.find(a=>a.number===number)) { toast("Account number " + number + " already exists in this chart", "warning"); return; }
 
-  db.collection("chartOfAccounts").add({
+  let colRef = glClientId
+    ? db.collection("clients").doc(glClientId).collection("chartOfAccounts")
+    : db.collection("chartOfAccounts");
+  colRef.add({
     number, name, type, subType:sub, normalBalance:nb,
     isActive:true, isCore:false, createdAt:firebase.firestore.FieldValue.serverTimestamp()
   }).then(ref => {
-    chartOfAccounts.push({ _id:ref.id, number, name, type, subType:sub, normalBalance:nb, isActive:true });
+    let newAcct = { _id:ref.id, number, name, type, subType:sub, normalBalance:nb, isActive:true };
+    chartOfAccounts.push(newAcct);
     chartOfAccounts.sort((a,b)=>parseInt(a.number)-parseInt(b.number));
+    if (glClientId && coaClientCache[glClientId]) {
+      coaClientCache[glClientId].push(newAcct);
+      coaClientCache[glClientId].sort((a,b)=>parseInt(a.number)-parseInt(b.number));
+    }
     closeAddAccountModal();
-    // Refresh master accounts list if visible
     let list = document.getElementById("master-coa-list");
     if (list) list.innerHTML = renderMasterCOARows();
-  }).catch(e => alert("Failed: " + e.message));
+  }).catch(e => toast(e.message, "error"));
 }
 
 // ══════════════════════════════════════
