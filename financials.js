@@ -230,6 +230,9 @@ async function computeBalances(clientId, periodId, dateFrom, dateTo) {
   snap.forEach(doc => {
     let e = doc.data();
 
+    // Exclude drafts from financial statement calculations
+    if (e.status === "draft") return;
+
     // Date range filter — only include entries within the period's date range
     if (e.entryDate && (dateFrom || dateTo)) {
       let entryDate = new Date(e.entryDate.seconds * 1000).toISOString().slice(0,10);
@@ -694,10 +697,11 @@ function renderSSHE(accounts, periodLabel, companyName) {
 //  GENERAL LEDGER
 // ══════════════════════════════════════
 
-let glClientId   = "";
-let glPeriodId   = "";
-let glJeLines    = [];
-let glEditingId  = null;   // null = new entry, string = editing existing entry id
+let glClientId    = "";
+let glPeriodId    = "";
+let glJeLines     = [];
+let glEditingId   = null;   // null = new entry, string = editing existing entry id
+let glCurrentView = "posted"; // "posted" or "drafts"
 
 function loadGLTab() {
   initChartOfAccounts();
@@ -771,10 +775,15 @@ async function loadGLEntries() {
     .where("periodId", "==", glPeriodId)
     .get();
 
-  let entries = [];
-  snap.forEach(doc => { let d = doc.data(); d._id = doc.id; entries.push(d); });
+  let allEntries = [];
+  snap.forEach(doc => { let d = doc.data(); d._id = doc.id; allEntries.push(d); });
 
-  // Date filter
+  // Split posted vs drafts
+  let postedEntries = allEntries.filter(e => e.status === "posted" || (!e.status && e.isBalanced !== false));
+  let draftEntries  = allEntries.filter(e => e.status === "draft"  || (!e.status && e.isBalanced === false));
+
+  let entries = glCurrentView === "drafts" ? draftEntries : postedEntries;
+
   if (dateFrom || dateTo) {
     entries = entries.filter(e => {
       if (!e.entryDate) return true;
@@ -786,14 +795,19 @@ async function loadGLEntries() {
     });
   }
 
-  // Store for filtering
   window._glEntries = entries;
-
   entries.sort((a,b) => (a.entryDate&&b.entryDate) ? a.entryDate.seconds - b.entryDate.seconds : 0);
 
   let html = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap;">
-      <h3 style="font-size:15px;font-weight:700;">Journal Entries (${entries.length})</h3>
+      <div class="gl-view-toggle">
+        <button class="gl-toggle-btn ${glCurrentView==="posted"?"active":""}" onclick="switchGLView('posted')">
+          Posted Entries <span class="gl-toggle-count">${postedEntries.length}</span>
+        </button>
+        <button class="gl-toggle-btn ${glCurrentView==="drafts"?"active":""}" onclick="switchGLView('drafts')">
+          Drafts <span class="gl-toggle-count">${draftEntries.length}</span>
+        </button>
+      </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <select id="gl-acct-filter" class="assign-select" style="min-width:220px;" onchange="filterGLByAccount()">
           <option value="">— Filter by Account —</option>
@@ -813,22 +827,32 @@ async function loadGLEntries() {
       <div id="gl-entries-list">`;
 
   if (!entries.length) {
-    html += `<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:13px;">No entries found. Click "+ New Entry" to record the first journal entry.</div>`;
+    let msg = glCurrentView === "drafts"
+      ? "No drafts. Use Save as Draft to save an unfinished entry."
+      : 'No posted entries. Post a balanced entry to see it here.';
+    html += `<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:13px;">${msg}</div>`;
   } else {
     entries.forEach(e => {
-      let totalDr = e.lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
-      let totalCr = e.lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
+      let totalDr  = e.lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
+      let totalCr  = e.lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
       let balanced = Math.abs(totalDr-totalCr) < 0.01;
       let dateStr  = e.entryDate ? new Date(e.entryDate.seconds*1000).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—";
+      let statusPill = e.status === "draft"
+        ? `<span class="status-pill draft">Draft</span>`
+        : `<span class="status-pill filed">Posted</span>`;
+      let postBtn = e.status === "draft"
+        ? `<button class="ghost-btn" onclick="postDraftEntry('${e._id}')">Post</button>`
+        : "";
       html += `<div class="je-list-row">
         <span class="je-date">${dateStr}</span>
         <span class="je-desc">${e.description||"—"}${e.isAdjusting?` <span class="je-adj-tag">ADJ</span>`:""}</span>
         <span class="je-amount">$${fmtMoney(totalDr)}</span>
         <span class="je-amount">$${fmtMoney(totalCr)}</span>
-        <span class="status-pill ${balanced?"filed":"review"}">${balanced?"Balanced":"Unbalanced"}</span>
+        ${statusPill}
         <div style="display:flex;gap:6px;">
           <button class="ghost-btn" onclick="expandGLEntry('${e._id}',this)">View</button>
           <button class="ghost-btn" onclick="editGLEntry('${e._id}')">Edit</button>
+          ${postBtn}
           <button class="action-btn-delete" onclick="deleteGLEntry('${e._id}')">Delete</button>
         </div>
       </div>`;
@@ -837,6 +861,11 @@ async function loadGLEntries() {
 
   html += `</div></div>`;
   content.innerHTML = html;
+}
+
+function switchGLView(view) {
+  glCurrentView = view;
+  loadGLEntries();
 }
 
 function openGLNewEntry() {
@@ -1025,16 +1054,20 @@ function postGLEntry() {
     entryDate:   firebase.firestore.Timestamp.fromDate(new Date(date+"T12:00:00")),
     description: desc,
     isAdjusting: isAdj,
+    status:      "posted",
+    isBalanced:  true,
     lines: lines.map(l=>({
       accountId:l.accountId, accountNumber:l.accountNumber,
       accountName:l.accountName, debit:parseFloat(l.debit)||0, credit:parseFloat(l.credit)||0
     })),
-    postedBy: "Anthony Sesny",
+    postedBy:  "Anthony Sesny",
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(() => {
+    glCurrentView = "posted";
     cancelGLEntry();
     loadGLEntries();
-  }).catch(e => alert("Failed: " + e.message));
+    toast("Entry posted", "success");
+  }).catch(e => toast(e.message, "error"));
 }
 
 function expandGLEntry(id, btn) {
@@ -1116,20 +1149,129 @@ function updateGLEntry(id) {
     entryDate:   firebase.firestore.Timestamp.fromDate(new Date(date+"T12:00:00")),
     description: desc,
     isAdjusting: isAdj,
+    status:      "posted",
+    isBalanced:  true,
     lines: lines.map(l=>({
       accountId:l.accountId, accountNumber:l.accountNumber,
       accountName:l.accountName, debit:parseFloat(l.debit)||0, credit:parseFloat(l.credit)||0
     })),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(() => {
+    glCurrentView = "posted";
     cancelGLEntry();
     loadGLEntries();
-  }).catch(e => alert("Failed to update: " + e.message));
+    toast("Entry updated", "success");
+  }).catch(e => toast(e.message, "error"));
 }
 
 function deleteGLEntry(id) {
-  if (!confirm("Delete this journal entry? This cannot be undone.")) return;
-  db.collection("journalEntries").doc(id).delete().then(() => loadGLEntries());
+  showModal({ title:"Delete Entry", message:"Delete this journal entry? This cannot be undone.",
+    confirmText:"Delete", type:"danger", onConfirm: function() {
+      db.collection("journalEntries").doc(id).delete().then(() => loadGLEntries());
+    }
+  });
+}
+
+// ── Save as Draft ──
+function saveAsDraft() {
+  let month = document.getElementById("gl-je-date-month")?.value;
+  let day   = document.getElementById("gl-je-date-day")?.value;
+  let year  = document.getElementById("gl-je-date-year")?.value;
+  let date  = (year && month && day) ? `${year}-${month}-${day}` : "";
+  let desc  = document.getElementById("gl-je-desc").value.trim();
+  let isAdj = document.getElementById("gl-is-adjusting").checked;
+  let lines = glJeLines.filter(l => l.accountId || (parseFloat(l.debit)||0)+(parseFloat(l.credit)||0)>0);
+
+  if (!desc) { toast("Please enter a description", "warning"); return; }
+  if (lines.length < 1) { toast("Add at least one account line", "warning"); return; }
+
+  let totalDr  = lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
+  let totalCr  = lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
+  let balanced = Math.abs(totalDr-totalCr) < 0.01 && totalDr > 0;
+
+  db.collection("journalEntries").add({
+    clientId:    glClientId,
+    periodId:    glPeriodId,
+    entryDate:   date ? firebase.firestore.Timestamp.fromDate(new Date(date+"T12:00:00")) : null,
+    description: desc,
+    isAdjusting: isAdj,
+    status:      "draft",
+    isBalanced:  balanced,
+    lines: lines.map(l=>({
+      accountId:     l.accountId||"",
+      accountNumber: l.accountNumber||"",
+      accountName:   l.accountName||"",
+      debit:         parseFloat(l.debit)||0,
+      credit:        parseFloat(l.credit)||0
+    })),
+    postedBy:  "Anthony Sesny",
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    glCurrentView = "drafts";
+    cancelGLEntry();
+    loadGLEntries();
+    toast("Saved as draft", "info");
+  }).catch(e => toast(e.message, "error"));
+}
+
+function saveDraftUpdate(id) {
+  let month = document.getElementById("gl-je-date-month")?.value;
+  let day   = document.getElementById("gl-je-date-day")?.value;
+  let year  = document.getElementById("gl-je-date-year")?.value;
+  let date  = (year && month && day) ? year+"-"+month+"-"+day : "";
+  let desc  = document.getElementById("gl-je-desc").value.trim();
+  let isAdj = document.getElementById("gl-is-adjusting").checked;
+  let lines = glJeLines.filter(l => l.accountId || (parseFloat(l.debit)||0)+(parseFloat(l.credit)||0)>0);
+
+  if (!desc) { toast("Please enter a description", "warning"); return; }
+
+  let totalDr  = lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
+  let totalCr  = lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
+  let balanced = Math.abs(totalDr-totalCr) < 0.01 && totalDr > 0;
+
+  db.collection("journalEntries").doc(id).update({
+    entryDate:   date ? firebase.firestore.Timestamp.fromDate(new Date(date+"T12:00:00")) : null,
+    description: desc,
+    isAdjusting: isAdj,
+    status:      "draft",
+    isBalanced:  balanced,
+    lines: lines.map(l=>({
+      accountId:l.accountId||"", accountNumber:l.accountNumber||"",
+      accountName:l.accountName||"", debit:parseFloat(l.debit)||0, credit:parseFloat(l.credit)||0
+    })),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    glCurrentView = "drafts";
+    cancelGLEntry();
+    loadGLEntries();
+    toast("Draft saved", "info");
+  }).catch(e => toast(e.message, "error"));
+}
+
+function postDraftEntry(id) {
+  db.collection("journalEntries").doc(id).get().then(doc => {
+    if (!doc.exists) return;
+    let e = doc.data();
+    let totalDr = e.lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
+    let totalCr = e.lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
+    if (Math.abs(totalDr-totalCr) > 0.01) {
+      toast("Cannot post — entry is not balanced. Edit it first.", "warning");
+      return;
+    }
+    showModal({ title:"Post Entry", message:"Post this draft to the General Ledger? It will be included in financial statements.",
+      confirmText:"Post", type:"success", onConfirm: function() {
+        db.collection("journalEntries").doc(id).update({
+          status:     "posted",
+          isBalanced: true,
+          postedAt:   firebase.firestore.FieldValue.serverTimestamp()
+        }).then(() => {
+          glCurrentView = "posted";
+          loadGLEntries();
+          toast("Entry posted", "success");
+        }).catch(e => toast(e.message, "error"));
+      }
+    });
+  });
 }
 
 function filterGLByAccount() {

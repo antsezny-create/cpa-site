@@ -390,6 +390,57 @@ body {
 .status-pill.progress { background: var(--cyan-light); color: var(--cyan); }
 .status-pill.review { background: var(--purple-light); color: var(--purple); }
 .status-pill.filed { background: var(--green-light); color: var(--green); }
+.status-pill.draft { background: rgba(91,141,239,0.12); color: var(--accent); }
+.status-pill.posted { background: var(--green-light); color: var(--green); }
+
+/* GL view toggle */
+.gl-view-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.gl-toggle-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gl-toggle-btn:hover { color: var(--text); }
+
+.gl-toggle-btn.active {
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+.gl-toggle-count {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--mono);
+  background: var(--bg-hover);
+  color: var(--text-dim);
+  padding: 1px 6px;
+  border-radius: 99px;
+}
+
+.gl-toggle-btn.active .gl-toggle-count {
+  background: var(--accent-light);
+  color: var(--accent);
+}
 
 /* ── Quick Forms ── */
 .quick-forms {
