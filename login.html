@@ -63,6 +63,15 @@
           </label>
           <a href="#" class="forgot-link" onclick="forgotPassword()">Forgot password?</a>
         </div>
+        <div id="login-error" style="display:none;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#EF4444;font-size:13px;font-weight:500;padding:10px 14px;border-radius:8px;margin-bottom:12px;"></div>
+        <div id="forgot-form" style="display:none;background:rgba(0,166,81,0.06);border:1px solid rgba(0,166,81,0.2);border-radius:8px;padding:14px;margin-bottom:12px;">
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">Enter your email to receive a reset link:</p>
+          <div style="display:flex;gap:8px;">
+            <input type="email" id="forgot-email" placeholder="you@example.com" style="flex:1;padding:9px 12px;border-radius:7px;border:1px solid var(--border);background:var(--bg-input,#fff);font-size:13px;font-family:inherit;outline:none;">
+            <button onclick="submitForgotPassword()" style="padding:9px 16px;background:var(--green);color:white;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;">Send</button>
+          </div>
+          <div id="forgot-msg" style="display:none;font-size:12px;margin-top:8px;color:var(--green);">Reset link sent! Check your inbox.</div>
+        </div>
         <button class="btn-login" onclick="handleLogin()">Sign In</button>
         <p class="login-help">Don't have an account? <a href="register.html" style="color:var(--green);text-decoration:none;font-weight:500;">Create one</a></p>
         <p class="login-help" style="margin-top:6px;">Having trouble? Email <strong>sesnyanthony@gmail.com</strong></p>
