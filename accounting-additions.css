@@ -513,3 +513,121 @@ select option {
 .tb-acct-name { font-weight: 500; }
 .tb-acct-type { font-size: 12px; color: var(--text-muted); text-transform: capitalize; }
 .tb-amount    { text-align: right; font-family: var(--mono, monospace); font-size: 13px; }
+
+/* ══════════════════════════════════════
+   YEAR-OVER-YEAR COMPARISON
+══════════════════════════════════════ */
+
+/* Wider wrapper for comparison mode */
+.stmt-wrapper-wide {
+  max-width: 1060px;
+}
+
+/* 5-column row: acct# | name | prior | current | Δ% */
+.stmt-row-yoy {
+  grid-template-columns: 44px 1fr 130px 130px 68px;
+}
+
+/* Column header row — labels above the amount columns */
+.stmt-yoy-col-header {
+  display: grid;
+  grid-template-columns: 44px 1fr 130px 130px 68px;
+  padding: 4px 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.stmt-yoy-col-header span:nth-child(3),
+.stmt-yoy-col-header span:nth-child(4),
+.stmt-yoy-col-header span:nth-child(5) {
+  text-align: right;
+}
+
+/* Prior year amount — muted, slightly smaller */
+.stmt-yoy-prior {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Change % column */
+.stmt-yoy-chg {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+.stmt-yoy-pos { color: var(--green); }
+.stmt-yoy-neg { color: var(--red, #ef4444); }
+
+/* Net income row in YoY mode */
+.stmt-net-income-yoy {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.stmt-net-yoy-amounts {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+.stmt-yoy-prior-ni {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  min-width: 130px;
+  text-align: right;
+}
+
+/* Equity table YoY rows — 4-column flex */
+.equity-row-yoy {
+  display: grid;
+  grid-template-columns: 1fr 120px 120px 68px;
+  align-items: center;
+  padding: 5px 0 5px 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.equity-row-yoy span:not(:first-child) {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--text);
+}
+.equity-header-yoy {
+  display: grid;
+  grid-template-columns: 1fr 120px 120px 68px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.equity-header-yoy span:not(:first-child) { text-align: right; }
+.equity-total-yoy {
+  display: grid;
+  grid-template-columns: 1fr 120px 120px 68px;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+  padding: 12px 0 8px;
+  border-top: 3px double var(--border-light);
+  margin-top: 12px;
+}
+.equity-total-yoy span:not(:first-child) {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+}

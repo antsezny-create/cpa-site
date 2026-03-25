@@ -320,17 +320,40 @@ function getPeriodDateRange(periodLabel, periodType) {
 //  STATEMENT RENDERING HELPERS
 // ══════════════════════════════════════
 
-function stmtRow(number, name, amount, indent, bold, total, editable, id) {
+function stmtRow(number, name, amount, indent, bold, total, editable, id, priorAmt) {
+  let yoy        = priorAmt !== undefined && priorAmt !== null;
+  let cls        = `stmt-row ${bold?"stmt-bold":""} ${total?"stmt-total":""} ${yoy?"stmt-row-yoy":""}`;
   let amtDisplay = amount !== null ? "$" + fmtMoney(amount) : "";
-  if (editable) {
-    return `<div class="stmt-row ${bold?"stmt-bold":""} ${total?"stmt-total":""}" style="padding-left:${indent}px">
+
+  if (editable && !yoy) {
+    return `<div class="${cls}" style="padding-left:${indent}px">
       <span class="stmt-acct-num">${number||""}</span>
       <span class="stmt-acct-name">${name}</span>
       <input class="stmt-edit-input" type="number" value="${amount||0}" step="0.01"
         data-id="${id||""}" onchange="onStmtEdit(this)">
     </div>`;
   }
-  return `<div class="stmt-row ${bold?"stmt-bold":""} ${total?"stmt-total":""}" style="padding-left:${indent}px">
+
+  if (yoy) {
+    let priorDisplay = "$" + fmtMoney(priorAmt);
+    let chg = "", chgCls = "stmt-yoy-chg";
+    if (priorAmt !== 0) {
+      let pct = (amount - priorAmt) / Math.abs(priorAmt) * 100;
+      chg    = (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%";
+      chgCls += pct >= 0 ? " stmt-yoy-pos" : " stmt-yoy-neg";
+    } else if (amount !== 0) {
+      chg = "New"; chgCls += " stmt-yoy-pos";
+    }
+    return `<div class="${cls}" style="padding-left:${indent}px">
+      <span class="stmt-acct-num">${number||""}</span>
+      <span class="stmt-acct-name">${name}</span>
+      <span class="stmt-acct-amt stmt-yoy-prior">${priorDisplay}</span>
+      <span class="stmt-acct-amt">${amtDisplay}</span>
+      <span class="${chgCls}">${chg}</span>
+    </div>`;
+  }
+
+  return `<div class="${cls}" style="padding-left:${indent}px">
     <span class="stmt-acct-num">${number||""}</span>
     <span class="stmt-acct-name">${name}</span>
     <span class="stmt-acct-amt">${amtDisplay}</span>
@@ -387,9 +410,15 @@ function buildStatementHeader(tabId, containerId, stmtTitle, periodHint, onLoadF
         </select>
       </div>
       <div class="acct-selector-group">
-        <label>Period</label>
+        <label>Current Period</label>
         <select id="${tabId}-period" class="assign-select" disabled onchange="onStmtPeriodChange('${tabId}')">
           <option value="">— Select Period —</option>
+        </select>
+      </div>
+      <div class="acct-selector-group">
+        <label>Compare to (optional)</label>
+        <select id="${tabId}-compare" class="assign-select" disabled onchange="onStmtComparePeriodChange('${tabId}')">
+          <option value="">— No Comparison —</option>
         </select>
       </div>
       <div class="acct-selector-group" style="align-self:flex-end;">
@@ -403,13 +432,34 @@ function buildStatementHeader(tabId, containerId, stmtTitle, periodHint, onLoadF
 }
 
 async function onStmtClientChange(tabId) {
-  let clientSel = document.getElementById(tabId + "-client");
-  let periodSel = document.getElementById(tabId + "-period");
+  let clientSel  = document.getElementById(tabId + "-client");
+  let periodSel  = document.getElementById(tabId + "-period");
+  let compareSel = document.getElementById(tabId + "-compare");
   if (!clientSel || !periodSel) return;
   let clientId = clientSel.value;
-  if (!clientId) { periodSel.disabled = true; periodSel.innerHTML = `<option value="">— Select Period —</option>`; return; }
+  if (!clientId) {
+    periodSel.disabled  = true;
+    periodSel.innerHTML = `<option value="">— Select Period —</option>`;
+    if (compareSel) { compareSel.disabled = true; compareSel.innerHTML = `<option value="">— No Comparison —</option>`; }
+    return;
+  }
   await loadPeriodsForClient(clientId, tabId + "-period");
   periodSel.disabled = false;
+  // Mirror periods into compare dropdown (exclude the "+ Add Period" entry)
+  if (compareSel) {
+    compareSel.innerHTML = `<option value="">— No Comparison —</option>`;
+    Array.from(periodSel.options).forEach(opt => {
+      if (opt.value && opt.value !== "__add__") {
+        let o = document.createElement("option");
+        o.value = opt.value;
+        o.textContent = opt.textContent;
+        o.dataset.companyName = opt.dataset.companyName || "";
+        o.dataset.periodType  = opt.dataset.periodType  || "annual";
+        compareSel.appendChild(o);
+      }
+    });
+    compareSel.disabled = false;
+  }
 }
 
 async function onStmtPeriodChange(tabId) {
@@ -428,6 +478,10 @@ async function onStmtPeriodChange(tabId) {
   stmtEditMode  = false;
   window._currentTabId = tabId;
 
+  // Reset comparison when current period changes
+  let compareSel = document.getElementById(tabId + "-compare");
+  if (compareSel) compareSel.value = "";
+
   let output = document.getElementById(tabId + "-stmt-output");
   if (output) output.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;">Computing from journal entries...</div>`;
 
@@ -437,7 +491,7 @@ async function onStmtPeriodChange(tabId) {
   let { from, to } = getPeriodDateRange(periodLabel, periodType);
   let accounts = await computeBalances(clientId, periodId, from, to);
 
-  window._finData = { accounts, periodLabel, clientName: companyName, clientId, periodId, tabId };
+  window._finData = { accounts, periodLabel, clientName: companyName, clientId, periodId, tabId, priorAccounts: null, priorPeriodLabel: null };
 
   // Show action buttons
   ["export-btn","publish-btn"].forEach(id => {
@@ -449,10 +503,37 @@ async function onStmtPeriodChange(tabId) {
 }
 
 function renderCurrentStatement(tabId, accounts, periodLabel, companyName) {
-  if (tabId === "is")   renderIS(accounts, periodLabel, companyName);
-  if (tabId === "bs")   renderBS(accounts, periodLabel, companyName);
-  if (tabId === "scf")  renderSCF(accounts, periodLabel, companyName);
-  if (tabId === "sshe") renderSSHE(accounts, periodLabel, companyName);
+  let prior      = window._finData?.priorAccounts    || null;
+  let priorLabel = window._finData?.priorPeriodLabel || null;
+  if (tabId === "is")   renderIS(accounts, periodLabel, companyName, prior, priorLabel);
+  if (tabId === "bs")   renderBS(accounts, periodLabel, companyName, prior, priorLabel);
+  if (tabId === "scf")  renderSCF(accounts, periodLabel, companyName, prior, priorLabel);
+  if (tabId === "sshe") renderSSHE(accounts, periodLabel, companyName, prior, priorLabel);
+}
+
+async function onStmtComparePeriodChange(tabId) {
+  let clientSel  = document.getElementById(tabId + "-client");
+  let compareSel = document.getElementById(tabId + "-compare");
+  if (!clientSel || !compareSel || !window._finData) return;
+
+  let clientId      = clientSel.value;
+  let comparePeriod = compareSel.value;
+
+  if (!comparePeriod) {
+    window._finData.priorAccounts    = null;
+    window._finData.priorPeriodLabel = null;
+  } else {
+    let priorLabel = compareSel.options[compareSel.selectedIndex]?.textContent || "";
+    let priorType  = compareSel.options[compareSel.selectedIndex]?.dataset.periodType || "annual";
+    let output = document.getElementById(tabId + "-stmt-output");
+    if (output) output.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;">Loading comparison data...</div>`;
+    let { from, to } = getPeriodDateRange(priorLabel, priorType);
+    let priorAccounts = await computeBalances(clientId, comparePeriod, from, to);
+    window._finData.priorAccounts    = priorAccounts;
+    window._finData.priorPeriodLabel = priorLabel;
+  }
+  let { accounts, periodLabel, clientName } = window._finData;
+  renderCurrentStatement(tabId, accounts, periodLabel, clientName);
 }
 
 // ══════════════════════════════════════
@@ -467,9 +548,22 @@ function loadStatementTab(tabId) {
   buildStatementHeader(tabId, containerId, titles[tabId] || tabId, "", null);
 }
 
-function renderIS(accounts, periodLabel, companyName) {
+function renderIS(accounts, periodLabel, companyName, priorAccs, priorLabel) {
   let el = document.getElementById("is-stmt-output");
   if (!el) return;
+  let yoy = !!priorAccs;
+
+  // Helper: find prior year balance for a given account (matched by account number)
+  function pb(acct) {
+    if (!priorAccs) return undefined;
+    let m = priorAccs.find(a => a.number === acct.number);
+    return m ? m.balance : 0;
+  }
+  function pbSum(type, subType) {
+    if (!priorAccs) return 0;
+    return priorAccs.filter(a => a.type === type && (!subType || a.subType === subType))
+                    .reduce((s,a) => s + a.balance, 0);
+  }
 
   let revenue  = accounts.filter(a => a.type==="revenue");
   let cogs     = accounts.filter(a => a.type==="cogs");
@@ -492,69 +586,107 @@ function renderIS(accounts, periodLabel, companyName) {
   let netMarginPct    = totalRevenue > 0 ? (netIncome / totalRevenue * 100).toFixed(1) : "0.0";
   window._netIncome   = netIncome;
 
-  let netIncomeColor  = netIncome >= 0 ? "var(--green)" : "var(--red)";
+  // Prior year totals (only computed when yoy mode is on)
+  let pRevenue     = pbSum("revenue");
+  let pCOGS        = pbSum("cogs");
+  let pGrossProfit = pRevenue - pCOGS;
+  let pOpEx        = pbSum("expense","operating_expense");
+  let pIncOps      = pGrossProfit - pOpEx;
+  let pOtherExp    = pbSum("expense","other_expense");
+  let pIncBefTax   = pIncOps - pOtherExp;
+  let pTax         = pbSum("tax");
+  let pNetIncome   = pIncBefTax - pTax;
+  let pDeprAmort   = yoy ? (priorAccs.filter(a=>a.number==="640"||a.number==="650").reduce((s,a)=>s+a.balance,0)) : 0;
+  let pEbitda      = pIncOps + pDeprAmort;
 
-  let html = `<div class="stmt-wrapper">
+  let netIncomeColor = netIncome >= 0 ? "var(--green)" : "var(--red)";
+
+  let periodTitle = yoy
+    ? `${priorLabel} vs. ${periodLabel}`
+    : `For the Year Ended ${periodLabel}`;
+
+  let html = `<div class="stmt-wrapper${yoy?" stmt-wrapper-wide":""}">
     <div class="stmt-header">
       <div class="stmt-firm-name">SESNY ADVISORY</div>
       <div class="stmt-company">${companyName}</div>
       <div class="stmt-title">Income Statement</div>
-      <div class="stmt-period">For the Year Ended ${periodLabel}</div>
+      <div class="stmt-period">${periodTitle}</div>
       <div class="stmt-units">All amounts in U.S. Dollars · Prepared by Sesny Advisory</div>
     </div>
     <button class="ghost-btn stmt-print-btn" onclick="printCurrentStatement('is')">Print / Export PDF ↗</button>`;
 
+  if (yoy) {
+    html += `<div class="stmt-yoy-col-header">
+      <span></span><span></span>
+      <span>${priorLabel}</span>
+      <span>${periodLabel}</span>
+      <span>Δ%</span>
+    </div>`;
+  }
+
   if (revenue.length) {
     html += stmtSection("REVENUE");
-    revenue.forEach(a  => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
-    html += stmtRow("","Total Revenue",totalRevenue,0,true,true,false,"");
+    revenue.forEach(a => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id, yoy?pb(a):undefined); });
+    html += stmtRow("","Total Revenue",totalRevenue,0,true,true,false,"", yoy?pRevenue:undefined);
     html += stmtDivider();
   }
   if (cogs.length) {
     html += stmtSection("COST OF GOODS SOLD");
-    cogs.forEach(a => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
-    html += stmtRow("","Total Cost of Goods Sold",totalCOGS,0,true,true,false,"");
-    html += `<div class="stmt-row stmt-bold stmt-gross-profit">
-      <span class="stmt-acct-num"></span>
-      <span class="stmt-acct-name">Gross Profit</span>
-      <span class="stmt-acct-amt stmt-gp-pct">${grossMarginPct}% margin</span>
-      <span class="stmt-acct-amt">$${fmtMoney(grossProfit)}</span>
-    </div>`;
+    cogs.forEach(a => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id, yoy?pb(a):undefined); });
+    html += stmtRow("","Total Cost of Goods Sold",totalCOGS,0,true,true,false,"", yoy?pCOGS:undefined);
+    html += stmtRow("","Gross Profit",grossProfit,0,true,true,false,"", yoy?pGrossProfit:undefined);
     html += stmtDivider();
   }
   if (opex.length) {
     html += stmtSection("OPERATING EXPENSES");
-    opex.forEach(a => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
-    html += stmtRow("","Total Operating Expenses",totalOpEx,0,true,true,false,"");
-    html += stmtRow("","Operating Income (EBIT)",incomeFromOps,0,true,true,false,"");
-    if (deprAmort > 0) {
-      html += `<div class="stmt-row stmt-ebitda-row">
+    opex.forEach(a => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id, yoy?pb(a):undefined); });
+    html += stmtRow("","Total Operating Expenses",totalOpEx,0,true,true,false,"", yoy?pOpEx:undefined);
+    html += stmtRow("","Operating Income (EBIT)",incomeFromOps,0,true,true,false,"", yoy?pIncOps:undefined);
+    if (deprAmort > 0 || pEbitda > 0) {
+      html += `<div class="stmt-row stmt-ebitda-row${yoy?" stmt-row-yoy":""}">
         <span class="stmt-acct-num"></span>
-        <span class="stmt-acct-name">EBITDA <span class="stmt-ebitda-hint">(EBIT + Depreciation & Amortization)</span></span>
+        <span class="stmt-acct-name">EBITDA <span class="stmt-ebitda-hint">(EBIT + D&amp;A)</span></span>
+        ${yoy?`<span class="stmt-acct-amt stmt-yoy-prior">$${fmtMoney(pEbitda)}</span>`:""}
         <span class="stmt-acct-amt">$${fmtMoney(ebitda)}</span>
+        ${yoy?`<span class="stmt-yoy-chg"></span>`:""}
       </div>`;
     }
     html += stmtDivider();
   }
   if (otherExp.length) {
     html += stmtSection("OTHER INCOME / (EXPENSE)");
-    otherExp.forEach(a => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
-    html += stmtRow("","Net Other Income / (Expense)",totalOtherExp > 0 ? -totalOtherExp : totalOtherExp,0,true,true,false,"");
-    html += stmtRow("","Income Before Tax",incomeBeforeTax,0,true,true,false,"");
+    otherExp.forEach(a => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id, yoy?pb(a):undefined); });
+    html += stmtRow("","Income Before Tax",incomeBeforeTax,0,true,true,false,"", yoy?pIncBefTax:undefined);
     html += stmtDivider();
   }
   if (tax.length) {
     html += stmtSection("INCOME TAX EXPENSE");
-    tax.forEach(a => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
+    tax.forEach(a => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id, yoy?pb(a):undefined); });
     html += stmtDivider();
   }
-  html += `<div class="stmt-net-income" style="color:${netIncomeColor};">
-    <span>NET INCOME</span>
-    <div style="text-align:right;">
-      <div>$${fmtMoney(netIncome)}</div>
-      <div class="stmt-net-margin-pct">${netMarginPct}% net margin</div>
-    </div>
-  </div></div>`;
+
+  if (yoy) {
+    let delta      = netIncome - pNetIncome;
+    let pct        = pNetIncome !== 0 ? ((delta / Math.abs(pNetIncome)) * 100).toFixed(1) : "N/A";
+    let deltaColor = delta >= 0 ? "var(--green)" : "var(--red)";
+    html += `<div class="stmt-net-income stmt-net-income-yoy" style="color:${netIncomeColor};">
+      <span>NET INCOME</span>
+      <div class="stmt-net-yoy-amounts">
+        <span class="stmt-yoy-prior-ni">$${fmtMoney(pNetIncome)}</span>
+        <span>$${fmtMoney(netIncome)}</span>
+        <span style="font-size:12px;color:${deltaColor};min-width:60px;text-align:right;">${delta>=0?"+":""}${pct}%</span>
+      </div>
+    </div>`;
+  } else {
+    html += `<div class="stmt-net-income" style="color:${netIncomeColor};">
+      <span>NET INCOME</span>
+      <div style="text-align:right;">
+        <div>$${fmtMoney(netIncome)}</div>
+        <div class="stmt-net-margin-pct">${netMarginPct}% net margin</div>
+      </div>
+    </div>`;
+  }
+  html += `</div>`;
   el.innerHTML = html;
 }
 
@@ -562,9 +694,21 @@ function renderIS(accounts, periodLabel, companyName) {
 //  BALANCE SHEET
 // ══════════════════════════════════════
 
-function renderBS(accounts, periodLabel, companyName) {
+function renderBS(accounts, periodLabel, companyName, priorAccs, priorLabel) {
   let el = document.getElementById("bs-stmt-output");
   if (!el) return;
+  let yoy = !!priorAccs;
+
+  function pb(acct) {
+    if (!priorAccs) return undefined;
+    let m = priorAccs.find(a => a.number === acct.number);
+    return m ? m.balance : 0;
+  }
+  function pbSum(type, subType) {
+    if (!priorAccs) return 0;
+    return priorAccs.filter(a => a.type===type && (!subType||a.subType===subType))
+                    .reduce((s,a) => s+a.balance, 0);
+  }
 
   let currAssets   = accounts.filter(a=>a.type==="asset"&&a.subType==="current_asset");
   let fixedAssets  = accounts.filter(a=>a.type==="asset"&&a.subType==="fixed_asset");
@@ -586,66 +730,95 @@ function renderBS(accounts, periodLabel, companyName) {
   let tE   = equity.reduce((s,a)      =>s+getBalance(a),0) + ni;
   let tLE  = tL + tE;
 
-  let html = `<div class="stmt-wrapper">
+  // Prior year totals
+  let ptCA = pbSum("asset","current_asset");
+  let ptFA = pbSum("asset","fixed_asset");
+  let ptCon= pbSum("asset","contra_asset");
+  let ptOA = pbSum("asset","other_asset");
+  let ptA  = ptCA + ptFA - ptCon + ptOA;
+  let ptCL = pbSum("liability","current_liability");
+  let ptLL = pbSum("liability","long_term_liability");
+  let ptL  = ptCL + ptLL;
+  let ptE  = pbSum("equity") + (window._finData?.priorNetIncome || 0);
+  let ptLE = ptL + ptE;
+
+  let periodTitle = yoy ? `${priorLabel} vs. ${periodLabel}` : `As of ${periodLabel}`;
+
+  // In YoY mode render single-column (full-width) so 5-col rows fit comfortably
+  let html = `<div class="stmt-wrapper${yoy?" stmt-wrapper-wide":""}">
     <div class="stmt-header">
       <div class="stmt-firm-name">SESNY ADVISORY</div>
       <div class="stmt-company">${companyName}</div>
       <div class="stmt-title">Balance Sheet</div>
-      <div class="stmt-period">As of ${periodLabel}</div>
+      <div class="stmt-period">${periodTitle}</div>
       <div class="stmt-units">All amounts in U.S. Dollars · Prepared by Sesny Advisory</div>
     </div>
-    <button class="ghost-btn stmt-print-btn" onclick="printCurrentStatement('bs')">Print / Export PDF ↗</button>
-    <div class="stmt-two-col">
-    <div class="stmt-col">`;
+    <button class="ghost-btn stmt-print-btn" onclick="printCurrentStatement('bs')">Print / Export PDF ↗</button>`;
 
+  if (yoy) {
+    html += `<div class="stmt-yoy-col-header">
+      <span></span><span></span>
+      <span>${priorLabel}</span>
+      <span>${periodLabel}</span>
+      <span>Δ%</span>
+    </div>`;
+  }
+
+  // Assets section
+  let assetsOpen = yoy ? `<div>` : `<div class="stmt-two-col"><div class="stmt-col">`;
+  html += assetsOpen;
   html += stmtSection("ASSETS");
   if (currAssets.length) {
     html += stmtSection("Current Assets");
-    currAssets.forEach(a=>{ html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
-    html += stmtRow("","Total Current Assets",tCA,16,true,true,false,"");
+    currAssets.forEach(a=>{ html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id, yoy?pb(a):undefined); });
+    html += stmtRow("","Total Current Assets",tCA,16,true,true,false,"", yoy?ptCA:undefined);
   }
   if (fixedAssets.length||contraAssets.length) {
-    html += stmtSection("Property, Plant & Equipment");
-    fixedAssets.forEach(a=>{ html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
-    contraAssets.forEach(a=>{ html += stmtRow(a.number,a.name,-getBalance(a),32,false,false,stmtEditMode,a._id); });
-    html += stmtRow("","Net PP&E",tFA-tCon,16,true,true,false,"");
+    html += stmtSection("Property, Plant &amp; Equipment");
+    fixedAssets.forEach(a=>{ html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id, yoy?pb(a):undefined); });
+    contraAssets.forEach(a=>{ html += stmtRow(a.number,a.name,-getBalance(a),32,false,false,stmtEditMode,a._id, yoy?(0-pb(a)):undefined); });
+    html += stmtRow("","Net PP&amp;E",tFA-tCon,16,true,true,false,"", yoy?(ptFA-ptCon):undefined);
   }
   if (otherAssets.length) {
     html += stmtSection("Other Assets");
-    otherAssets.forEach(a=>{ html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
+    otherAssets.forEach(a=>{ html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id, yoy?pb(a):undefined); });
   }
   html += stmtDivider();
-  html += stmtRow("","TOTAL ASSETS",tA,0,true,true,false,"");
+  html += stmtRow("","TOTAL ASSETS",tA,0,true,true,false,"", yoy?ptA:undefined);
 
-  html += `</div><div class="stmt-col">`;
+  // Liabilities & Equity section
+  let midDivider = yoy
+    ? `<div class="stmt-divider" style="margin:20px 0 16px;"></div>`
+    : `</div><div class="stmt-col">`;
+  html += midDivider;
 
   html += stmtSection("LIABILITIES");
   if (currLiab.length) {
     html += stmtSection("Current Liabilities");
-    currLiab.forEach(a=>{ html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
-    html += stmtRow("","Total Current Liabilities",tCL,16,true,true,false,"");
+    currLiab.forEach(a=>{ html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id, yoy?pb(a):undefined); });
+    html += stmtRow("","Total Current Liabilities",tCL,16,true,true,false,"", yoy?ptCL:undefined);
   }
   if (ltLiab.length) {
     html += stmtSection("Long-Term Liabilities");
-    ltLiab.forEach(a=>{ html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
-    html += stmtRow("","Total Long-Term Liabilities",tLL,16,true,true,false,"");
+    ltLiab.forEach(a=>{ html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id, yoy?pb(a):undefined); });
+    html += stmtRow("","Total Long-Term Liabilities",tLL,16,true,true,false,"", yoy?ptLL:undefined);
   }
-  html += stmtRow("","Total Liabilities",tL,0,true,true,false,"");
+  html += stmtRow("","Total Liabilities",tL,0,true,true,false,"", yoy?ptL:undefined);
   html += stmtDivider();
 
   html += stmtSection("SHAREHOLDERS' EQUITY");
-  equity.forEach(a=>{ html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
+  equity.forEach(a=>{ html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id, yoy?pb(a):undefined); });
   html += stmtRow("","Net Income (Current Period)",ni,32,false,false,false,"");
-  html += stmtRow("","Total Shareholders' Equity",tE,0,true,true,false,"");
+  html += stmtRow("","Total Shareholders' Equity",tE,0,true,true,false,"", yoy?ptE:undefined);
   html += stmtDivider();
-  html += stmtRow("","TOTAL LIABILITIES & EQUITY",tLE,0,true,true,false,"");
+  html += stmtRow("","TOTAL LIABILITIES & EQUITY",tLE,0,true,true,false,"", yoy?ptLE:undefined);
 
   let diff = Math.abs(tA - tLE);
   html += diff > 0.01
     ? `<div class="stmt-warning">⚠ Out of balance by $${fmtMoney(diff)}</div>`
     : `<div class="stmt-check">✓ Balance sheet balances</div>`;
 
-  html += `</div></div></div>`;
+  html += yoy ? `</div></div>` : `</div></div></div>`;
   el.innerHTML = html;
 }
 
@@ -653,57 +826,95 @@ function renderBS(accounts, periodLabel, companyName) {
 //  CASH FLOW
 // ══════════════════════════════════════
 
-function renderSCF(accounts, periodLabel, companyName) {
+function renderSCF(accounts, periodLabel, companyName, priorAccs, priorLabel) {
   let el = document.getElementById("scf-stmt-output");
   if (!el) return;
+  let yoy = !!priorAccs;
 
-  let ni       = window._netIncome || 0;
-  let g = id  => accounts.filter(a=>a.number===id).reduce((s,a)=>s+getBalance(a),0);
-  let depr     = g("640") + g("650");
-  let cfOps    = ni + depr - g("110") - g("120") - g("130") + g("200") + g("210");
-  let cfInv    = -(g("150") + g("170"));
-  let cfFin    = g("220") + g("250") + g("300") + g("310") - g("330");
-  let netCash  = cfOps + cfInv + cfFin;
-  let begCash  = g("100");
-  let endCash  = begCash + netCash;
+  let ni      = window._netIncome || 0;
+  let g = id => accounts.filter(a=>a.number===id).reduce((s,a)=>s+getBalance(a),0);
+  let depr    = g("640") + g("650");
+  let cfOps   = ni + depr - g("110") - g("120") - g("130") + g("200") + g("210");
+  let cfInv   = -(g("150") + g("170"));
+  let cfFin   = g("220") + g("250") + g("300") + g("310") - g("330");
+  let netCash = cfOps + cfInv + cfFin;
+  let begCash = g("100");
+  let endCash = begCash + netCash;
 
-  let html = `<div class="stmt-wrapper">
+  // Prior year equivalents
+  let pg = id => priorAccs ? priorAccs.filter(a=>a.number===id).reduce((s,a)=>s+a.balance,0) : 0;
+  let pni      = window._finData?.priorNetIncome || 0;
+  let pDepr    = pg("640") + pg("650");
+  let pCfOps   = yoy ? pni + pDepr - pg("110") - pg("120") - pg("130") + pg("200") + pg("210") : 0;
+  let pCfInv   = yoy ? -(pg("150") + pg("170")) : 0;
+  let pCfFin   = yoy ? pg("220") + pg("250") + pg("300") + pg("310") - pg("330") : 0;
+  let pNetCash = pCfOps + pCfInv + pCfFin;
+  let pBegCash = pg("100");
+  let pEndCash = pBegCash + pNetCash;
+
+  let periodTitle = yoy ? `${priorLabel} vs. ${periodLabel}` : `For the Year Ended ${periodLabel}`;
+
+  let html = `<div class="stmt-wrapper${yoy?" stmt-wrapper-wide":""}">
     <div class="stmt-header">
       <div class="stmt-firm-name">SESNY ADVISORY</div>
       <div class="stmt-company">${companyName}</div>
       <div class="stmt-title">Statement of Cash Flows</div>
-      <div class="stmt-period">For the Year Ended ${periodLabel}</div>
+      <div class="stmt-period">${periodTitle}</div>
       <div class="stmt-units">All amounts in U.S. Dollars · Indirect Method · Prepared by Sesny Advisory</div>
     </div>
     <button class="ghost-btn stmt-print-btn" onclick="printCurrentStatement('scf')">Print / Export PDF ↗</button>`;
 
+  if (yoy) {
+    html += `<div class="stmt-yoy-col-header">
+      <span></span><span></span>
+      <span>${priorLabel}</span>
+      <span>${periodLabel}</span>
+      <span>Δ%</span>
+    </div>`;
+  }
+
   html += stmtSection("CASH FLOWS FROM OPERATING ACTIVITIES");
-  html += stmtRow("","Net Income",ni,32,false,false,false,"");
+  html += stmtRow("","Net Income",ni,32,false,false,false,"", yoy?pni:undefined);
   html += stmtSection("Adjustments:");
-  if (depr)    html += stmtRow("640/650","Depreciation & Amortization",depr,48,false,false,false,"");
-  if (g("110"))html += stmtRow("110","(Increase) in Accounts Receivable",-g("110"),48,false,false,false,"");
-  if (g("120"))html += stmtRow("120","(Increase) in Inventory",-g("120"),48,false,false,false,"");
-  if (g("200"))html += stmtRow("200","Increase in Accounts Payable",g("200"),48,false,false,false,"");
-  if (g("210"))html += stmtRow("210","Increase in Accrued Liabilities",g("210"),48,false,false,false,"");
-  html += stmtRow("","Net Cash from Operating Activities",cfOps,0,true,true,false,"");
+  if (depr||pDepr)   html += stmtRow("640/650","Depreciation &amp; Amortization",depr,48,false,false,false,"", yoy?pDepr:undefined);
+  if (g("110")||pg("110")) html += stmtRow("110","(Increase) in Accounts Receivable",-g("110"),48,false,false,false,"", yoy?-pg("110"):undefined);
+  if (g("120")||pg("120")) html += stmtRow("120","(Increase) in Inventory",-g("120"),48,false,false,false,"", yoy?-pg("120"):undefined);
+  if (g("200")||pg("200")) html += stmtRow("200","Increase in Accounts Payable",g("200"),48,false,false,false,"", yoy?pg("200"):undefined);
+  if (g("210")||pg("210")) html += stmtRow("210","Increase in Accrued Liabilities",g("210"),48,false,false,false,"", yoy?pg("210"):undefined);
+  html += stmtRow("","Net Cash from Operating Activities",cfOps,0,true,true,false,"", yoy?pCfOps:undefined);
   html += stmtDivider();
 
   html += stmtSection("CASH FLOWS FROM INVESTING ACTIVITIES");
-  if (g("150"))html += stmtRow("150","Purchase of PP&E",-g("150"),32,false,false,false,"");
-  if (g("170"))html += stmtRow("170","Purchase of Intangibles",-g("170"),32,false,false,false,"");
-  html += stmtRow("","Net Cash from Investing Activities",cfInv,0,true,true,false,"");
+  if (g("150")||pg("150")) html += stmtRow("150","Purchase of PP&amp;E",-g("150"),32,false,false,false,"", yoy?-pg("150"):undefined);
+  if (g("170")||pg("170")) html += stmtRow("170","Purchase of Intangibles",-g("170"),32,false,false,false,"", yoy?-pg("170"):undefined);
+  html += stmtRow("","Net Cash from Investing Activities",cfInv,0,true,true,false,"", yoy?pCfInv:undefined);
   html += stmtDivider();
 
   html += stmtSection("CASH FLOWS FROM FINANCING ACTIVITIES");
-  if (g("220")||g("250"))html += stmtRow("220/250","Proceeds from Notes Payable",g("220")+g("250"),32,false,false,false,"");
-  if (g("300")||g("310"))html += stmtRow("300/310","Proceeds from Equity Issuance",g("300")+g("310"),32,false,false,false,"");
-  if (g("330"))           html += stmtRow("330","Dividends / Distributions Paid",-g("330"),32,false,false,false,"");
-  html += stmtRow("","Net Cash from Financing Activities",cfFin,0,true,true,false,"");
+  if (g("220")||g("250")||pg("220")||pg("250")) html += stmtRow("220/250","Proceeds from Notes Payable",g("220")+g("250"),32,false,false,false,"", yoy?pg("220")+pg("250"):undefined);
+  if (g("300")||g("310")||pg("300")||pg("310")) html += stmtRow("300/310","Proceeds from Equity Issuance",g("300")+g("310"),32,false,false,false,"", yoy?pg("300")+pg("310"):undefined);
+  if (g("330")||pg("330")) html += stmtRow("330","Dividends / Distributions Paid",-g("330"),32,false,false,false,"", yoy?-pg("330"):undefined);
+  html += stmtRow("","Net Cash from Financing Activities",cfFin,0,true,true,false,"", yoy?pCfFin:undefined);
   html += stmtDivider();
 
-  html += stmtRow("","Net Increase (Decrease) in Cash",netCash,0,true,true,false,"");
-  html += stmtRow("","Cash at Beginning of Period",begCash,0,false,false,false,"");
-  html += `<div class="stmt-net-income"><span>CASH AT END OF PERIOD</span><span>$${fmtMoney(endCash)}</span></div>`;
+  html += stmtRow("","Net Increase (Decrease) in Cash",netCash,0,true,true,false,"", yoy?pNetCash:undefined);
+  html += stmtRow("","Cash at Beginning of Period",begCash,0,false,false,false,"", yoy?pBegCash:undefined);
+
+  if (yoy) {
+    let delta = endCash - pEndCash;
+    let pct   = pEndCash !== 0 ? ((delta / Math.abs(pEndCash)) * 100).toFixed(1) : "N/A";
+    let dColor= delta >= 0 ? "var(--green)" : "var(--red)";
+    html += `<div class="stmt-net-income stmt-net-income-yoy">
+      <span>CASH AT END OF PERIOD</span>
+      <div class="stmt-net-yoy-amounts">
+        <span class="stmt-yoy-prior-ni">$${fmtMoney(pEndCash)}</span>
+        <span>$${fmtMoney(endCash)}</span>
+        <span style="font-size:12px;color:${dColor};min-width:60px;text-align:right;">${delta>=0?"+":""}${pct}%</span>
+      </div>
+    </div>`;
+  } else {
+    html += `<div class="stmt-net-income"><span>CASH AT END OF PERIOD</span><span>$${fmtMoney(endCash)}</span></div>`;
+  }
   html += `</div>`;
   el.innerHTML = html;
 }
@@ -712,9 +923,10 @@ function renderSCF(accounts, periodLabel, companyName) {
 //  SSHE
 // ══════════════════════════════════════
 
-function renderSSHE(accounts, periodLabel, companyName) {
+function renderSSHE(accounts, periodLabel, companyName, priorAccs, priorLabel) {
   let el = document.getElementById("sshe-stmt-output");
   if (!el) return;
+  let yoy = !!priorAccs;
 
   let ni      = window._netIncome || 0;
   let g = id => accounts.filter(a=>a.number===id).reduce((s,a)=>s+getBalance(a),0);
@@ -726,29 +938,86 @@ function renderSSHE(accounts, periodLabel, companyName) {
   let endRE   = re + ni - div;
   let tEq     = cs + apic + endRE - tsy;
 
-  let html = `<div class="stmt-wrapper">
+  // Prior year
+  let pg = id => priorAccs ? priorAccs.filter(a=>a.number===id).reduce((s,a)=>s+a.balance,0) : 0;
+  let pni   = window._finData?.priorNetIncome || 0;
+  let pcs   = pg("300"); let papic = pg("310"); let pre = pg("320");
+  let pdiv  = pg("330"); let ptsy  = pg("340");
+  let pendRE= pre + pni - pdiv;
+  let ptEq  = pcs + papic + pendRE - ptsy;
+
+  // YoY column helper for equity rows
+  function eqRow(label, curr, prior) {
+    if (!yoy) return `<div class="equity-row"><span>${label}</span><span>$${fmtMoney(curr)}</span></div>`;
+    let chg = "", chgCls = "stmt-yoy-chg";
+    if (prior !== 0) {
+      let pct = ((curr - prior) / Math.abs(prior) * 100);
+      chg = (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%";
+      chgCls += pct >= 0 ? " stmt-yoy-pos" : " stmt-yoy-neg";
+    }
+    return `<div class="equity-row equity-row-yoy">
+      <span>${label}</span>
+      <span class="stmt-yoy-prior">$${fmtMoney(prior)}</span>
+      <span>$${fmtMoney(curr)}</span>
+      <span class="${chgCls}">${chg}</span>
+    </div>`;
+  }
+
+  let periodTitle = yoy ? `${priorLabel} vs. ${periodLabel}` : `For the Year Ended ${periodLabel}`;
+
+  let html = `<div class="stmt-wrapper${yoy?" stmt-wrapper-wide":""}">
     <div class="stmt-header">
       <div class="stmt-firm-name">SESNY ADVISORY</div>
       <div class="stmt-company">${companyName}</div>
       <div class="stmt-title">Statement of Shareholders' Equity</div>
-      <div class="stmt-period">For the Year Ended ${periodLabel}</div>
+      <div class="stmt-period">${periodTitle}</div>
       <div class="stmt-units">All amounts in U.S. Dollars · Prepared by Sesny Advisory</div>
     </div>
     <button class="ghost-btn stmt-print-btn" onclick="printCurrentStatement('sshe')">Print / Export PDF ↗</button>
-    <div class="equity-table">
-      <div class="equity-header"><span>Component</span><span>Amount</span></div>
-      <div class="equity-section">PAID-IN CAPITAL</div>
-      <div class="equity-row"><span>300 Common Stock</span><span>$${fmtMoney(cs)}</span></div>`;
-  if (apic) html += `<div class="equity-row"><span>310 Additional Paid-In Capital</span><span>$${fmtMoney(apic)}</span></div>`;
-  html += `<div class="equity-row equity-subtotal"><span>Total Paid-In Capital</span><span>$${fmtMoney(cs+apic)}</span></div>
-      <div class="equity-section">RETAINED EARNINGS</div>
-      <div class="equity-row"><span>320 Retained Earnings (Beginning)</span><span>$${fmtMoney(re)}</span></div>
-      <div class="equity-row"><span>Net Income (Current Period)</span><span>$${fmtMoney(ni)}</span></div>`;
-  if (div) html += `<div class="equity-row"><span>330 Less: Dividends / Distributions</span><span>($${fmtMoney(div)})</span></div>`;
-  html += `<div class="equity-row equity-subtotal"><span>Retained Earnings (Ending)</span><span>$${fmtMoney(endRE)}</span></div>`;
-  if (tsy) html += `<div class="equity-section">CONTRA EQUITY</div><div class="equity-row"><span>340 Treasury Stock</span><span>($${fmtMoney(tsy)})</span></div>`;
-  html += `<div class="equity-total"><span>TOTAL SHAREHOLDERS' EQUITY</span><span>$${fmtMoney(tEq)}</span></div>
-    </div></div>`;
+    <div class="equity-table">`;
+
+  if (yoy) {
+    html += `<div class="equity-header equity-header-yoy">
+      <span>Component</span>
+      <span>${priorLabel}</span>
+      <span>${periodLabel}</span>
+      <span>Δ%</span>
+    </div>`;
+  } else {
+    html += `<div class="equity-header"><span>Component</span><span>Amount</span></div>`;
+  }
+
+  html += `<div class="equity-section">PAID-IN CAPITAL</div>`;
+  html += eqRow("300 Common Stock", cs, pcs);
+  if (apic || papic) html += eqRow("310 Additional Paid-In Capital", apic, papic);
+  html += eqRow("Total Paid-In Capital", cs+apic, pcs+papic).replace("equity-row","equity-row equity-subtotal");
+
+  html += `<div class="equity-section">RETAINED EARNINGS</div>`;
+  html += eqRow("320 Retained Earnings (Beginning)", re, pre);
+  html += eqRow("Net Income (Current Period)", ni, pni);
+  if (div || pdiv) html += eqRow("330 Less: Dividends / Distributions", -div, -pdiv);
+  html += eqRow("Retained Earnings (Ending)", endRE, pendRE).replace("equity-row","equity-row equity-subtotal");
+
+  if (tsy || ptsy) {
+    html += `<div class="equity-section">CONTRA EQUITY</div>`;
+    html += eqRow("340 Treasury Stock", -tsy, -ptsy);
+  }
+
+  if (yoy) {
+    let delta = tEq - ptEq;
+    let pct   = ptEq !== 0 ? ((delta / Math.abs(ptEq)) * 100).toFixed(1) : "N/A";
+    let dColor= delta >= 0 ? "var(--green)" : "var(--red)";
+    html += `<div class="equity-total equity-total-yoy">
+      <span>TOTAL SHAREHOLDERS' EQUITY</span>
+      <span class="stmt-yoy-prior">$${fmtMoney(ptEq)}</span>
+      <span>$${fmtMoney(tEq)}</span>
+      <span style="font-size:12px;color:${dColor};">${delta>=0?"+":""}${pct}%</span>
+    </div>`;
+  } else {
+    html += `<div class="equity-total"><span>TOTAL SHAREHOLDERS' EQUITY</span><span>$${fmtMoney(tEq)}</span></div>`;
+  }
+
+  html += `</div></div>`;
   el.innerHTML = html;
 }
 
