@@ -1,4 +1,61 @@
 /* ══════════════════════════════════════
+   MASTER CHART OF ACCOUNTS TAB
+══════════════════════════════════════ */
+
+.coa-header {
+  display: grid;
+  grid-template-columns: 80px 1fr 100px 160px 110px 120px;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--bg-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.coa-row-full {
+  display: grid;
+  grid-template-columns: 80px 1fr 100px 160px 110px 120px;
+  gap: 8px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border-light, rgba(0,0,0,0.05));
+  align-items: center;
+  font-size: 13px;
+  transition: background 0.1s;
+}
+.coa-row-full:hover { background: var(--bg-secondary); }
+
+.coa-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.coa-name { font-weight: 500; color: var(--text); }
+.coa-type {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+.coa-subtype {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.coa-bal {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+.coa-bal.debit  { background: var(--blue-light,  rgba(59,130,246,0.1)); color: var(--blue,  #3b82f6); }
+.coa-bal.credit { background: var(--green-light, rgba(34,197,94,0.1));  color: var(--green, #22c55e); }
+
+/* ══════════════════════════════════════
    FINANCIAL STATEMENT — FULL LAYOUT
    Covers wrapper, rows, sections, totals
 ══════════════════════════════════════ */
