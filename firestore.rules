@@ -129,10 +129,11 @@ service cloud.firestore {
     // ─────────────────────────────────────────────
     //  ACTIVITY LOG
     //  - Clients can create activity entries for their own actions.
-    //  - Only admins can read the full activity log.
+    //  - Clients can read their own activity (portal activity feed).
+    //  - Admins can read and write everything.
     // ─────────────────────────────────────────────
     match /activity/{actId} {
-      allow read:   if isAdmin();
+      allow read:   if isAdmin() || isClientOwnedRead();
       allow create: if isAdmin() || isClientOwned();
       allow update, delete: if isAdmin();
     }

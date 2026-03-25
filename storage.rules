@@ -11,7 +11,6 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    // Check admin status via Firestore admins collection
     function isAdmin() {
       return isSignedIn() &&
         firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
@@ -21,28 +20,44 @@ service firebase.storage {
     // ─────────────────────────────────────────────
     //  CLIENT DOCUMENTS
     //  Path: documents/{clientUID}/{filename}
-    //  Your portal.js uploads to: "documents/" + currentUser.uid + "/" + ...
-    //
-    //  - A client can upload to their own folder only.
-    //  - A client can read and delete files in their own folder only.
-    //  - Admins can read and delete any file.
-    //  - Max file size: 20MB. PDFs only (matches your accept=".pdf").
+    //  - Clients can upload PDFs up to 20MB to their own folder only.
+    //  - Clients can read and delete their own files.
+    //  - Admins can read, write, and delete any file.
     // ─────────────────────────────────────────────
-    match /documents/{clientUID}/{fileName} {
+    match /documents/{clientUID}/{allPaths=**} {
       allow read:   if isAdmin() || (isSignedIn() && request.auth.uid == clientUID);
       allow create: if isAdmin() ||
         (isSignedIn() &&
           request.auth.uid == clientUID &&
           request.resource.size < 20 * 1024 * 1024 &&
-          request.resource.contentType.matches('application/pdf'));
+          request.resource.contentType == 'application/pdf');
       allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == clientUID);
       allow update: if isAdmin();
     }
 
 
     // ─────────────────────────────────────────────
+    //  PRACTITIONER FORM LIBRARY
+    //  Path: practitioner-forms/{filename}
+    //  - Admin only — form uploads from Forms & Schedules tab.
+    // ─────────────────────────────────────────────
+    match /practitioner-forms/{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  SAVED FILLED FORMS
+    //  Path: saved-forms/{filename}
+    //  - Admin only.
+    // ─────────────────────────────────────────────
+    match /saved-forms/{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
     //  EVERYTHING ELSE — deny by default
-    //  Any path not matched above is blocked.
     // ─────────────────────────────────────────────
     match /{allPaths=**} {
       allow read, write: if false;
