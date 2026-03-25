@@ -8,7 +8,6 @@ let activeYear    = (new Date().getFullYear() - 1).toString();
 let currentFormId   = null;
 let currentFormUrl  = null;
 let currentFormName = null;
-let currentPdfDoc   = null;   // pdf-lib PDFDocument
 let currentCategory = "uploaded";
 
 let activeClientId        = null;
@@ -160,7 +159,6 @@ function updateClientField(uid, field, value) {
     let c = clients.find(x => x.uid === uid);
     if (c) c[field] = value;
     updateOverviewStats();
-    updateRecentClientsList();
   }).catch(e => toast("Failed to update: " + e.message, "error"));
 }
 function updateOverviewStats() {
@@ -233,9 +231,6 @@ function loadOverviewActivity() {
     });
 }
 
-function updateRecentClientsList() {
-  // No longer used — replaced by activity feed
-}
 function filterClients(filter, btn) {
   document.querySelectorAll(".filter-bar .filter-btn").forEach(b => b.classList.remove("active"));
   btn.classList.add("active");
@@ -1020,7 +1015,6 @@ function loadAllClientsFromFirebase() {
       });
     });
     updateOverviewStats();
-    updateRecentClientsList();
     loadQuickAccessForms();
   }).catch(e => {
     let el=document.getElementById("recent-clients-list");
@@ -1161,7 +1155,6 @@ function updateClientField(uid, field, value) {
     let c = clients.find(x => x.uid === uid);
     if (c) c[field] = value;
     updateOverviewStats();
-    updateRecentClientsList();
 
     // Log status change as activity
     if (field === "status") {
