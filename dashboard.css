@@ -2337,6 +2337,49 @@ body {
   padding: 8px 20px;
 }
 
+/* ── Overview Activity List ── */
+.overview-activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 7px;
+  transition: background 0.15s;
+}
+.overview-activity-item:hover { background: var(--bg-hover); }
+
+.overview-activity-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.overview-activity-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.overview-activity-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.overview-activity-time {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.overview-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
 /* ── Pulse animation ── */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
