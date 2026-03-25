@@ -1,14 +1,26 @@
+function showAdminError(msg) {
+  let el = document.getElementById("admin-error");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+function clearAdminError() {
+  let el = document.getElementById("admin-error");
+  if (el) el.style.display = "none";
+}
+
 // ── Route protection: if already logged in, go straight to dashboard ──
 auth.onAuthStateChanged(function(user) {
   if (!user) return;
   db.collection("admins").doc(user.uid).get().then(function(doc) {
-    if (!doc.exists) return; // not an admin, do nothing
-    // Valid admin already logged in — go straight to dashboard
+    if (!doc.exists) return;
     window.location.href = "dashboard.html";
   }).catch(function() {});
 });
 
 function handleAdminLogin() {
+  clearAdminError();
   let email    = document.getElementById("admin-email").value.trim();
   let password = document.getElementById("admin-password").value;
 
@@ -17,17 +29,17 @@ function handleAdminLogin() {
 
   if (!email) {
     document.getElementById("admin-email").parentElement.classList.add("error");
-    alert("Please enter your email address.");
+    showAdminError("Please enter your email address.");
     return;
   }
   if (!password) {
     document.getElementById("admin-password").parentElement.classList.add("error");
-    alert("Please enter your password.");
+    showAdminError("Please enter your password.");
     return;
   }
   if (!email.includes("@") || !email.includes(".")) {
     document.getElementById("admin-email").parentElement.classList.add("error");
-    alert("Please enter a valid email address.");
+    showAdminError("Please enter a valid email address.");
     return;
   }
 
@@ -35,7 +47,6 @@ function handleAdminLogin() {
   btn.textContent = "Signing in...";
   btn.disabled    = true;
 
-  // Persistent login for primary admin only
   let persistence = (email.toLowerCase() === "sesnyanthony@gmail.com")
     ? firebase.auth.Auth.Persistence.LOCAL
     : firebase.auth.Auth.Persistence.SESSION;
@@ -52,7 +63,7 @@ function handleAdminLogin() {
         auth.signOut();
         btn.textContent = "Sign In to Dashboard";
         btn.disabled    = false;
-        alert("This account does not have practitioner access.");
+        showAdminError("This account does not have practitioner access.");
         return;
       }
       showSuccess();
@@ -61,23 +72,33 @@ function handleAdminLogin() {
       btn.textContent = "Sign In to Dashboard";
       btn.disabled    = false;
       if (error.code === "auth/user-not-found" || error.code === "auth/invalid-credential") {
-        alert("Incorrect email or password. Please try again.");
+        showAdminError("Incorrect email or password. Please try again.");
       } else if (error.code === "auth/too-many-requests") {
-        alert("Too many failed attempts. Please try again in a few minutes.");
+        showAdminError("Too many failed attempts. Please wait a few minutes and try again.");
       } else {
-        alert("Sign in error: " + error.message);
+        showAdminError("Sign in failed. Please try again.");
       }
     });
 }
 
 function showSuccess() {
-  document.querySelector(".login-form").style.display = "none";
-  document.querySelector(".login-form-header").innerHTML =
-    '<div style="width:64px;height:64px;border-radius:50%;background:rgba(0,166,81,0.1);color:#00A651;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 20px;">✓</div>' +
-    '<h2>Welcome, Anthony</h2>' +
-    '<p>Loading your dashboard...</p>';
-  document.querySelector(".login-form-header").style.textAlign = "center";
-  // onAuthStateChanged fires and handles redirect + session creation
+  let form   = document.querySelector(".login-form");
+  let header = document.querySelector(".login-form-header");
+  if (form)   form.style.display = "none";
+  if (header) {
+    header.style.textAlign = "center";
+    let icon = document.createElement("div");
+    icon.style.cssText = "width:64px;height:64px;border-radius:50%;background:rgba(0,166,81,0.1);color:#00A651;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 20px;";
+    icon.textContent = "✓";
+    let h2 = document.createElement("h2");
+    h2.textContent = "Welcome, Anthony";
+    let p = document.createElement("p");
+    p.textContent = "Loading your dashboard...";
+    header.innerHTML = "";
+    header.appendChild(icon);
+    header.appendChild(h2);
+    header.appendChild(p);
+  }
 }
 
 document.addEventListener("keydown", function(event) {
