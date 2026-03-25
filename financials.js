@@ -49,6 +49,30 @@ const MASTER_COA = [
 let chartOfAccounts = [];
 let coaLoaded = false;
 
+// ══════════════════════════════════════
+//  GROUPED ACCOUNT DROPDOWN BUILDER
+//  Used in journal entry forms — groups by account type with optgroup labels
+// ══════════════════════════════════════
+function buildGroupedAccountOptions() {
+  const groups = [
+    { label: "── ASSETS ──",             filter: a => a.type === "asset" },
+    { label: "── LIABILITIES ──",        filter: a => a.type === "liability" },
+    { label: "── EQUITY ──",             filter: a => a.type === "equity" },
+    { label: "── REVENUE ──",            filter: a => a.type === "revenue" },
+    { label: "── COST OF GOODS SOLD ──", filter: a => a.type === "cogs" },
+    { label: "── OPERATING EXPENSES ──", filter: a => a.type === "expense" && a.subType === "operating_expense" },
+    { label: "── OTHER EXPENSES ──",     filter: a => a.type === "expense" && a.subType === "other_expense" },
+    { label: "── INCOME TAX ──",         filter: a => a.type === "tax" },
+  ];
+  return groups.map(g => {
+    let accts = chartOfAccounts.filter(a => a.isActive !== false && g.filter(a));
+    if (!accts.length) return "";
+    return `<optgroup label="${g.label}">` +
+      accts.map(a => `<option value="${a._id}" data-number="${a.number}" data-name="${a.name}">${a.number} · ${a.name}</option>`).join("") +
+      `</optgroup>`;
+  }).join("");
+}
+
 async function initChartOfAccounts() {
   if (coaLoaded) return;
   let snap = await db.collection("chartOfAccounts").get();
@@ -456,54 +480,81 @@ function renderIS(accounts, periodLabel, companyName) {
   let totalRevenue    = revenue.reduce((s,a)  => s+getBalance(a), 0);
   let totalCOGS       = cogs.reduce((s,a)     => s+getBalance(a), 0);
   let grossProfit     = totalRevenue - totalCOGS;
+  let grossMarginPct  = totalRevenue > 0 ? (grossProfit / totalRevenue * 100).toFixed(1) : "0.0";
   let totalOpEx       = opex.reduce((s,a)     => s+getBalance(a), 0);
   let incomeFromOps   = grossProfit - totalOpEx;
+  let deprAmort       = accounts.filter(a => a.number==="640"||a.number==="650").reduce((s,a)=>s+getBalance(a),0);
+  let ebitda          = incomeFromOps + deprAmort;
   let totalOtherExp   = otherExp.reduce((s,a) => s+getBalance(a), 0);
   let incomeBeforeTax = incomeFromOps - totalOtherExp;
   let totalTax        = tax.reduce((s,a)      => s+getBalance(a), 0);
   let netIncome       = incomeBeforeTax - totalTax;
+  let netMarginPct    = totalRevenue > 0 ? (netIncome / totalRevenue * 100).toFixed(1) : "0.0";
   window._netIncome   = netIncome;
+
+  let netIncomeColor  = netIncome >= 0 ? "var(--green)" : "var(--red)";
 
   let html = `<div class="stmt-wrapper">
     <div class="stmt-header">
+      <div class="stmt-firm-name">SESNY ADVISORY</div>
       <div class="stmt-company">${companyName}</div>
       <div class="stmt-title">Income Statement</div>
-      <div class="stmt-period">For the Period: ${periodLabel}</div>
-    </div>`;
+      <div class="stmt-period">For the Year Ended ${periodLabel}</div>
+      <div class="stmt-units">All amounts in U.S. Dollars · Prepared by Sesny Advisory</div>
+    </div>
+    <button class="ghost-btn stmt-print-btn" onclick="printCurrentStatement('is')">Print / Export PDF ↗</button>`;
 
   if (revenue.length) {
     html += stmtSection("REVENUE");
     revenue.forEach(a  => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
-    html += stmtRow("","Total Revenue",totalRevenue,32,true,true,false,"");
+    html += stmtRow("","Total Revenue",totalRevenue,0,true,true,false,"");
     html += stmtDivider();
   }
   if (cogs.length) {
     html += stmtSection("COST OF GOODS SOLD");
     cogs.forEach(a => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
-    html += stmtRow("","Total COGS",totalCOGS,32,true,true,false,"");
-    html += stmtRow("","Gross Profit",grossProfit,0,true,true,false,"");
+    html += stmtRow("","Total Cost of Goods Sold",totalCOGS,0,true,true,false,"");
+    html += `<div class="stmt-row stmt-bold stmt-gross-profit">
+      <span class="stmt-acct-num"></span>
+      <span class="stmt-acct-name">Gross Profit</span>
+      <span class="stmt-acct-amt stmt-gp-pct">${grossMarginPct}% margin</span>
+      <span class="stmt-acct-amt">$${fmtMoney(grossProfit)}</span>
+    </div>`;
     html += stmtDivider();
   }
   if (opex.length) {
     html += stmtSection("OPERATING EXPENSES");
     opex.forEach(a => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
-    html += stmtRow("","Total Operating Expenses",totalOpEx,32,true,true,false,"");
-    html += stmtRow("","Income from Operations",incomeFromOps,0,true,true,false,"");
+    html += stmtRow("","Total Operating Expenses",totalOpEx,0,true,true,false,"");
+    html += stmtRow("","Operating Income (EBIT)",incomeFromOps,0,true,true,false,"");
+    if (deprAmort > 0) {
+      html += `<div class="stmt-row stmt-ebitda-row">
+        <span class="stmt-acct-num"></span>
+        <span class="stmt-acct-name">EBITDA <span class="stmt-ebitda-hint">(EBIT + Depreciation & Amortization)</span></span>
+        <span class="stmt-acct-amt">$${fmtMoney(ebitda)}</span>
+      </div>`;
+    }
     html += stmtDivider();
   }
   if (otherExp.length) {
-    html += stmtSection("OTHER EXPENSES");
+    html += stmtSection("OTHER INCOME / (EXPENSE)");
     otherExp.forEach(a => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
-    html += stmtRow("","Total Other Expenses",totalOtherExp,32,true,true,false,"");
+    html += stmtRow("","Net Other Income / (Expense)",totalOtherExp > 0 ? -totalOtherExp : totalOtherExp,0,true,true,false,"");
     html += stmtRow("","Income Before Tax",incomeBeforeTax,0,true,true,false,"");
     html += stmtDivider();
   }
   if (tax.length) {
-    html += stmtSection("INCOME TAX");
+    html += stmtSection("INCOME TAX EXPENSE");
     tax.forEach(a => { html += stmtRow(a.number,a.name,getBalance(a),32,false,false,stmtEditMode,a._id); });
     html += stmtDivider();
   }
-  html += `<div class="stmt-net-income"><span>NET INCOME</span><span>$${fmtMoney(netIncome)}</span></div></div>`;
+  html += `<div class="stmt-net-income" style="color:${netIncomeColor};">
+    <span>NET INCOME</span>
+    <div style="text-align:right;">
+      <div>$${fmtMoney(netIncome)}</div>
+      <div class="stmt-net-margin-pct">${netMarginPct}% net margin</div>
+    </div>
+  </div></div>`;
   el.innerHTML = html;
 }
 
@@ -537,10 +588,13 @@ function renderBS(accounts, periodLabel, companyName) {
 
   let html = `<div class="stmt-wrapper">
     <div class="stmt-header">
+      <div class="stmt-firm-name">SESNY ADVISORY</div>
       <div class="stmt-company">${companyName}</div>
       <div class="stmt-title">Balance Sheet</div>
       <div class="stmt-period">As of ${periodLabel}</div>
+      <div class="stmt-units">All amounts in U.S. Dollars · Prepared by Sesny Advisory</div>
     </div>
+    <button class="ghost-btn stmt-print-btn" onclick="printCurrentStatement('bs')">Print / Export PDF ↗</button>
     <div class="stmt-two-col">
     <div class="stmt-col">`;
 
@@ -615,11 +669,13 @@ function renderSCF(accounts, periodLabel, companyName) {
 
   let html = `<div class="stmt-wrapper">
     <div class="stmt-header">
+      <div class="stmt-firm-name">SESNY ADVISORY</div>
       <div class="stmt-company">${companyName}</div>
       <div class="stmt-title">Statement of Cash Flows</div>
-      <div class="stmt-period">For the Period: ${periodLabel}</div>
-      <div class="stmt-method">(Indirect Method)</div>
-    </div>`;
+      <div class="stmt-period">For the Year Ended ${periodLabel}</div>
+      <div class="stmt-units">All amounts in U.S. Dollars · Indirect Method · Prepared by Sesny Advisory</div>
+    </div>
+    <button class="ghost-btn stmt-print-btn" onclick="printCurrentStatement('scf')">Print / Export PDF ↗</button>`;
 
   html += stmtSection("CASH FLOWS FROM OPERATING ACTIVITIES");
   html += stmtRow("","Net Income",ni,32,false,false,false,"");
@@ -672,10 +728,13 @@ function renderSSHE(accounts, periodLabel, companyName) {
 
   let html = `<div class="stmt-wrapper">
     <div class="stmt-header">
+      <div class="stmt-firm-name">SESNY ADVISORY</div>
       <div class="stmt-company">${companyName}</div>
       <div class="stmt-title">Statement of Shareholders' Equity</div>
-      <div class="stmt-period">For the Period: ${periodLabel}</div>
+      <div class="stmt-period">For the Year Ended ${periodLabel}</div>
+      <div class="stmt-units">All amounts in U.S. Dollars · Prepared by Sesny Advisory</div>
     </div>
+    <button class="ghost-btn stmt-print-btn" onclick="printCurrentStatement('sshe')">Print / Export PDF ↗</button>
     <div class="equity-table">
       <div class="equity-header"><span>Component</span><span>Amount</span></div>
       <div class="equity-section">PAID-IN CAPITAL</div>
@@ -916,8 +975,7 @@ function renderGLEntryForm() {
   let yearOpts = Array.from({length:41},(_,i)=>String(2020+i))
     .map(y => `<option value="${y}" ${glFormState.year===y?"selected":""}>${y}</option>`).join("");
 
-  let acctOpts = chartOfAccounts.filter(a=>a.isActive)
-    .map(a=>`<option value="${a._id}" data-number="${a.number}" data-name="${a.name}">${a.number} — ${a.name}</option>`).join("");
+  let acctOpts = buildGroupedAccountOptions();
 
   let linesHTML = glJeLines.map((line,i) => `
     <div class="je-line" id="gl-je-line-${i}">
@@ -1021,7 +1079,7 @@ function addGLLine() {
 }
 
 function removeGLLine(i) {
-  if (glJeLines.length <= 2) { alert("Need at least 2 lines."); return; }
+  if (glJeLines.length <= 2) { toast("Need at least 2 lines.", "warning"); return; }
   glJeLines.splice(i,1);
   renderGLEntryForm();
 }
@@ -1042,11 +1100,11 @@ function postGLEntry() {
   let desc  = document.getElementById("gl-je-desc").value.trim();
   let isAdj = document.getElementById("gl-is-adjusting").checked;
 
-  if (!date) { alert("Please enter a date."); return; }
-  if (!desc) { alert("Please enter a description."); return; }
+  if (!date) { toast("Please enter a date.", "warning"); return; }
+  if (!desc) { toast("Please enter a description.", "warning"); return; }
 
   let lines = glJeLines.filter(l=>l.accountId && (parseFloat(l.debit)||0)+(parseFloat(l.credit)||0)>0);
-  if (lines.length < 2) { alert("Add at least 2 account lines."); return; }
+  if (lines.length < 2) { toast("Add at least 2 account lines.", "warning"); return; }
 
   db.collection("journalEntries").add({
     clientId:    glClientId,
@@ -1135,15 +1193,15 @@ function updateGLEntry(id) {
   let desc  = document.getElementById("gl-je-desc").value.trim();
   let isAdj = document.getElementById("gl-is-adjusting").checked;
 
-  if (!date) { alert("Please enter a date."); return; }
-  if (!desc) { alert("Please enter a description."); return; }
+  if (!date) { toast("Please enter a date.", "warning"); return; }
+  if (!desc) { toast("Please enter a description.", "warning"); return; }
 
   let lines = glJeLines.filter(l=>l.accountId && (parseFloat(l.debit)||0)+(parseFloat(l.credit)||0)>0);
-  if (lines.length < 2) { alert("Add at least 2 account lines."); return; }
+  if (lines.length < 2) { toast("Add at least 2 account lines.", "warning"); return; }
 
   let totalDr = lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
   let totalCr = lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
-  if (Math.abs(totalDr-totalCr) > 0.01) { alert("Entry is not balanced. Debits must equal credits."); return; }
+  if (Math.abs(totalDr-totalCr) > 0.01) { toast("Entry is not balanced. Debits must equal credits.", "warning"); return; }
 
   db.collection("journalEntries").doc(id).update({
     entryDate:   firebase.firestore.Timestamp.fromDate(new Date(date+"T12:00:00")),
@@ -1361,14 +1419,14 @@ function migrateIsCore() {
   });
 
   if (count === 0) {
-    alert("All accounts already have correct isCore values.");
+    toast("All accounts already have correct isCore values.", "info");
     return;
   }
 
   batch.commit().then(() => {
-    alert(`Fixed ${count} accounts successfully.`);
+    toast(`Fixed ${count} accounts successfully.`, "success");
     renderMasterAccounts();
-  }).catch(e => alert("Failed: " + e.message));
+  }).catch(e => toast("Failed: " + e.message, "error"));
 }
 
 function renderMasterCOARows() {
@@ -1412,11 +1470,18 @@ function toggleAccountActive(id, current) {
 }
 
 function deleteAccount(id, name) {
-  if (!confirm(`Delete account "${name}"? This cannot be undone.`)) return;
-  db.collection("chartOfAccounts").doc(id).delete().then(() => {
-    chartOfAccounts = chartOfAccounts.filter(a=>a._id!==id);
-    let list = document.getElementById("master-coa-list");
-    if (list) list.innerHTML = renderMasterCOARows();
+  showModal({
+    title: "Delete Account",
+    message: `Delete account "${name}"? This cannot be undone.`,
+    confirmText: "Delete",
+    type: "danger",
+    onConfirm: () => {
+      db.collection("chartOfAccounts").doc(id).delete().then(() => {
+        chartOfAccounts = chartOfAccounts.filter(a=>a._id!==id);
+        let list = document.getElementById("master-coa-list");
+        if (list) list.innerHTML = renderMasterCOARows();
+      });
+    }
   });
 }
 
@@ -1444,7 +1509,7 @@ function updateAccount(id) {
   let sub    = document.getElementById("aa-subtype").value;
   let nb     = document.getElementById("aa-normal").value;
 
-  if (!number || !name) { alert("Number and name are required."); return; }
+  if (!number || !name) { toast("Number and name are required.", "warning"); return; }
 
   db.collection("chartOfAccounts").doc(id).update({ number, name, type, subType: sub, normalBalance: nb })
     .then(() => {
@@ -1454,7 +1519,7 @@ function updateAccount(id) {
       closeAddAccountModal();
       let list = document.getElementById("master-coa-list");
       if (list) list.innerHTML = renderMasterCOARows();
-    }).catch(e => alert("Failed: " + e.message));
+    }).catch(e => toast("Failed: " + e.message, "error"));
 }
 
 // ══════════════════════════════════════
@@ -1496,9 +1561,9 @@ function saveNewAccount() {
   let sub    = document.getElementById("aa-subtype").value;
   let nb     = document.getElementById("aa-normal").value;
 
-  if (!number) { alert("Please enter an account number."); return; }
-  if (!name)   { alert("Please enter an account name."); return; }
-  if (chartOfAccounts.find(a=>a.number===number)) { alert("Account number " + number + " already exists."); return; }
+  if (!number) { toast("Please enter an account number.", "warning"); return; }
+  if (!name)   { toast("Please enter an account name.", "warning"); return; }
+  if (chartOfAccounts.find(a=>a.number===number)) { toast("Account number " + number + " already exists.", "warning"); return; }
 
   db.collection("chartOfAccounts").add({
     number, name, type, subType:sub, normalBalance:nb,
@@ -1507,10 +1572,9 @@ function saveNewAccount() {
     chartOfAccounts.push({ _id:ref.id, number, name, type, subType:sub, normalBalance:nb, isActive:true });
     chartOfAccounts.sort((a,b)=>parseInt(a.number)-parseInt(b.number));
     closeAddAccountModal();
-    // Refresh master accounts list if visible
     let list = document.getElementById("master-coa-list");
     if (list) list.innerHTML = renderMasterCOARows();
-  }).catch(e => alert("Failed: " + e.message));
+  }).catch(e => toast("Failed: " + e.message, "error"));
 }
 
 // ══════════════════════════════════════
@@ -1518,8 +1582,8 @@ function saveNewAccount() {
 // ══════════════════════════════════════
 
 function exportCurrentStatement(tabId) {
-  if (!window._finData) { alert("Please select a client and period first."); return; }
-  if (typeof XLSX === "undefined") { alert("Excel library not loaded."); return; }
+  if (!window._finData) { toast("Please select a client and period first.", "warning"); return; }
+  if (typeof XLSX === "undefined") { toast("Excel library not loaded.", "warning"); return; }
 
   let { accounts, periodLabel, clientName } = window._finData;
   let wb   = XLSX.utils.book_new();
@@ -1554,29 +1618,88 @@ function exportCurrentStatement(tabId) {
 }
 
 function publishCurrentStatement(tabId) {
-  if (!window._finData) { alert("Please select a client and period first."); return; }
-  if (!confirm("Publish statements to the client portal?")) return;
+  if (!window._finData) { toast("Please select a client and period first.", "warning"); return; }
+  showModal({
+    title: "Publish Statements",
+    message: "Publish financial statements to the client portal?",
+    confirmText: "Publish",
+    type: "default",
+    onConfirm: () => {
+      let { accounts, periodLabel, clientId, periodId, clientName } = window._finData;
+      let batch = db.batch();
 
-  let { accounts, periodLabel, clientId, periodId, clientName } = window._finData;
-  let batch = db.batch();
+      ["income","balance","cashflow","equity"].forEach(type => {
+        let ref = db.collection("financialStatements").doc(clientId + "_" + periodId + "_" + type);
+        batch.set(ref, {
+          clientId, clientName, periodId, periodLabel,
+          statementType: type, accounts,
+          netIncome: window._netIncome || 0,
+          published: true,
+          publishedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      });
 
-  ["income","balance","cashflow","equity"].forEach(type => {
-    let ref = db.collection("financialStatements").doc(clientId + "_" + periodId + "_" + type);
-    batch.set(ref, {
-      clientId, clientName, periodId, periodLabel,
-      statementType: type, accounts,
-      netIncome: window._netIncome || 0,
-      published: true,
-      publishedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+      batch.commit().then(() => {
+        toast("Statements published to client portal!", "success");
+        db.collection("activity").add({
+          clientId, type:"ready",
+          text:"Financial statements published for " + periodLabel,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }).catch(e => toast("Failed: " + e.message, "error"));
+    }
   });
+}
 
-  batch.commit().then(() => {
-    alert("Statements published to client portal!");
-    db.collection("activity").add({
-      clientId, type:"ready",
-      text:"Financial statements published for " + periodLabel,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-  }).catch(e => alert("Failed: " + e.message));
+// ══════════════════════════════════════
+//  PRINT / PDF EXPORT
+// ══════════════════════════════════════
+
+function printCurrentStatement(tabId) {
+  let outputEl = document.getElementById(tabId + "-stmt-output");
+  if (!outputEl) { toast("No statement loaded to print.", "warning"); return; }
+  let { periodLabel, clientName } = window._finData || {};
+  let titleMap = { is:"Income Statement", bs:"Balance Sheet", scf:"Statement of Cash Flows", sshe:"Statement of Shareholders' Equity" };
+  let title = titleMap[tabId] || "Financial Statement";
+
+  let win = window.open("", "_blank");
+  win.document.write(`<!DOCTYPE html><html><head>
+    <title>${clientName} — ${title}</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: 'Georgia', serif; font-size: 12px; color: #111; background: #fff; padding: 48px; max-width: 900px; margin: 0 auto; }
+      .stmt-firm-name { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; text-align: center; color: #444; margin-bottom: 2px; }
+      .stmt-company { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+      .stmt-title { font-size: 14px; font-weight: 600; text-align: center; margin-bottom: 2px; }
+      .stmt-period { font-size: 12px; text-align: center; color: #555; margin-bottom: 2px; }
+      .stmt-units { font-size: 10px; text-align: center; color: #888; margin-bottom: 24px; }
+      .stmt-section-header { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #555; padding: 12px 0 4px; border-bottom: 1px solid #ccc; margin-bottom: 2px; }
+      .stmt-row { display: flex; justify-content: space-between; padding: 3px 0 3px 16px; font-size: 12px; }
+      .stmt-bold { font-weight: 700; }
+      .stmt-total { border-top: 1px solid #999; padding-top: 4px; }
+      .stmt-acct-num { color: #888; min-width: 40px; font-size: 11px; }
+      .stmt-acct-amt { text-align: right; min-width: 120px; font-family: 'Courier New', monospace; }
+      .stmt-net-income { display: flex; justify-content: space-between; font-size: 15px; font-weight: 800; padding: 12px 0; border-top: 3px double #111; margin-top: 8px; }
+      .stmt-ebitda-row { display: flex; justify-content: space-between; padding: 4px 0 4px 16px; font-style: italic; color: #444; font-size: 11px; }
+      .stmt-gross-profit { display: flex; justify-content: space-between; padding: 4px 0; font-weight: 700; background: #f9f9f9; }
+      .stmt-divider { border-bottom: 1px solid #ddd; margin: 8px 0; }
+      .stmt-two-col { display: flex; gap: 48px; }
+      .stmt-col { flex: 1; }
+      .equity-table { width: 100%; }
+      .equity-header { display: flex; justify-content: space-between; font-weight: 700; border-bottom: 2px solid #111; padding-bottom: 4px; margin-bottom: 8px; }
+      .equity-row { display: flex; justify-content: space-between; padding: 3px 0; }
+      .equity-subtotal { font-weight: 700; border-top: 1px solid #999; }
+      .equity-total { display: flex; justify-content: space-between; font-weight: 800; font-size: 14px; border-top: 3px double #111; padding-top: 8px; margin-top: 8px; }
+      .stmt-print-btn { display: none; }
+      .stmt-gp-pct { font-size: 10px; color: #555; font-style: italic; }
+      .stmt-net-margin-pct { font-size: 10px; color: #555; font-style: italic; font-weight: 400; }
+      .stmt-ebitda-hint { font-size: 10px; color: #888; }
+      @media print { body { padding: 24px; } }
+    </style>
+  </head><body>
+    ${outputEl.innerHTML}
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
 }

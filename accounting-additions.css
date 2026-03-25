@@ -1,4 +1,116 @@
 /* ══════════════════════════════════════
+   FINANCIAL STATEMENT — PROFESSIONAL HEADER
+══════════════════════════════════════ */
+
+.stmt-firm-name {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.stmt-company {
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.stmt-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+
+.stmt-period {
+  font-size: 12px;
+  text-align: center;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+
+.stmt-units {
+  font-size: 10px;
+  text-align: center;
+  color: var(--text-dim);
+  margin-bottom: 20px;
+  font-style: italic;
+}
+
+.stmt-print-btn {
+  display: block;
+  margin: 0 0 20px auto;
+  font-size: 12px;
+}
+
+/* ── EBITDA row ── */
+.stmt-ebitda-row {
+  display: flex;
+  align-items: center;
+  padding: 5px 0 5px 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  border-top: 1px dashed var(--border-light);
+  margin-top: 4px;
+}
+.stmt-ebitda-row .stmt-acct-name { flex: 1; }
+.stmt-ebitda-row .stmt-acct-amt { font-weight: 600; color: var(--cyan); }
+.stmt-ebitda-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-left: 6px;
+}
+
+/* ── Gross profit row with margin % ── */
+.stmt-gross-profit {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+  font-weight: 700;
+  font-size: 13px;
+  border-top: 1px solid var(--border-light);
+}
+.stmt-gross-profit .stmt-acct-name { flex: 1; }
+.stmt-gp-pct {
+  font-size: 11px;
+  color: var(--green);
+  font-weight: 500;
+  font-style: italic;
+  margin-right: 16px;
+}
+
+/* ── Net income margin % ── */
+.stmt-net-margin-pct {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.75;
+  font-style: italic;
+}
+
+/* ── Journal entry optgroup styling ── */
+select optgroup {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--bg-card);
+}
+select option {
+  font-size: 13px;
+  background: var(--bg-card);
+  color: var(--text);
+  padding: 4px 8px;
+}
+
+/* ══════════════════════════════════════
    UNIVERSAL IMPORT TOOL
 ══════════════════════════════════════ */
 
