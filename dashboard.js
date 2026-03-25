@@ -587,7 +587,7 @@ function assignFormToClient() {
 // ══════════════════════════════════════
 function loadSavedForms() {
   let list = document.getElementById("saved-forms-list");
-  list.innerHTML = '<div style="padding:16px;color:#6B7280;font-size:13px;">Loading...</div>';
+  list.innerHTML = '<div class="skeleton-wrap"><div class="skeleton-line" style="width:100%"></div><div class="skeleton-line" style="width:75%"></div><div class="skeleton-line" style="width:88%"></div></div>';
   db.collection("savedForms").get().then(snapshot => {
     list.innerHTML = "";
     if (snapshot.empty) {
@@ -1060,7 +1060,7 @@ function closeDocRequestModal() {
 
 function loadExistingRequests(clientId) {
   let list = document.getElementById("doc-request-list");
-  list.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:8px 0;">Loading...</div>';
+  list.innerHTML = '<div class="skeleton-wrap"><div class="skeleton-line" style="width:100%"></div><div class="skeleton-line" style="width:75%"></div><div class="skeleton-line" style="width:88%"></div></div>';
   db.collection("documentRequests").where("clientId","==",clientId).get().then(snapshot => {
     list.innerHTML = "";
     if (snapshot.empty) {
@@ -1180,7 +1180,7 @@ function onReturnsClientChange(sel) {
 
 function loadClientReturns(clientId) {
   let list = document.getElementById("returns-list-admin");
-  list.innerHTML = '<div style="padding:16px;color:var(--text-dim);font-size:13px;">Loading...</div>';
+  list.innerHTML = '<div class="skeleton-wrap"><div class="skeleton-line" style="width:100%"></div><div class="skeleton-line" style="width:75%"></div><div class="skeleton-line" style="width:88%"></div></div>';
 
   db.collection("clientReturns")
     .where("clientId", "==", clientId)
@@ -1504,14 +1504,14 @@ function openClientPanel(uid) {
     <div class="cp-section">
       <div class="cp-section-title">Recent Activity</div>
       <div id="cp-activity-list" class="cp-activity-list">
-        <div style="font-size:12px;color:var(--text-dim);padding:8px 0;">Loading...</div>
+        <div class="skeleton-wrap"><div class="skeleton-line" style="width:100%"></div><div class="skeleton-line" style="width:75%"></div><div class="skeleton-line" style="width:88%"></div></div>
       </div>
     </div>
 
     <div class="cp-section">
       <div class="cp-section-title">Documents</div>
       <div id="cp-docs-list" class="cp-docs-list">
-        <div style="font-size:12px;color:var(--text-dim);padding:8px 0;">Loading...</div>
+        <div class="skeleton-wrap"><div class="skeleton-line" style="width:100%"></div><div class="skeleton-line" style="width:75%"></div><div class="skeleton-line" style="width:88%"></div></div>
       </div>
     </div>
 

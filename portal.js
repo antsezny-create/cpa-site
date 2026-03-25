@@ -524,7 +524,7 @@ function loadMyReturns() {
   if (returnsListener) returnsListener();
 
   let list = document.getElementById("my-returns-list");
-  list.innerHTML = '<div style="padding:16px;color:var(--text-dim);font-size:13px;">Loading...</div>';
+  list.innerHTML = '<div class="skeleton-wrap"><div class="skeleton-line" style="width:100%"></div><div class="skeleton-line" style="width:75%"></div><div class="skeleton-line" style="width:88%"></div></div>';
 
   returnsListener = db.collection("clientReturns")
     .where("clientId", "==", currentUser.uid)
