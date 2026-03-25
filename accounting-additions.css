@@ -1,4 +1,232 @@
 /* ══════════════════════════════════════
+   FINANCIAL STATEMENT — FULL LAYOUT
+   Covers wrapper, rows, sections, totals
+══════════════════════════════════════ */
+
+/* Outer container */
+.stmt-wrapper {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px 40px;
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+/* Header block */
+.stmt-header {
+  text-align: center;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid var(--border);
+}
+
+/* Section label — e.g. "REVENUE", "OPERATING EXPENSES" */
+.stmt-section-header {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+  padding: 18px 0 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+
+/* Individual account row */
+.stmt-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 140px;
+  align-items: center;
+  padding: 5px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  transition: background 0.1s;
+}
+.stmt-row:hover {
+  background: var(--bg-hover);
+  border-radius: 4px;
+}
+
+/* Account number column */
+.stmt-acct-num {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  padding-right: 8px;
+}
+
+/* Account name column */
+.stmt-acct-name {
+  flex: 1;
+  color: var(--text-muted);
+  padding-right: 16px;
+}
+
+/* Amount column — right aligned, monospaced */
+.stmt-acct-amt {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* Bold rows — subtotals */
+.stmt-bold .stmt-acct-name,
+.stmt-bold .stmt-acct-amt,
+.stmt-bold .stmt-acct-num {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Total rows — single line above */
+.stmt-total {
+  border-top: 1px solid var(--border-light);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+/* Section divider — space between sections */
+.stmt-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 12px 0 4px;
+}
+
+/* Net income / bottom line — double border */
+.stmt-net-income {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+  padding: 14px 0 10px;
+  border-top: 3px double var(--border-light);
+  margin-top: 12px;
+  letter-spacing: 0.3px;
+}
+
+/* Balance check / warning badges */
+.stmt-check {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--green);
+  text-align: center;
+  margin-top: 12px;
+  padding: 6px 12px;
+  background: var(--green-light);
+  border-radius: 6px;
+  display: inline-block;
+}
+.stmt-warning {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--orange);
+  text-align: center;
+  margin-top: 12px;
+  padding: 6px 12px;
+  background: var(--orange-light);
+  border-radius: 6px;
+  display: inline-block;
+}
+
+/* Two-column layout for Balance Sheet */
+.stmt-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+}
+.stmt-col { min-width: 0; }
+
+/* Edit mode input */
+.stmt-edit-input {
+  width: 120px;
+  text-align: right;
+  background: var(--bg-input);
+  border: 1px solid var(--accent-border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 2px 6px;
+}
+.stmt-edit-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Shareholders' Equity table */
+.equity-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+.equity-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.equity-section {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+  padding: 16px 0 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+.equity-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0 5px 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.equity-row span:last-child {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--text);
+  min-width: 120px;
+  text-align: right;
+}
+.equity-subtotal {
+  font-weight: 700;
+  color: var(--text);
+  border-top: 1px solid var(--border-light);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+.equity-subtotal span { color: var(--text) !important; }
+.equity-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+  padding: 12px 0 8px;
+  border-top: 3px double var(--border-light);
+  margin-top: 12px;
+}
+.equity-total span:last-child {
+  font-family: 'JetBrains Mono', monospace;
+  min-width: 120px;
+  text-align: right;
+  color: var(--text) !important;
+}
+
+/* ══════════════════════════════════════
    FINANCIAL STATEMENT — PROFESSIONAL HEADER
 ══════════════════════════════════════ */
 
