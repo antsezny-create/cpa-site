@@ -112,8 +112,8 @@ function renderClients(filter) {
       .map(o => `<option value="${o.value}"${c.status===o.value?" selected":""}>${o.label}</option>`).join("");
     let statusSelect = `<select class="cell-dropdown status-dropdown status-${c.status}" data-uid="${c.uid}" data-field="status" onchange="handleStatusDropdownChange(this)">${statusOpts}</select>`;
 
-    let docsCell  = `<button class="docs-request-btn" onclick="openDocRequestModal('${c.uid}','${c.name}')">Requests</button>`;
-    let notesCell = `<button class="docs-request-btn notes-btn${c.notes ? " has-note" : ""}" onclick="openNotesModal('${c.uid}','${c.name.replace(/'/g,"\\'")}')">Notes${c.notes ? " ●" : ""}</button>`;
+    let docsCell  = `<button class="docs-request-btn" data-uid="${esc(c.uid)}" data-name="${esc(c.name)}" onclick="openDocRequestModal(this.dataset.uid, this.dataset.name)">Requests</button>`;
+    let notesCell = `<button class="docs-request-btn notes-btn${c.notes ? " has-note" : ""}" data-uid="${esc(c.uid)}" data-name="${esc(c.name)}" onclick="openNotesModal(this.dataset.uid, this.dataset.name)">Notes${c.notes ? " ●" : ""}</button>`;
     let bkCell    = `<button class="docs-request-btn bk-btn${c.bookkeeping ? " bk-active" : ""}" onclick="toggleBookkeeping('${c.uid}',${c.bookkeeping||false})" title="Toggle Bookkeeping">${c.bookkeeping ? "📒 BK On" : "BK Off"}</button>`;
 
     let yearOpts = "";
@@ -142,7 +142,7 @@ function toggleBookkeeping(uid, current) {
     if (c) c.bookkeeping = newVal;
     let activeFilter = document.querySelector(".filter-bar .filter-btn.active");
     renderClients(activeFilter ? activeFilter.textContent.toLowerCase().replace(" ","-") : "all");
-  }).catch(e => alert("Failed: " + e.message));
+  }).catch(e => toast("Failed: " + e.message, "error"));
 }
 function toggleCase(btn) {
   let uid = btn.getAttribute("data-uid");
@@ -152,7 +152,7 @@ function toggleCase(btn) {
     if (c) c.caseOpen = newState;
     btn.className = "case-toggle " + (newState ? "case-btn-open" : "case-btn-closed");
     btn.textContent = newState ? "Open" : "Closed";
-  }).catch(e => alert("Failed: " + e.message));
+  }).catch(e => toast("Failed: " + e.message, "error"));
 }
 function updateClientField(uid, field, value) {
   let update = {}; update[field] = value;
@@ -161,7 +161,7 @@ function updateClientField(uid, field, value) {
     if (c) c[field] = value;
     updateOverviewStats();
     updateRecentClientsList();
-  }).catch(e => alert("Failed to update: " + e.message));
+  }).catch(e => toast("Failed to update: " + e.message, "error"));
 }
 function updateOverviewStats() {
   let yearClients = clients.filter(c => c.year === activeYear);
@@ -465,9 +465,9 @@ function renderFormsGrid(forms, cat) {
       </div>
       <div class="form-card-actions" onclick="event.stopPropagation()">
         <button class="form-action-btn ${isPinned ? "pinned" : ""}" title="${isPinned ? "Unpin from Quick Access" : "Pin to Quick Access"}"
-          onclick="togglePinForm('${f._id}', ${isPinned}, this)">${isPinned ? "📌" : "☆"}</button>
+          data-id="${esc(f._id)}" data-pinned="${isPinned}" onclick="togglePinForm(this.dataset.id, this.dataset.pinned === 'true', this)">${isPinned ? "📌" : "☆"}</button>
         <button class="form-action-btn delete" title="Delete form"
-          onclick="deleteUploadedForm('${f._id}','${(f.storagePath||"").replace(/'/g,"\\'")}')">✕</button>
+          data-id="${esc(f._id)}" data-path="${esc(f.storagePath||'')}" onclick="deleteUploadedForm(this.dataset.id, this.dataset.path)">✕</button>
       </div>`;
     grid.appendChild(card);
   });
@@ -479,57 +479,72 @@ function renderFormsGrid(forms, cat) {
 function handleFormUpload(input) {
   let file = input.files[0];
   if (!file) return;
-  let name = prompt("Form name (e.g. Form 1040):", file.name.replace(/\.pdf$/i,""));
-  if (!name) { input.value=""; return; }
-  let desc = prompt("Short description:", "");
-  let year = prompt("Tax year:", new Date().getFullYear() - 1);
 
-  // Category is already known from which category we're in
-  let category = currentFormsCategory ? currentFormsCategory.id : "other";
+  showInputModal({
+    title: "Upload Form",
+    fields: [
+      { id: "name", label: "Form Name", placeholder: "e.g. Form 1040", value: file.name.replace(/\.pdf$/i, "") },
+      { id: "desc", label: "Short Description", placeholder: "" },
+      { id: "year", label: "Tax Year", placeholder: "", value: String(new Date().getFullYear() - 1), type: "number" }
+    ],
+    confirmText: "Upload",
+    onConfirm: (values) => {
+      let name = values.name.trim();
+      if (!name) { input.value = ""; return; }
+      let desc = values.desc;
+      let year = values.year;
+      let category = currentFormsCategory ? currentFormsCategory.id : "other";
+      let path = "practitioner-forms/" + Date.now() + "_" + file.name;
+      let ref  = storage.ref(path);
 
-  let path = "practitioner-forms/" + Date.now() + "_" + file.name;
-  let ref  = storage.ref(path);
+      let container = document.getElementById("forms-container");
+      let uploading = document.createElement("div");
+      uploading.className = "form-upload-progress";
+      uploading.style.marginBottom = "16px";
+      uploading.innerHTML = `<span>Uploading ${name}...</span><div class="upload-bar"><div class="upload-bar-fill" id="upload-fill"></div></div>`;
+      container.insertBefore(uploading, container.firstChild);
 
-  // Show progress
-  let container = document.getElementById("forms-container");
-  let uploading = document.createElement("div");
-  uploading.className = "form-upload-progress";
-  uploading.style.marginBottom = "16px";
-  uploading.innerHTML = `<span>Uploading ${name}...</span><div class="upload-bar"><div class="upload-bar-fill" id="upload-fill"></div></div>`;
-  container.insertBefore(uploading, container.firstChild);
-
-  let uploadTask = ref.put(file);
-  uploadTask.on("state_changed",
-    snap => {
-      let pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-      let fill = document.getElementById("upload-fill");
-      if (fill) fill.style.width = pct + "%";
-    },
-    err => { alert("Upload failed: " + err.message); uploading.remove(); input.value=""; },
-    () => {
-      uploadTask.snapshot.ref.getDownloadURL().then(url => {
-        return db.collection("practitionerForms").add({
-          name, desc: desc||"", taxYear: year||"", category,
-          storagePath: path, storageUrl: url,
-          uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-      }).then(() => {
-        uploading.remove();
-        input.value = "";
-        if (currentFormsCategory) openCategory(currentFormsCategory);
-        else renderCategoryGrid();
-      }).catch(e => { alert("Error: " + e.message); uploading.remove(); input.value=""; });
+      let uploadTask = ref.put(file);
+      uploadTask.on("state_changed",
+        snap => {
+          let pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+          let fill = document.getElementById("upload-fill");
+          if (fill) fill.style.width = pct + "%";
+        },
+        err => { toast("Upload failed: " + err.message, "error"); uploading.remove(); input.value = ""; },
+        () => {
+          uploadTask.snapshot.ref.getDownloadURL().then(url => {
+            return db.collection("practitionerForms").add({
+              name, desc: desc || "", taxYear: year || "", category,
+              storagePath: path, storageUrl: url,
+              uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          }).then(() => {
+            uploading.remove();
+            input.value = "";
+            if (currentFormsCategory) openCategory(currentFormsCategory);
+            else renderCategoryGrid();
+          }).catch(e => { toast("Error: " + e.message, "error"); uploading.remove(); input.value = ""; });
+        }
+      );
     }
-  );
+  });
 }
 
 function deleteUploadedForm(docId, storagePath) {
-  if (!confirm("Delete this form permanently?")) return;
-  db.collection("practitionerForms").doc(docId).delete().then(() => {
-    if (storagePath) storage.ref(storagePath).delete().catch(()=>{});
-    if (currentFormsCategory) openCategory(currentFormsCategory);
-    else renderCategoryGrid();
-  }).catch(e => alert("Failed: " + e.message));
+  showModal({
+    title: "Delete Form",
+    message: "Delete this form permanently? This cannot be undone.",
+    confirmText: "Delete",
+    type: "danger",
+    onConfirm: () => {
+      db.collection("practitionerForms").doc(docId).delete().then(() => {
+        if (storagePath) storage.ref(storagePath).delete().catch(()=>{});
+        if (currentFormsCategory) openCategory(currentFormsCategory);
+        else renderCategoryGrid();
+      }).catch(e => toast("Failed: " + e.message, "error"));
+    }
+  });
 }
 
 
@@ -568,17 +583,24 @@ function openFormInNewTab() {
 function assignFormToClient() {
   let sel  = document.getElementById("assign-client-select");
   let uid  = sel.value;
-  if (!uid) { alert("Please select a client first."); return; }
+  if (!uid) { toast("Please select a client first.", "warning"); return; }
   let name = sel.options[sel.selectedIndex].text;
-  if (!confirm("Assign " + currentFormName + " to " + name + "?")) return;
-  db.collection("assignedForms").add({
-    clientId:   uid,
-    formId:     currentFormId,
-    formName:   currentFormName,
-    formUrl:    currentFormUrl,
-    assignedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).then(() => alert(currentFormName + " assigned to " + name + "."))
-    .catch(e => alert("Error: " + e.message));
+  showModal({
+    title: "Assign Form",
+    message: "Assign " + currentFormName + " to " + name + "?",
+    confirmText: "Assign",
+    type: "default",
+    onConfirm: () => {
+      db.collection("assignedForms").add({
+        clientId:   uid,
+        formId:     currentFormId,
+        formName:   currentFormName,
+        formUrl:    currentFormUrl,
+        assignedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(() => toast(currentFormName + " assigned to " + name + ".", "success"))
+        .catch(e => toast("Error: " + e.message, "error"));
+    }
+  });
 }
 
 
@@ -611,7 +633,7 @@ function loadSavedForms() {
         <div class="doc-review-info"><strong>${f.formName}</strong><span>Saved ${dateStr}</span></div>
         <div class="doc-actions">
           <a href="${f.storageUrl}" target="_blank" class="action-btn approve" style="text-decoration:none;">Open</a>
-          <button class="action-btn-delete" onclick="deleteSavedForm('${f._id}','${(f.storagePath||"").replace(/'/g,"\\'")}')">Delete</button>
+          <button class="action-btn-delete" data-id="${esc(f._id)}" data-path="${esc(f.storagePath||'')}" onclick="deleteSavedForm(this.dataset.id, this.dataset.path)">Delete</button>
         </div>`;
       list.appendChild(item);
     });
@@ -621,11 +643,18 @@ function loadSavedForms() {
 }
 
 function deleteSavedForm(docId, storagePath) {
-  if (!confirm("Delete this saved form?")) return;
-  db.collection("savedForms").doc(docId).delete().then(() => {
-    if (storagePath) storage.ref(storagePath).delete().catch(()=>{});
-    loadSavedForms();
-  }).catch(e => alert("Failed: " + e.message));
+  showModal({
+    title: "Delete Saved Form",
+    message: "Delete this saved form? This cannot be undone.",
+    confirmText: "Delete",
+    type: "danger",
+    onConfirm: () => {
+      db.collection("savedForms").doc(docId).delete().then(() => {
+        if (storagePath) storage.ref(storagePath).delete().catch(()=>{});
+        loadSavedForms();
+      }).catch(e => toast("Failed: " + e.message, "error"));
+    }
+  });
 }
 
 
@@ -687,7 +716,7 @@ function renderDocuments() {
     if (currentDocTab==="approved"){iconClass="doc-icon approved-icon";iconText="✓";}
     if (currentDocTab==="flagged") {iconClass="doc-icon flagged-icon"; iconText="!";}
 
-    let deleteBtn = `<button class="action-btn-delete" onclick="deleteDocumentAdmin('${doc._id}','${(doc.fileURL||"").replace(/'/g,"\\'")}')">Delete</button>`;
+    let deleteBtn = `<button class="action-btn-delete" data-id="${esc(doc._id)}" data-url="${esc(doc.fileURL||'')}" onclick="deleteDocumentAdmin(this.dataset.id, this.dataset.url)">Delete</button>`;
     let actionsHTML = "";
     if (currentDocTab==="pending") {
       actionsHTML = `<div class="doc-actions">
@@ -717,15 +746,22 @@ function reviewDocument(docId, newStatus) {
     let d = allDocuments.find(x => x._id===docId);
     if (d) d.reviewStatus = newStatus;
     renderDocuments();
-  }).catch(e => alert("Failed: " + e.message));
+  }).catch(e => toast("Failed: " + e.message, "error"));
 }
 function deleteDocumentAdmin(docId, fileURL) {
-  if (!confirm("Delete this document permanently?")) return;
-  db.collection("documents").doc(docId).delete().then(() => {
-    allDocuments = allDocuments.filter(x => x._id !== docId);
-    renderDocuments();
-    if (fileURL) { try { storage.refFromURL(fileURL).delete().catch(()=>{}); } catch(e){} }
-  }).catch(e => alert("Failed: " + e.message));
+  showModal({
+    title: "Delete Document",
+    message: "Delete this document permanently? This cannot be undone.",
+    confirmText: "Delete",
+    type: "danger",
+    onConfirm: () => {
+      db.collection("documents").doc(docId).delete().then(() => {
+        allDocuments = allDocuments.filter(x => x._id !== docId);
+        renderDocuments();
+        if (fileURL) { try { storage.refFromURL(fileURL).delete().catch(()=>{}); } catch(e){} }
+      }).catch(e => toast("Failed: " + e.message, "error"));
+    }
+  });
 }
 
 
@@ -960,7 +996,7 @@ function verifySession(uid) {
     if (!doc.exists) { secureSignOut(); return; }
     let firestoreSession = doc.data().activeSession;
     if (firestoreSession && localSessionId && firestoreSession !== localSessionId) {
-      alert("Your session was ended because a new sign-in was detected.");
+      toast("Your session was ended because a new sign-in was detected.", "warning");
       secureSignOut();
     }
   });
@@ -1034,7 +1070,7 @@ function togglePinForm(docId, currentlyPinned, btn) {
     btn.title = newPinned ? "Unpin from Quick Access" : "Pin to Quick Access";
     btn.classList.toggle("pinned", newPinned);
     loadQuickAccessForms();
-  }).catch(e => alert("Failed: " + e.message));
+  }).catch(e => toast("Failed: " + e.message, "error"));
 }
 
 
@@ -1100,13 +1136,20 @@ function sendDocRequest() {
     });
     input.value = "";
     loadExistingRequests(docRequestClientId);
-  }).catch(e => alert("Failed: " + e.message));
+  }).catch(e => toast("Failed: " + e.message, "error"));
 }
 
 function deleteDocRequest(docId) {
-  if (!confirm("Remove this request?")) return;
-  db.collection("documentRequests").doc(docId).delete().then(() => {
-    loadExistingRequests(docRequestClientId);
+  showModal({
+    title: "Remove Request",
+    message: "Remove this document request?",
+    confirmText: "Remove",
+    type: "danger",
+    onConfirm: () => {
+      db.collection("documentRequests").doc(docId).delete().then(() => {
+        loadExistingRequests(docRequestClientId);
+      });
+    }
   });
 }
 
@@ -1135,7 +1178,7 @@ function updateClientField(uid, field, value) {
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
     }
-  }).catch(e => alert("Failed to update: " + e.message));
+  }).catch(e => toast("Failed to update: " + e.message, "error"));
 }
 
 
@@ -1217,7 +1260,7 @@ function renderReturnRow(r, container) {
     </select>
     <div class="return-admin-actions">
       ${r.formStorageUrl
-        ? `<button class="action-btn approve" onclick="openReturnFormViewer('${r._id}','${r.formStorageUrl}','${(r.formName||"").replace(/'/g,"\\'")}','')">Edit Form</button>`
+        ? `<button class="action-btn approve" data-rid="${esc(r._id)}" data-url="${esc(r.formStorageUrl)}" data-name="${esc(r.formName||'')}" onclick="openReturnFormViewer(this.dataset.rid, this.dataset.url, this.dataset.name, '')">Edit Form</button>`
         : '<span style="font-size:11px;color:var(--text-dim);">No PDF linked</span>'}
       <button class="action-btn-delete" onclick="deleteClientReturn('${r._id}')">Delete</button>
     </div>`;
@@ -1229,18 +1272,25 @@ function updateReturnStatus(sel) {
   let status = sel.value;
   sel.className = "cell-dropdown return-status-select status-return-" + status;
   db.collection("clientReturns").doc(rid).update({ returnStatus: status })
-    .catch(e => alert("Failed: " + e.message));
+    .catch(e => toast("Failed: " + e.message, "error"));
 }
 
 function deleteClientReturn(rid) {
-  if (!confirm("Remove this return entry?")) return;
-  db.collection("clientReturns").doc(rid).delete().then(() => {
-    if (returnsSelectedClientId) loadClientReturns(returnsSelectedClientId);
+  showModal({
+    title: "Remove Return",
+    message: "Remove this return entry?",
+    confirmText: "Remove",
+    type: "danger",
+    onConfirm: () => {
+      db.collection("clientReturns").doc(rid).delete().then(() => {
+        if (returnsSelectedClientId) loadClientReturns(returnsSelectedClientId);
+      });
+    }
   });
 }
 
 function openAddReturnModal() {
-  if (!returnsSelectedClientId) { alert("Please select a client first."); return; }
+  if (!returnsSelectedClientId) { toast("Please select a client first.", "warning"); return; }
 
   // Populate form dropdown from cached practitioner forms
   let sel = document.getElementById("add-return-form-select");
@@ -1264,8 +1314,8 @@ function closeAddReturnModal() {
 function saveNewReturn() {
   let formVal = document.getElementById("add-return-form-select").value;
   let year    = document.getElementById("add-return-year").value;
-  if (!formVal) { alert("Please select a form."); return; }
-  if (!year)    { alert("Please enter a tax year."); return; }
+  if (!formVal) { toast("Please select a form.", "warning"); return; }
+  if (!year)    { toast("Please enter a tax year.", "warning"); return; }
 
   let formData = JSON.parse(formVal);
   let client   = clients.find(c => c.uid === returnsSelectedClientId);
@@ -1282,7 +1332,7 @@ function saveNewReturn() {
   }).then(() => {
     closeAddReturnModal();
     loadClientReturns(returnsSelectedClientId);
-  }).catch(e => alert("Failed to save: " + e.message));
+  }).catch(e => toast("Failed to save: " + e.message, "error"));
 }
 
 function openReturnFormViewer(rid, formUrl, formName, formDesc) {
@@ -1364,37 +1414,49 @@ function renderPendingApprovalBanner(snapshot) {
         </div>
       </div>
       <div class="pending-actions">
-        <button class="approve-btn" onclick="approveClient('${doc.id}','${name.replace(/'/g,"\\'")}','${d.email||""}')">✓ Approve</button>
-        <button class="deny-btn"    onclick="denyClient('${doc.id}','${name.replace(/'/g,"\\'")}')">✕ Deny</button>
+        <button class="approve-btn" data-uid="${esc(doc.id)}" data-name="${esc(name)}" data-email="${esc(d.email||'')}" onclick="approveClient(this.dataset.uid, this.dataset.name, this.dataset.email)">✓ Approve</button>
+        <button class="deny-btn" data-uid="${esc(doc.id)}" data-name="${esc(name)}" onclick="denyClient(this.dataset.uid, this.dataset.name)">✕ Deny</button>
       </div>`;
     list.appendChild(row);
   });
 }
 
 function approveClient(uid, name, email) {
-  if (!confirm("Approve " + name + "? They will get access to the portal immediately.")) return;
-  db.collection("clients").doc(uid).update({
-    approvalStatus: "approved",
-    status: "pending"
-  }).then(() => {
-    // Log welcome activity
-    db.collection("activity").add({
-      clientId:  uid,
-      type:      "account",
-      text:      "Account approved — welcome to AcctgPro!",
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    checkPendingApprovals();
-    loadAllClientsFromFirebase();
-  }).catch(e => alert("Failed: " + e.message));
+  showModal({
+    title: "Approve Client",
+    message: "Approve " + name + "? They will get access to the portal immediately.",
+    confirmText: "Approve",
+    type: "success",
+    onConfirm: () => {
+      db.collection("clients").doc(uid).update({
+        approvalStatus: "approved",
+        status: "pending"
+      }).then(() => {
+        db.collection("activity").add({
+          clientId:  uid,
+          type:      "account",
+          text:      "Account approved — welcome to AcctgPro!",
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        checkPendingApprovals();
+        loadAllClientsFromFirebase();
+      }).catch(e => toast("Failed: " + e.message, "error"));
+    }
+  });
 }
 
 function denyClient(uid, name) {
-  if (!confirm("Deny and delete " + name + "'s account? This cannot be undone.")) return;
-  // Delete from Firestore first, then Auth deletion happens via Cloud Function
-  db.collection("clients").doc(uid).delete().then(() => {
-    checkPendingApprovals();
-  }).catch(e => alert("Failed: " + e.message));
+  showModal({
+    title: "Deny Client",
+    message: "Deny and delete " + name + "'s account? This cannot be undone.",
+    confirmText: "Deny & Delete",
+    type: "danger",
+    onConfirm: () => {
+      db.collection("clients").doc(uid).delete().then(() => {
+        checkPendingApprovals();
+      }).catch(e => toast("Failed: " + e.message, "error"));
+    }
+  });
 }
 
 
@@ -1431,7 +1493,7 @@ function saveClientNote() {
     closeNotesModal();
     let activeFilter = document.querySelector(".filter-bar .filter-btn.active");
     renderClients(activeFilter ? activeFilter.textContent.toLowerCase().replace(" ", "-") : "all");
-  }).catch(e => alert("Failed to save: " + e.message));
+  }).catch(e => toast("Failed to save: " + e.message, "error"));
 }
 
 
@@ -1516,7 +1578,7 @@ function openClientPanel(uid) {
     </div>
 
     <div class="cp-actions">
-      <button class="ghost-btn" style="flex:1;" onclick="closeClientPanel();openDocRequestModal('${uid}','${c.name.replace(/'/g,"\\'")}')">
+      <button class="ghost-btn" style="flex:1;" data-uid="${esc(uid)}" data-name="${esc(c.name)}" onclick="closeClientPanel();openDocRequestModal(this.dataset.uid, this.dataset.name)">
         Request Doc
       </button>
       <button class="ghost-btn" style="flex:1;" onclick="closeClientPanel();switchDashTab('messages')">

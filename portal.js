@@ -404,7 +404,7 @@ function loadDocuments() {
         let statusClass = file.status === "reviewed" ? "reviewed" : "received";
         let statusText  = file.status === "reviewed" ? "Reviewed" : "Received";
         let timeText = "";
-        if (file.uploadedAt) {
+        if (file.uploadedAt && typeof file.uploadedAt.toDate === "function") {
           let d = file.uploadedAt.toDate();
           let months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
           timeText = months[d.getMonth()] + " " + d.getDate();

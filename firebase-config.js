@@ -22,8 +22,9 @@ const db = firebase.firestore();
 const storage = firebase.storage();
 
 // ══════════════════════════════════════
-//  APP CHECK — disabled (monitoring mode only, was blocking auth)
-//  Re-enable once reCAPTCHA site key is properly configured
+//  APP CHECK — protects Firestore/Storage from unauthorized direct access
+//  If auth breaks after re-enabling, verify the reCAPTCHA v3 site key
+//  in the Firebase Console matches the one below.
 // ══════════════════════════════════════
-// const appCheck = firebase.appCheck();
-// appCheck.activate('6LeehI8sAAAAAAq-yH2lumGxyGsWsSg8dD8QZHDi', true);
+const appCheck = firebase.appCheck();
+appCheck.activate('6LeehI8sAAAAAAq-yH2lumGxyGsWsSg8dD8QZHDi', true);
