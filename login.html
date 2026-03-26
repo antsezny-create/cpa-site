@@ -10,72 +10,47 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-<div class="login-page">
-  <div class="login-brand">
-    <div class="login-brand-content">
-      <a href="index.html" class="login-back">← Back to site</a>
-      <div class="login-brand-main">
-        <div class="login-brand-logo">
-          <span class="login-brand-logo-bar"></span>
-          Sesny Advisory
-        </div>
-        <h1>Welcome<br>back.</h1>
-        <p class="login-tagline">Your secure client portal for tax documents, filing status, and direct communication with Anthony.</p>
-        <div class="login-features">
-          <div class="login-feature">
-            <span class="login-feature-icon">📄</span>
-            <div><strong>Upload Documents</strong><span>Securely submit W-2s, 1099s, receipts, and more</span></div>
-          </div>
-          <div class="login-feature">
-            <span class="login-feature-icon">📊</span>
-            <div><strong>Track Your Return</strong><span>Real-time status updates on your filing</span></div>
-          </div>
-          <div class="login-feature">
-            <span class="login-feature-icon">💬</span>
-            <div><strong>Message Directly</strong><span>Ask questions without playing phone tag</span></div>
-          </div>
-        </div>
-      </div>
-      <p class="login-brand-footer">256-bit encrypted · your information is never shared</p>
+<div class="auth-screen">
+  <a href="index.html" class="auth-back">← Back to site</a>
+  <div class="auth-card">
+    <div class="auth-logo">
+      <span class="auth-logo-bar"></span>
+      Sesny Advisory
     </div>
-  </div>
-
-  <div class="login-form-side">
-    <div class="login-form-container">
-      <div class="login-form-header">
-        <h2>Sign in</h2>
-        <p>Access your client portal</p>
+    <p class="auth-tagline">Your returns. Your documents. Your advisor.</p>
+    <div class="auth-divider"></div>
+    <div class="login-form-header">
+      <h2>Sign in</h2>
+      <p>Access your client portal</p>
+    </div>
+    <div class="login-form">
+      <div class="form-group">
+        <label for="email">Email address</label>
+        <input type="email" id="email" placeholder="you@example.com" autocomplete="off">
       </div>
-      <div class="login-form">
-        <div class="form-group">
-          <label for="email">Email address</label>
-          <input type="email" id="email" placeholder="you@example.com" autocomplete="off">
-        </div>
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input type="password" id="password" placeholder="Enter your password" autocomplete="new-password">
-        </div>
-        <div class="form-row">
-          <label class="checkbox-label">
-            <input type="checkbox" id="remember">
-            <span class="checkbox-custom"></span>
-            Remember me
-          </label>
-          <a href="#" class="forgot-link" onclick="forgotPassword()">Forgot password?</a>
-        </div>
-        <div id="login-error" style="display:none;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#EF4444;font-size:13px;font-weight:500;padding:10px 14px;border-radius:8px;margin-bottom:12px;"></div>
-        <div id="forgot-form" style="display:none;background:rgba(0,166,81,0.06);border:1px solid rgba(0,166,81,0.2);border-radius:8px;padding:14px;margin-bottom:12px;">
-          <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">Enter your email to receive a reset link:</p>
-          <div style="display:flex;gap:8px;">
-            <input type="email" id="forgot-email" placeholder="you@example.com" style="flex:1;padding:9px 12px;border-radius:7px;border:1px solid var(--border);background:var(--bg-input,#fff);font-size:13px;font-family:inherit;outline:none;">
-            <button onclick="submitForgotPassword()" style="padding:9px 16px;background:var(--green);color:white;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;">Send</button>
-          </div>
-          <div id="forgot-msg" style="display:none;font-size:12px;margin-top:8px;color:var(--green);">Reset link sent! Check your inbox.</div>
-        </div>
-        <button class="btn-login" onclick="handleLogin()">Sign In</button>
-        <p class="login-help">Don't have an account? <a href="register.html" style="color:var(--green);text-decoration:none;font-weight:500;">Create one</a></p>
-        <p class="login-help" style="margin-top:6px;">Having trouble? Email <strong>sesnyanthony@gmail.com</strong></p>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Enter your password" autocomplete="new-password">
       </div>
+      <div class="form-row">
+        <label class="checkbox-label">
+          <input type="checkbox" id="remember">
+          <span class="checkbox-custom"></span>
+          Remember me
+        </label>
+        <a href="#" class="forgot-link" onclick="forgotPassword()">Forgot password?</a>
+      </div>
+      <div id="login-error" style="display:none;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#EF4444;font-size:13px;font-weight:500;padding:10px 14px;border-radius:8px;"></div>
+      <div id="forgot-form" style="display:none;background:rgba(0,166,81,0.06);border:1px solid rgba(0,166,81,0.2);border-radius:8px;padding:14px;">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">Enter your email to receive a reset link:</p>
+        <div style="display:flex;gap:8px;">
+          <input type="email" id="forgot-email" placeholder="you@example.com" style="flex:1;padding:9px 12px;border-radius:7px;border:1px solid var(--border);background:var(--white);color:var(--navy);font-size:13px;font-family:inherit;outline:none;">
+          <button onclick="submitForgotPassword()" style="padding:9px 16px;background:var(--green);color:white;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;">Send</button>
+        </div>
+        <div id="forgot-msg" style="display:none;font-size:12px;margin-top:8px;color:var(--green);">Reset link sent! Check your inbox.</div>
+      </div>
+      <button class="btn-login" onclick="handleLogin()">Sign In</button>
+      <p class="login-help">Don't have an account? <a href="register.html" style="color:var(--green);text-decoration:none;font-weight:500;">Create one</a></p>
     </div>
   </div>
 </div>

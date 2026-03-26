@@ -9,14 +9,121 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    .register-container { max-width: 420px; }
+    /* ── Register Page ── */
+    .reg-screen {
+      min-height: 100vh;
+      background: var(--navy);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+      position: relative;
+    }
 
+    .reg-back {
+      position: absolute;
+      top: 32px;
+      left: 40px;
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.3);
+      text-decoration: none;
+      letter-spacing: 0.3px;
+      transition: color 0.2s;
+    }
+
+    .reg-back:hover { color: rgba(255,255,255,0.7); }
+
+    /* ── White Card ── */
+    .reg-card {
+      background: var(--white);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 680px;
+      box-shadow: 0 32px 100px rgba(0,0,0,0.35);
+      overflow: hidden;
+    }
+
+    /* ── Card Header ── */
+    .reg-card-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 48px 56px 36px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .reg-card-logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-family: var(--sans);
+      font-size: 26px;
+      font-weight: 600;
+      color: var(--navy);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+    }
+
+    .reg-card-logo-bar {
+      width: 4px; height: 32px;
+      background: var(--green);
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .reg-card-tagline {
+      font-size: 13px;
+      font-weight: 300;
+      color: var(--text-muted);
+      letter-spacing: 0.2px;
+      margin-bottom: 28px;
+    }
+
+    .reg-card-features {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .reg-card-feature {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: var(--off-white);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      flex: 1;
+      justify-content: center;
+    }
+
+    .reg-card-feature-icon {
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .reg-card-feature span {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--navy);
+      white-space: nowrap;
+    }
+
+    /* ── Card Body ── */
+    .reg-card-body { padding: 40px 56px 48px; }
+
+    /* ── Step Indicator ── */
     .step-indicator {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 0;
-      margin-bottom: 40px;
+      margin-bottom: 36px;
     }
 
     .step-dot-reg {
@@ -47,6 +154,7 @@
     .step-line.active { background: var(--green); }
     .step-line.done { background: var(--navy); }
 
+    /* ── Form ── */
     .form-row-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
     .password-requirements { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
@@ -111,44 +219,44 @@
     }
 
     @media (max-width: 768px) {
+      .reg-card-header { padding: 36px 28px 28px; }
+      .reg-card-body { padding: 32px 28px 40px; }
+      .reg-card-features { flex-wrap: wrap; }
       .form-row-split { grid-template-columns: 1fr; }
       .step-line { width: 32px; }
     }
   </style>
 </head>
 <body>
-<div class="login-page">
-  <div class="login-brand">
-    <div class="login-brand-content">
-      <a href="index.html" class="login-back">← Back to site</a>
-      <div class="login-brand-main">
-        <div class="login-brand-logo">
-          <span class="login-brand-logo-bar"></span>
-          Sesny Advisory
+<div class="reg-screen">
+  <a href="index.html" class="reg-back">← Back to site</a>
+  <div class="reg-card">
+
+    <!-- Header: logo + tagline + feature chips -->
+    <div class="reg-card-header">
+      <div class="reg-card-logo">
+        <span class="reg-card-logo-bar"></span>
+        Sesny Advisory
+      </div>
+      <p class="reg-card-tagline">Create your secure client portal account today.</p>
+      <div class="reg-card-features">
+        <div class="reg-card-feature">
+          <span class="reg-card-feature-icon">⚡</span>
+          <span>Quick Setup</span>
         </div>
-        <h1>Get started<br>today.</h1>
-        <p class="login-tagline">Create your secure client portal account and get started with professional tax preparation in minutes.</p>
-        <div class="login-features">
-          <div class="login-feature">
-            <span class="login-feature-icon">⚡</span>
-            <div><strong>Quick Setup</strong><span>Create your account in under 2 minutes</span></div>
-          </div>
-          <div class="login-feature">
-            <span class="login-feature-icon">📄</span>
-            <div><strong>Upload Documents</strong><span>Securely submit W-2s, 1099s, and more</span></div>
-          </div>
-          <div class="login-feature">
-            <span class="login-feature-icon">🔒</span>
-            <div><strong>Bank-Level Security</strong><span>Your data is encrypted end-to-end</span></div>
-          </div>
+        <div class="reg-card-feature">
+          <span class="reg-card-feature-icon">📄</span>
+          <span>Upload Documents</span>
+        </div>
+        <div class="reg-card-feature">
+          <span class="reg-card-feature-icon">🔒</span>
+          <span>Bank-Level Security</span>
         </div>
       </div>
-      <p class="login-brand-footer">256-bit encrypted · your information is never shared</p>
     </div>
-  </div>
 
-  <div class="login-form-side">
-    <div class="login-form-container register-container">
+    <!-- Body: step indicator + form -->
+    <div class="reg-card-body">
       <div class="step-indicator">
         <div class="step-dot-reg active" id="step-dot-1">1</div>
         <div class="step-line active" id="step-line-1"></div>
@@ -252,6 +360,7 @@
           <p>Your account has been created. Redirecting to your portal...</p>
         </div>
       </div>
+
     </div>
   </div>
 </div>
