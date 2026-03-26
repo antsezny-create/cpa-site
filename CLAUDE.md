@@ -6,7 +6,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Who You're Working With
 
-**Anthony Sesny** — solo CPA running Sesny Advisory in New York. Non-technical background. Uses VS Code + Git for editing and deployment. Casual communication style, open to suggestions.
+**Anthony Sesny** — solo CPA candidate running Sesny Advisory in New York. Non-technical background. Uses VS Code + Git for editing and deployment. Casual communication style, open to suggestions.
 
 - Admin email: sesnyanthony@gmail.com (hardcoded in admin-login.js for persistent session)
 - Site live on Vercel; backend on Firebase project: `sesny-cpa`
