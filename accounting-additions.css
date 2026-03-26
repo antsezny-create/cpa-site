@@ -223,6 +223,60 @@
 }
 
 /* ══════════════════════════════════════
+   JOURNAL ENTRY — EXPAND ROW (View button)
+   Shows the debit/credit lines in a mini ledger table
+══════════════════════════════════════ */
+.je-expand-header,
+.je-expand-line,
+.je-expand-totals {
+  display: grid;
+  grid-template-columns: 52px 1fr 130px 130px;
+  align-items: center;
+  gap: 0 12px;
+  padding: 5px 24px;
+}
+.je-expand-header {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+.je-expand-line {
+  font-size: 13px;
+  border-bottom: 1px solid var(--border-light, var(--border));
+}
+.je-expand-line:last-of-type {
+  border-bottom: none;
+}
+.je-expand-totals {
+  font-size: 13px;
+  font-weight: 700;
+  border-top: 2px solid var(--border);
+  padding-top: 6px;
+  margin-top: 2px;
+  color: var(--text);
+}
+.je-exp-num {
+  color: var(--text-dim);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.je-exp-name {
+  color: var(--text);
+}
+.je-exp-dr,
+.je-exp-cr {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  text-align: right;
+}
+.je-exp-dr { color: var(--text); }
+.je-exp-cr { color: var(--text-muted); }
+
+/* ══════════════════════════════════════
    JOURNAL ENTRY — REVERSAL TAGS & STATES
    .je-reversed-tag  — original entry that has been reversed
    .je-reversal-tag  — the reversing entry itself

@@ -1580,15 +1580,32 @@ function expandGLEntry(id, btn) {
   btn.textContent = "Hide";
   db.collection("journalEntries").doc(id).get().then(doc => {
     let e = doc.data();
+    let lines = e.lines || [];
+    let totalDr = lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
+    let totalCr = lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
+    let balanced = Math.abs(totalDr-totalCr) < 0.01;
     let expand = document.createElement("div");
     expand.className = "je-expand-row";
-    expand.innerHTML = e.lines.map(l=>`
+    expand.innerHTML = `
+      <div class="je-expand-header">
+        <span class="je-exp-num">No.</span>
+        <span class="je-exp-name">Account</span>
+        <span class="je-exp-dr">Debit</span>
+        <span class="je-exp-cr">Credit</span>
+      </div>` +
+      lines.map(l => `
       <div class="je-expand-line">
         <span class="je-exp-num">${l.accountNumber}</span>
         <span class="je-exp-name">${l.accountName}</span>
-        <span class="je-exp-dr">${l.debit>0?"$"+fmtMoney(l.debit):""}</span>
-        <span class="je-exp-cr">${l.credit>0?"$"+fmtMoney(l.credit):""}</span>
-      </div>`).join("");
+        <span class="je-exp-dr">${l.debit>0 ? "$"+fmtMoney(l.debit) : ""}</span>
+        <span class="je-exp-cr">${l.credit>0 ? "$"+fmtMoney(l.credit) : ""}</span>
+      </div>`).join("") + `
+      <div class="je-expand-totals">
+        <span class="je-exp-num"></span>
+        <span class="je-exp-name">${balanced ? "✓ Balanced" : "⚠ Unbalanced"}</span>
+        <span class="je-exp-dr">$${fmtMoney(totalDr)}</span>
+        <span class="je-exp-cr">$${fmtMoney(totalCr)}</span>
+      </div>`;
     row.parentNode.insertBefore(expand, row.nextSibling);
   });
 }
@@ -1681,6 +1698,12 @@ function reverseGLEntry(id) {
     confirmText: "Reverse",
     type: "danger",
     onConfirm: async function() {
+      // Block if the current active period is closed
+      if (await isPeriodClosed(glClientId, glPeriodId)) {
+        toast("The active period is closed. Switch to an open period to post the reversing entry.", "error");
+        return;
+      }
+
       let doc = await db.collection("journalEntries").doc(id).get();
       if (!doc.exists) return;
       let e = doc.data();
@@ -1699,10 +1722,11 @@ function reverseGLEntry(id) {
 
       let batch = db.batch();
 
-      // Write the reversing entry
+      // Write the reversing entry into the CURRENTLY ACTIVE period (not the original period)
+      // Standard practice: reversals are dated in the period the accountant is currently working in
       batch.set(reversalRef, {
-        clientId:    e.clientId,
-        periodId:    e.periodId,
+        clientId:    glClientId,
+        periodId:    glPeriodId,
         entryDate:   firebase.firestore.Timestamp.fromDate(today),
         description: "REVERSAL: " + (e.description || ""),
         isAdjusting: true,
