@@ -1786,7 +1786,6 @@ async function openReverseEntryPicker() {
 
   let snap = await db.collection("journalEntries")
     .where("clientId", "==", glClientId)
-    .where("periodId", "==", glPeriodId)
     .where("status", "==", "posted")
     .get();
 
@@ -1794,7 +1793,7 @@ async function openReverseEntryPicker() {
   snap.forEach(doc => { let d = doc.data(); d._id = doc.id; if (!d.reversedBy && !d.reversalOf) reversible.push(d); });
   reversible.sort((a,b) => (a.entryDate?.seconds||0) - (b.entryDate?.seconds||0));
 
-  if (!reversible.length) { toast("No reversible entries in this period.", "info"); return; }
+  if (!reversible.length) { toast("No reversible entries for this client.", "info"); return; }
 
   let overlay = document.createElement("div");
   overlay.id = "reverse-picker-overlay";
