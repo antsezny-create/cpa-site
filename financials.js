@@ -1717,7 +1717,6 @@ function reverseGLEntry(id) {
         credit:        parseFloat(l.debit)  || 0
       }));
 
-      let today = new Date();
       let reversalRef = db.collection("journalEntries").doc();
 
       let batch = db.batch();
@@ -1727,7 +1726,7 @@ function reverseGLEntry(id) {
       batch.set(reversalRef, {
         clientId:    e.clientId,
         periodId:    e.periodId,
-        entryDate:   firebase.firestore.Timestamp.fromDate(today),
+        entryDate:   e.entryDate,
         description: "REVERSAL: " + (e.description || ""),
         isAdjusting: true,
         status:      "posted",
