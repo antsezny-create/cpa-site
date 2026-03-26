@@ -328,6 +328,13 @@ body {
   letter-spacing: 0.5px;
 }
 
+.hero-right-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 /* Hero Right */
 .hero-right {
   background: var(--off-white);
@@ -599,14 +606,14 @@ body {
 
 .breakdown-card h4 {
   font-family: var(--serif);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 500;
   color: var(--navy);
   margin-bottom: 10px;
 }
 
 .breakdown-card p {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 300;
   color: var(--text-muted);
   line-height: 1.75;
@@ -614,14 +621,22 @@ body {
 
 /* ── PROCESS ── */
 .process-section {
-  padding: 100px 48px;
+  padding: 64px 48px;
   background: var(--navy);
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
 .process-section .section-label { color: var(--green); }
 .process-section .section-label::before { background: var(--green); }
-.process-section .section-title { color: var(--white); }
+.process-section .section-title { color: var(--white); margin-bottom: 16px; }
+
+.process-subtitle {
+  font-size: 15px;
+  font-weight: 300;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 48px;
+  letter-spacing: 0.2px;
+}
 
 .process-steps {
   display: grid;
@@ -817,7 +832,7 @@ body {
 .about-lead {
   font-family: var(--serif);
   font-size: 20px;
-  font-weight: 400;
+  font-weight: 500;
   font-style: italic;
   line-height: 1.7;
   color: var(--navy);
@@ -852,8 +867,8 @@ body {
   background: var(--white);
   border-bottom: 1px solid var(--border);
   font-size: 14px;
-  font-weight: 400;
-  color: var(--text-muted);
+  font-weight: 500;
+  color: var(--navy);
   transition: all 0.2s;
 }
 
@@ -876,12 +891,11 @@ body {
 
 /* ── CONTACT ── */
 .contact-section {
-  padding: 120px 48px;
+  padding: 100px 48px;
   background: var(--navy);
   border-bottom: 1px solid rgba(255,255,255,0.06);
   position: relative;
   overflow: hidden;
-  text-align: center;
 }
 
 .contact-watermark {
@@ -919,12 +933,10 @@ body {
 
 .contact-section .section-label {
   color: var(--green);
-  justify-content: center;
 }
 
 .contact-section .section-title {
   color: var(--white);
-  text-align: center;
   margin-bottom: 24px;
 }
 
@@ -933,11 +945,18 @@ body {
 }
 
 .contact-header {
-  max-width: 580px;
-  margin: 0 auto 64px;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+}
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
   align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .contact-desc {
@@ -946,7 +965,6 @@ body {
   color: rgba(255,255,255,0.45);
   line-height: 1.75;
   margin-bottom: 36px;
-  text-align: center;
 }
 
 .contact-cta {
@@ -965,8 +983,6 @@ body {
 }
 
 .contact-info-rows {
-  max-width: 680px;
-  margin: 0 auto;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius-lg);
@@ -1002,9 +1018,10 @@ body {
 .btn-copy {
   width: 100%;
   padding: 16px;
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.4);
+  background: transparent;
+  color: rgba(255,255,255,0.35);
   border: none;
+  border-top: 1px solid rgba(255,255,255,0.06);
   font-size: 11px;
   font-weight: 600;
   font-family: var(--sans);
@@ -1015,8 +1032,8 @@ body {
 }
 
 .btn-copy:hover {
-  background: rgba(255,255,255,0.1);
-  color: rgba(255,255,255,0.75);
+  background: rgba(255,255,255,0.03);
+  color: var(--green);
 }
 
 /* ── FOOTER ── */
