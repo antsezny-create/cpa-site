@@ -1780,39 +1780,26 @@ function reverseGLEntry(id) {
   });
 }
 
-// ── Reverse entry picker — called from entity bar File menu ──
-async function openReverseEntryPicker() {
-  if (!glClientId || !glPeriodId) { toast("Select a client and period on the GL tab first.", "warning"); return; }
-
-  let snap = await db.collection("journalEntries")
-    .where("clientId", "==", glClientId)
-    .where("status", "==", "posted")
-    .get();
-
-  let reversible = [];
-  snap.forEach(doc => { let d = doc.data(); d._id = doc.id; if (!d.reversedBy && !d.reversalOf) reversible.push(d); });
-  reversible.sort((a,b) => (a.entryDate?.seconds||0) - (b.entryDate?.seconds||0));
-
-  if (!reversible.length) { toast("No reversible entries for this client.", "info"); return; }
-
+// ── Shared: build a picker overlay from an entries array ──
+function _buildEntryPickerOverlay(overlayId, title, entries, onSelectFn) {
   let overlay = document.createElement("div");
-  overlay.id = "reverse-picker-overlay";
+  overlay.id = overlayId;
   overlay.className = "reverse-picker-overlay";
   overlay.innerHTML = `
     <div class="reverse-picker-panel">
       <div class="reverse-picker-header">
-        <span>Select Entry to Reverse</span>
-        <button class="ghost-btn" onclick="document.getElementById('reverse-picker-overlay').remove()">✕</button>
+        <span>${title}</span>
+        <button class="ghost-btn" onclick="document.getElementById('${overlayId}').remove()">✕</button>
       </div>
       <div class="reverse-picker-list">
         <div class="reverse-picker-hrow">
           <span>Date</span><span>Description</span><span>Amount</span>
         </div>
-        ${reversible.map(e => {
+        ${entries.map(e => {
           let d = e.entryDate ? new Date(e.entryDate.seconds*1000) : null;
           let ds = d ? `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}` : "—";
           let amt = (e.lines||[]).reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
-          return `<div class="reverse-picker-row" onclick="selectReverseEntry('${e._id}')">
+          return `<div class="reverse-picker-row" onclick="${onSelectFn}('${e._id}')">
             <span class="rp-date">${ds}</span>
             <span class="rp-desc">${e.description||"—"}</span>
             <span class="rp-amt">$${fmtMoney(amt)}</span>
@@ -1823,9 +1810,88 @@ async function openReverseEntryPicker() {
   document.body.appendChild(overlay);
 }
 
+// ── Shared: fetch all posted entries for glClientId ──
+async function _fetchPostedEntries() {
+  if (!glClientId) { toast("Select a client first.", "warning"); return null; }
+  try {
+    let snap = await db.collection("journalEntries")
+      .where("clientId", "==", glClientId)
+      .where("status", "==", "posted")
+      .get();
+    let entries = [];
+    snap.forEach(doc => { let d = doc.data(); d._id = doc.id; entries.push(d); });
+    entries.sort((a,b) => (a.entryDate?.seconds||0) - (b.entryDate?.seconds||0));
+    return entries;
+  } catch(err) {
+    toast("Error loading entries: " + err.message, "error");
+    return null;
+  }
+}
+
+// ── Reverse entry picker ──
+async function openReverseEntryPicker() {
+  if (!glClientId) { toast("Select a client on the GL tab first.", "warning"); return; }
+  let all = await _fetchPostedEntries();
+  if (!all) return;
+  let reversible = all.filter(e => !e.reversedBy && !e.reversalOf);
+  if (!reversible.length) { toast("No reversible entries for this client.", "info"); return; }
+  _buildEntryPickerOverlay("reverse-picker-overlay", "Select Entry to Reverse", reversible, "selectReverseEntry");
+}
+
 function selectReverseEntry(id) {
   document.getElementById("reverse-picker-overlay")?.remove();
   reverseGLEntry(id);
+}
+
+// ── Edit description picker ──
+let _glEditEntries = {};
+
+async function openEditDescriptionPicker() {
+  if (!glClientId) { toast("Select a client on the GL tab first.", "warning"); return; }
+  let all = await _fetchPostedEntries();
+  if (!all) return;
+  if (!all.length) { toast("No posted entries for this client.", "info"); return; }
+  _glEditEntries = {};
+  all.forEach(e => _glEditEntries[e._id] = e);
+  _buildEntryPickerOverlay("edit-desc-picker-overlay", "Select Entry to Edit", all, "selectEditDescEntry");
+}
+
+function selectEditDescEntry(id) {
+  document.getElementById("edit-desc-picker-overlay")?.remove();
+  let e = _glEditEntries[id];
+  if (!e) return;
+
+  let overlay = document.createElement("div");
+  overlay.id = "edit-desc-modal-overlay";
+  overlay.className = "reverse-picker-overlay";
+  overlay.innerHTML = `
+    <div class="reverse-picker-panel" style="max-width:460px;">
+      <div class="reverse-picker-header">
+        <span>Edit Description</span>
+        <button class="ghost-btn" onclick="document.getElementById('edit-desc-modal-overlay').remove()">✕</button>
+      </div>
+      <div style="padding:16px 20px 20px;">
+        <textarea id="edit-desc-input" style="width:100%;min-height:72px;background:var(--bg-tertiary);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:8px 10px;font-size:13px;resize:vertical;box-sizing:border-box;">${(e.description||"").replace(/</g,"&lt;")}</textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+          <button class="ghost-btn" onclick="document.getElementById('edit-desc-modal-overlay').remove()">Cancel</button>
+          <button class="ghost-btn" style="color:var(--accent);" onclick="saveEntryDescription('${id}')">Save</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function saveEntryDescription(id) {
+  let newDesc = document.getElementById("edit-desc-input")?.value.trim();
+  if (!newDesc) { toast("Description cannot be empty.", "warning"); return; }
+  try {
+    await db.collection("journalEntries").doc(id).update({ description: newDesc });
+    document.getElementById("edit-desc-modal-overlay")?.remove();
+    loadGLEntries();
+    toast("Description updated.", "success");
+  } catch(err) {
+    toast("Error: " + err.message, "error");
+  }
 }
 
 // ── Save as Draft ──
