@@ -2014,10 +2014,10 @@ async function postDepreciationEntry(totalAmount) {
 
   await initChartOfAccounts();
   let deprExpAcct   = chartOfAccounts.find(a => a.number === "640");
-  let accumDeprAcct = chartOfAccounts.find(a => a.number === "160");
+  let accumDeprAcct = chartOfAccounts.find(a => a.number === "151");
 
   if (!deprExpAcct || !accumDeprAcct) {
-    toast("Depreciation accounts (640 / 160) not found in chart of accounts", "error"); return;
+    toast("Depreciation accounts (640 / 151) not found in chart of accounts", "error"); return;
   }
 
   let currentYear = parseInt((activeEntity.periodLabel || "").match(/\d{4}/)?.[0]) || new Date().getFullYear();
