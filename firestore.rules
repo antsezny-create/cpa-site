@@ -189,6 +189,10 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    match /clientLedger/{clientId}/fixedAssets/{assetId} {
+      allow read, write: if isAdmin();
+    }
+
 
     // ─────────────────────────────────────────────
     //  PRACTITIONER FORMS (forms library — admin only)
