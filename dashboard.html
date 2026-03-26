@@ -148,6 +148,12 @@
           <option value="">— Select Period —</option>
         </select>
         <div class="entity-bar-status" id="entity-bar-status"></div>
+        <div class="entity-file-menu" id="entity-file-menu" style="display:none;">
+          <button class="ghost-btn entity-file-btn" onclick="toggleEntityFileMenu(event)">File ▾</button>
+          <div class="entity-file-dropdown" id="entity-file-dropdown">
+            <button class="file-menu-item" onclick="openReverseEntryPicker();closeEntityFileMenu()">↩ Reverse Entry</button>
+          </div>
+        </div>
       </div>
     </div>
 

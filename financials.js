@@ -333,14 +333,30 @@ async function onEntityPeriodChange() {
 function updateEntityBarStatus() {
   let el = document.getElementById("entity-bar-status");
   if (!el) return;
+  let fileMenu = document.getElementById("entity-file-menu");
   if (activeEntity.clientId && activeEntity.periodId) {
     el.innerHTML = `<span class="entity-ready-badge">✓ ${esc(activeEntity.clientName)} · ${esc(activeEntity.periodLabel)}</span>`;
+    if (fileMenu) fileMenu.style.display = "block";
   } else if (activeEntity.clientId) {
     el.innerHTML = `<span style="color:var(--text-dim);font-size:12px;">Select a period →</span>`;
+    if (fileMenu) fileMenu.style.display = "none";
   } else {
     el.innerHTML = "";
+    if (fileMenu) fileMenu.style.display = "none";
   }
 }
+
+function toggleEntityFileMenu(event) {
+  event.stopPropagation();
+  let dropdown = document.getElementById("entity-file-dropdown");
+  let isOpen = dropdown.classList.contains("open");
+  closeEntityFileMenu();
+  if (!isOpen) dropdown.classList.add("open");
+}
+function closeEntityFileMenu() {
+  document.getElementById("entity-file-dropdown")?.classList.remove("open");
+}
+document.addEventListener("click", function() { closeEntityFileMenu(); });
 
 function refreshCurrentAccountingTab() {
   for (let name of ACCOUNTING_TABS) {
@@ -1168,23 +1184,9 @@ function loadGLTab() {
   if (!el) return;
 
   el.innerHTML = `
-    <div class="acct-selectors">
-      <div class="acct-selector-group">
-        <label>Date Range (optional)</label>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <input type="date" id="gl-date-from" class="modal-input" style="width:140px;">
-          <span style="color:var(--text-dim);">to</span>
-          <input type="date" id="gl-date-to" class="modal-input" style="width:140px;">
-          <button class="ghost-btn" onclick="applyGLDateFilter()">Filter</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="depreciation-panel" style="display:none;margin-bottom:20px;"></div>
-
-    <div id="gl-new-entry-area" style="display:none;margin-top:8px;"></div>
-
-    <div id="gl-content" style="margin-top:20px;">
+    <div id="depreciation-panel" style="display:none;margin-bottom:12px;"></div>
+    <div id="gl-new-entry-area" style="display:none;margin-bottom:8px;"></div>
+    <div id="gl-content">
       <div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;">Select a client and period in the entity bar above.</div>
     </div>`;
 
@@ -1254,33 +1256,45 @@ async function loadGLEntries() {
   let periodClosed = await isPeriodClosed(glClientId, glPeriodId);
 
   let html = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap;">
-      <div class="gl-view-toggle">
-        <button class="gl-toggle-btn ${glCurrentView==="posted"?"active":""}" onclick="switchGLView('posted')">
-          Posted Entries <span class="gl-toggle-count">${postedEntries.length}</span>
-        </button>
-        <button class="gl-toggle-btn ${glCurrentView==="drafts"?"active":""}" onclick="switchGLView('drafts')">
-          Drafts <span class="gl-toggle-count">${draftEntries.length}</span>
-        </button>
+    <div class="gl-toolbar">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="gl-view-toggle">
+          <button class="gl-toggle-btn ${glCurrentView==="posted"?"active":""}" onclick="switchGLView('posted')">
+            Posted <span class="gl-toggle-count">${postedEntries.length}</span>
+          </button>
+          <button class="gl-toggle-btn ${glCurrentView==="drafts"?"active":""}" onclick="switchGLView('drafts')">
+            Drafts <span class="gl-toggle-count">${draftEntries.length}</span>
+          </button>
+        </div>
+        <span class="gl-toolbar-sep"></span>
+        <button class="ghost-btn gl-btn-sm" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'flex':'none'">Date ▾</button>
+        <div class="gl-date-row" style="display:none;">
+          <input type="date" id="gl-date-from" class="gl-date-input">
+          <span class="gl-toolbar-dim">—</span>
+          <input type="date" id="gl-date-to" class="gl-date-input">
+          <button class="ghost-btn gl-btn-sm" onclick="applyGLDateFilter()">Go</button>
+          <button class="ghost-btn gl-btn-sm" onclick="document.getElementById('gl-date-from').value='';document.getElementById('gl-date-to').value='';applyGLDateFilter()">✕</button>
+        </div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:6px;">
         ${periodClosed ? '<span class="period-lock-badge">🔒 Period Closed</span>' : ''}
-        <select id="gl-acct-filter" class="assign-select" style="min-width:220px;" onchange="filterGLByAccount()">
-          <option value="">— Filter by Account —</option>
+        <select id="gl-acct-filter" class="gl-acct-filter-sel" onchange="filterGLByAccount()">
+          <option value="">— Account —</option>
           ${[...new Set(entries.flatMap(e=>e.lines.map(l=>l.accountNumber+"||"+l.accountName)))]
             .sort()
             .map(a => { let [num,name]=a.split("||"); return `<option value="${num}">${num} — ${name}</option>`; })
             .join("")}
         </select>
-        <button class="ghost-btn" onclick="document.getElementById('gl-acct-filter').value='';filterGLByAccount()">Clear</button>
-        <button class="ghost-btn" onclick="toggleDepreciationPanel()" ${periodClosed ? 'disabled title="Period is closed"' : ''}>Depreciation ▾</button>
-        ${periodClosed ? '' : '<button class="ghost-btn" onclick="closePeriod()">🔒 Close Period</button>'}
-        <button class="primary-btn" onclick="openGLNewEntry()" ${periodClosed ? 'disabled title="Period is closed"' : ''}>+ New Entry</button>
+        <button class="ghost-btn gl-btn-sm" onclick="document.getElementById('gl-acct-filter').value='';filterGLByAccount()">✕</button>
+        <button class="ghost-btn gl-btn-sm" onclick="toggleDepreciationPanel()" ${periodClosed ? 'disabled' : ''}>Depr ▾</button>
+        ${periodClosed ? '' : '<button class="ghost-btn gl-btn-sm" onclick="closePeriod()">🔒 Close</button>'}
+        <button class="primary-btn gl-btn-sm" onclick="openGLNewEntry()" ${periodClosed ? 'disabled' : ''}>+ New Entry</button>
       </div>
     </div>
     <div class="dash-card" style="padding:0;overflow:hidden;">
-      <div class="je-list-header">
-        <span>Date</span><span>Description</span><span>Debits</span><span>Credits</span><span>Status</span><span></span>
+      <div class="je-ledger-header">
+        <span>Date</span><span>No.</span><span>Account</span><span>Description</span>
+        <span>DR</span><span>CR</span>
       </div>
       <div id="gl-entries-list">`;
 
@@ -1291,59 +1305,47 @@ async function loadGLEntries() {
     html += `<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:13px;">${msg}</div>`;
   } else {
     entries.forEach(e => {
-      let totalDr  = e.lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
-      let totalCr  = e.lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
-      let balanced = Math.abs(totalDr-totalCr) < 0.01;
-      let dateStr  = e.entryDate ? new Date(e.entryDate.seconds*1000).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—";
-      let statusPill = e.status === "draft"
-        ? `<span class="status-pill draft">Draft</span>`
-        : `<span class="status-pill filed">Posted</span>`;
-      let isDraft = e.status === "draft";
+      let isDraft    = e.status === "draft";
       let isReversed = !!e.reversedBy;
       let isReversal = !!e.reversalOf;
+      let d = e.entryDate ? new Date(e.entryDate.seconds*1000) : null;
+      let dateStr = d ? `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}` : "—";
 
-      let postBtn   = isDraft ? `<button class="ghost-btn" onclick="postDraftEntry('${e._id}')">Post</button>` : "";
-      let editBtn   = isDraft ? `<button class="ghost-btn" onclick="editGLEntry('${e._id}')">Edit</button>` : "";
-      let deleteBtn = isDraft ? `<button class="action-btn-delete" onclick="deleteGLEntry('${e._id}')">Delete</button>` : "";
-      let fileMenu  = (!isDraft && !isReversed && !isReversal) ? `
-        <div class="file-menu">
-          <button class="ghost-btn file-menu-btn" onclick="toggleFileMenu(event,this)">File ▾</button>
-          <div class="file-menu-dropdown">
-            <button class="file-menu-item" onclick="reverseGLEntry('${e._id}');closeFileMenus()">↩ Reverse Entry</button>
-          </div>
-        </div>` : "";
+      let postBtn   = isDraft ? `<button class="ghost-btn gl-btn-sm" onclick="postDraftEntry('${e._id}')">Post</button>` : "";
+      let editBtn   = isDraft ? `<button class="ghost-btn gl-btn-sm" onclick="editGLEntry('${e._id}')">Edit</button>` : "";
+      let deleteBtn = isDraft ? `<button class="action-btn-delete gl-btn-sm" onclick="deleteGLEntry('${e._id}')">Delete</button>` : "";
+      let draftPill = isDraft ? `<span class="status-pill draft" style="font-size:10px;padding:2px 6px;">Draft</span>` : "";
       let reversedTag = isReversed ? `<span class="je-reversed-tag">REVERSED</span>` : "";
       let reversalTag = isReversal ? `<span class="je-reversal-tag">REVERSAL</span>` : "";
 
-      let linesHTML = (e.lines||[]).map(l => `
-        <div class="je-expand-line">
-          <span class="je-exp-num">${l.accountNumber}</span>
-          <span class="je-exp-name">${l.accountName}</span>
-          <span class="je-exp-dr">${l.debit>0 ? "$"+fmtMoney(l.debit) : ""}</span>
-          <span class="je-exp-cr">${l.credit>0 ? "$"+fmtMoney(l.credit) : ""}</span>
-        </div>`).join("");
+      let lines    = (e.lines || []).slice().sort((a, b) => (b.debit - a.debit));
+      let n        = lines.length;
+      let descTags = `${e.isAdjusting ? ' <span class="je-adj-tag">ADJ</span>' : ""}${reversedTag}${reversalTag}`;
 
-      html += `<div class="je-entry-block${isReversed?" je-row-reversed":""}">
-        <div class="je-list-row">
-          <span class="je-date">${dateStr}</span>
-          <span class="je-desc">${e.description||"—"}${e.isAdjusting?` <span class="je-adj-tag">ADJ</span>`:""}${reversedTag}${reversalTag}</span>
-          <span class="je-amount">$${fmtMoney(totalDr)}</span>
-          <span class="je-amount">$${fmtMoney(totalCr)}</span>
-          ${statusPill}
-          <div style="display:flex;gap:6px;align-items:center;">
-            ${editBtn}${postBtn}${fileMenu}${deleteBtn}
-          </div>
-        </div>
-        <div class="je-entry-lines">
-          <div class="je-expand-header">
-            <span class="je-exp-num">No.</span>
-            <span class="je-exp-name">Account</span>
-            <span class="je-exp-dr">Debit</span>
-            <span class="je-exp-cr">Credit</span>
-          </div>
-          ${linesHTML}
-        </div>
-      </div>`;
+      // Per-entry grid: description and actions span ALL line rows so description wraps naturally
+      html += `<div class="je-entry-grid${isReversed ? " je-row-reversed" : ""}">`;
+
+      // Per-line cells: date, no., account, dr, cr (columns 1 2 3 5 6)
+      lines.forEach((l, i) => {
+        let row   = i + 1;
+        let isCr  = l.credit > 0 && l.debit === 0;
+        html += `
+          <span class="je-col-date"  style="grid-column:1;grid-row:${row};">${i === 0 ? dateStr : ""}</span>
+          <span class="je-col-num"   style="grid-column:2;grid-row:${row};">${l.accountNumber}</span>
+          <span class="je-col-acct${isCr ? " je-acct-cr" : ""}" style="grid-column:3;grid-row:${row};">${l.accountName}</span>
+          <span class="je-col-dr"    style="grid-column:5;grid-row:${row};">${l.debit>0  ? "$"+fmtMoney(l.debit)  : ""}</span>
+          <span class="je-col-cr"    style="grid-column:6;grid-row:${row};">${l.credit>0 ? "$"+fmtMoney(l.credit) : ""}</span>`;
+      });
+
+      // Description spans all rows — wraps into blank row space naturally
+      html += `<span class="je-col-desc" style="grid-column:4;grid-row:1/span ${n};">${(e.description||"—")}${descTags}</span>`;
+
+      // Draft actions — full-width bottom strip inside the entry grid
+      if (isDraft) {
+        html += `<div class="je-draft-actions">${draftPill}${editBtn}${postBtn}${deleteBtn}</div>`;
+      }
+
+      html += `</div><div class="je-ledger-sep"></div>`;
     });
   }
 
@@ -1778,6 +1780,55 @@ function reverseGLEntry(id) {
   });
 }
 
+// ── Reverse entry picker — called from entity bar File menu ──
+async function openReverseEntryPicker() {
+  if (!glClientId || !glPeriodId) { toast("Select a client and period on the GL tab first.", "warning"); return; }
+
+  let snap = await db.collection("journalEntries")
+    .where("clientId", "==", glClientId)
+    .where("periodId", "==", glPeriodId)
+    .where("status", "==", "posted")
+    .get();
+
+  let reversible = [];
+  snap.forEach(doc => { let d = doc.data(); d._id = doc.id; if (!d.reversedBy && !d.reversalOf) reversible.push(d); });
+  reversible.sort((a,b) => (a.entryDate?.seconds||0) - (b.entryDate?.seconds||0));
+
+  if (!reversible.length) { toast("No reversible entries in this period.", "info"); return; }
+
+  let overlay = document.createElement("div");
+  overlay.id = "reverse-picker-overlay";
+  overlay.className = "reverse-picker-overlay";
+  overlay.innerHTML = `
+    <div class="reverse-picker-panel">
+      <div class="reverse-picker-header">
+        <span>Select Entry to Reverse</span>
+        <button class="ghost-btn" onclick="document.getElementById('reverse-picker-overlay').remove()">✕</button>
+      </div>
+      <div class="reverse-picker-list">
+        <div class="reverse-picker-hrow">
+          <span>Date</span><span>Description</span><span>Amount</span>
+        </div>
+        ${reversible.map(e => {
+          let d = e.entryDate ? new Date(e.entryDate.seconds*1000) : null;
+          let ds = d ? `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}` : "—";
+          let amt = (e.lines||[]).reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
+          return `<div class="reverse-picker-row" onclick="selectReverseEntry('${e._id}')">
+            <span class="rp-date">${ds}</span>
+            <span class="rp-desc">${e.description||"—"}</span>
+            <span class="rp-amt">$${fmtMoney(amt)}</span>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function selectReverseEntry(id) {
+  document.getElementById("reverse-picker-overlay")?.remove();
+  reverseGLEntry(id);
+}
+
 // ── Save as Draft ──
 function saveAsDraft() {
   let month = document.getElementById("gl-je-date-month")?.value;
@@ -1900,22 +1951,37 @@ function filterGLByAccount() {
   }
 
   list.innerHTML = filtered.map(e => {
-    let totalDr  = e.lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
-    let totalCr  = e.lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
-    let balanced = Math.abs(totalDr-totalCr) < 0.01;
-    let dateStr  = e.entryDate ? new Date(e.entryDate.seconds*1000).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—";
-    return `<div class="je-list-row">
-      <span class="je-date">${dateStr}</span>
-      <span class="je-desc">${e.description||"—"}${e.isAdjusting?` <span class="je-adj-tag">ADJ</span>`:""}</span>
-      <span class="je-amount">$${fmtMoney(totalDr)}</span>
-      <span class="je-amount">$${fmtMoney(totalCr)}</span>
-      <span class="status-pill ${balanced?"filed":"review"}">${balanced?"Balanced":"Unbalanced"}</span>
-      <div style="display:flex;gap:6px;">
-        <button class="ghost-btn" onclick="expandGLEntry('${e._id}',this)">View</button>
-        <button class="ghost-btn" onclick="editGLEntry('${e._id}')">Edit</button>
-        <button class="action-btn-delete" onclick="deleteGLEntry('${e._id}')">Delete</button>
-      </div>
-    </div>`;
+    let isDraft    = e.status === "draft";
+    let isReversed = !!e.reversedBy;
+    let isReversal = !!e.reversalOf;
+    let d = e.entryDate ? new Date(e.entryDate.seconds*1000) : null;
+    let dateStr = d ? `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}` : "—";
+    let lines   = (e.lines || []).slice().sort((a, b) => (b.debit - a.debit));
+    let n       = lines.length;
+    let reversedTag = isReversed ? `<span class="je-reversed-tag">REVERSED</span>` : "";
+    let reversalTag = isReversal ? `<span class="je-reversal-tag">REVERSAL</span>` : "";
+    let descTags    = `${e.isAdjusting ? ' <span class="je-adj-tag">ADJ</span>' : ""}${reversedTag}${reversalTag}`;
+    let draftPill   = isDraft ? `<span class="status-pill draft" style="font-size:10px;padding:2px 6px;">Draft</span>` : "";
+    let editBtn     = isDraft ? `<button class="ghost-btn gl-btn-sm" onclick="editGLEntry('${e._id}')">Edit</button>` : "";
+    let postBtn     = isDraft ? `<button class="ghost-btn gl-btn-sm" onclick="postDraftEntry('${e._id}')">Post</button>` : "";
+    let deleteBtn   = isDraft ? `<button class="action-btn-delete gl-btn-sm" onclick="deleteGLEntry('${e._id}')">Delete</button>` : "";
+
+    let lineCells = lines.map((l, i) => {
+      let row  = i + 1;
+      let isCr = l.credit > 0 && l.debit === 0;
+      return `
+        <span class="je-col-date"  style="grid-column:1;grid-row:${row};">${i===0?dateStr:""}</span>
+        <span class="je-col-num"   style="grid-column:2;grid-row:${row};">${l.accountNumber}</span>
+        <span class="je-col-acct${isCr?" je-acct-cr":""}" style="grid-column:3;grid-row:${row};">${l.accountName}</span>
+        <span class="je-col-dr"    style="grid-column:5;grid-row:${row};">${l.debit>0  ? "$"+fmtMoney(l.debit)  : ""}</span>
+        <span class="je-col-cr"    style="grid-column:6;grid-row:${row};">${l.credit>0 ? "$"+fmtMoney(l.credit) : ""}</span>`;
+    }).join("");
+
+    return `<div class="je-entry-grid${isReversed?" je-row-reversed":""}">
+      ${lineCells}
+      <span class="je-col-desc" style="grid-column:4;grid-row:1/span ${n};">${e.description||"—"}${descTags}</span>
+      ${isDraft ? `<div class="je-draft-actions">${draftPill}${editBtn}${postBtn}${deleteBtn}</div>` : ""}
+    </div><div class="je-ledger-sep"></div>`;
   }).join("");
 }
 

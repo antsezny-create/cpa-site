@@ -263,20 +263,240 @@
 }
 
 /* ══════════════════════════════════════
-   JOURNAL ENTRY — ALWAYS-VISIBLE LINES
-   Each entry block = header row + lines underneath, no toggle
+   GL — TOOLBAR
 ══════════════════════════════════════ */
-.je-entry-block {
+.gl-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 10px;
+  flex-wrap: wrap;
+}
+.gl-toolbar-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  display: inline-block;
+  margin: 0 2px;
+}
+.gl-toolbar-dim { color: var(--text-dim); font-size: 12px; }
+.gl-date-input {
+  background: var(--bg-input, var(--bg-surface));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 8px;
+  width: 120px;
+  height: 28px;
+}
+.gl-acct-filter-sel {
+  background: var(--bg-input, var(--bg-surface));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 8px;
+  height: 28px;
+  min-width: 160px;
+}
+.gl-btn-sm {
+  font-size: 12px !important;
+  padding: 4px 10px !important;
+  height: 28px !important;
+}
+
+/* ══════════════════════════════════════
+   GL — FLAT LEDGER LAYOUT
+   One row per journal entry LINE.
+   Date + Description appear only on the first line of each entry.
+   7 columns: Date | No. | Account | Description | DR | CR | Actions
+══════════════════════════════════════ */
+.gl-date-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Header — fixed column widths, no auto tracks */
+.je-ledger-header {
+  display: grid;
+  grid-template-columns: 82px 38px 220px 1fr 100px 100px;
+  align-items: center;
+  column-gap: 0;
+  padding: 8px 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  border-bottom: 2px solid var(--border);
+}
+.je-ledger-header span {
+  padding: 0 10px;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  min-width: 0;
+}
+.je-ledger-header span:last-child { border-right: none; }
+.je-ledger-header span:nth-child(5),
+.je-ledger-header span:nth-child(6) { text-align: right; }
+
+/* Per-entry grid — all lines of one entry share one grid so description can span rows */
+.je-entry-grid {
+  display: grid;
+  grid-template-columns: 82px 38px 220px 1fr 100px 100px;
+  align-items: start;
+  column-gap: 0;
+}
+.je-entry-grid:hover { background: var(--bg-hover); }
+.je-ledger-sep {
+  border-bottom: 1px solid var(--border);
+  width: 100%;
+}
+
+/* All column cells */
+.je-col-date, .je-col-num, .je-col-acct, .je-col-desc,
+.je-col-dr, .je-col-cr, .je-col-actions {
+  padding: 6px 10px;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  min-width: 0;
+  box-sizing: border-box;
+}
+/* Draft action strip — full-width row at bottom of draft entries */
+.je-draft-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+  padding: 4px 10px 6px;
+  border-top: 1px dashed rgba(255,255,255,0.08);
+}
+
+.je-col-date {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap;
+}
+.je-col-num {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+.je-col-acct {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Credit lines indented — classic journal entry style */
+.je-acct-cr {
+  padding-left: 28px !important;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.je-col-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: normal;
+  word-break: break-word;
+  align-self: start;
+  padding-top: 7px;
+}
+.je-col-dr,
+.je-col-cr {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+.je-col-dr { color: var(--text); }
+.je-col-cr { color: var(--text-muted); }
+.je-col-actions {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-top: 5px;
+  flex-wrap: wrap;
+}
+
+/* ── Reverse entry picker overlay ── */
+.reverse-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.reverse-picker-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 580px;
+  max-height: 480px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.reverse-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 600;
+}
+.reverse-picker-list { overflow-y: auto; flex: 1; }
+.reverse-picker-hrow {
+  display: grid;
+  grid-template-columns: 90px 1fr 100px;
+  gap: 0 12px;
+  padding: 7px 20px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
   border-bottom: 1px solid var(--border);
 }
-.je-entry-block .je-list-row {
-  border-bottom: none;
+.reverse-picker-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 100px;
+  gap: 0 12px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
 }
-.je-entry-lines {
-  background: var(--bg-surface);
-  border-top: 1px solid var(--border);
-  padding: 4px 0 8px;
+.reverse-picker-row:hover { background: var(--bg-hover); }
+.rp-date { font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); }
+.rp-desc { font-size: 13px; color: var(--text); }
+.rp-amt  { font-size: 12px; font-family: 'JetBrains Mono', monospace; text-align: right; }
+
+/* ── Entity bar File menu ── */
+.entity-file-menu { position: relative; }
+.entity-file-btn  { font-size: 12px !important; }
+.entity-file-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 400;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 170px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  overflow: hidden;
 }
+.entity-file-dropdown.open { display: block; }
 
 /* ══════════════════════════════════════
    JOURNAL ENTRY — EXPAND ROW (legacy, kept for other uses)
@@ -787,7 +1007,7 @@ select option {
 .import-cell-date { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
 .import-cell-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .import-cell-amt  { font-size: 13px; font-weight: 600; text-align: right; white-space: nowrap; }
-.import-cell-acct { }
+.import-cell-acct { font-size: 13px; }
 
 /* ══════════════════════════════════════
    MANUAL STATEMENT BUILDER
