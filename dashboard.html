@@ -134,6 +134,23 @@
   <!-- Main Content -->
   <main class="dash-main">
 
+    <!-- ==================== ENTITY BAR ==================== -->
+    <div class="entity-bar" id="entity-bar" style="display:none;">
+      <div class="entity-bar-inner">
+        <div class="entity-bar-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span>Entity</span>
+        </div>
+        <select id="entity-client-sel" class="entity-sel" onchange="onEntityClientChange()">
+          <option value="">— Select Client —</option>
+        </select>
+        <select id="entity-period-sel" class="entity-sel" disabled onchange="onEntityPeriodChange()">
+          <option value="">— Select Period —</option>
+        </select>
+        <div class="entity-bar-status" id="entity-bar-status"></div>
+      </div>
+    </div>
+
     <!-- ==================== OVERVIEW ==================== -->
     <div class="dash-tab" id="tab-overview">
 

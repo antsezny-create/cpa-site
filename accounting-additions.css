@@ -1,4 +1,84 @@
 /* ══════════════════════════════════════
+   ENTITY BAR — persistent accounting context
+══════════════════════════════════════ */
+
+.entity-bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0 16px;
+  height: 50px;
+  margin-bottom: 20px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.entity-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+}
+
+.entity-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  padding-right: 12px;
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.entity-sel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  padding: 0 10px;
+  height: 32px;
+  cursor: pointer;
+  min-width: 190px;
+  max-width: 260px;
+  transition: border-color 0.15s;
+}
+
+.entity-sel:focus { outline: none; border-color: var(--accent); }
+.entity-sel:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.entity-bar-status {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.entity-ready-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(34,197,94,0.1);
+  border: 1px solid rgba(34,197,94,0.2);
+  color: #22c55e;
+  border-radius: 99px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ══════════════════════════════════════
    MASTER CHART OF ACCOUNTS TAB
 ══════════════════════════════════════ */
 

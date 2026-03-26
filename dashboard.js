@@ -57,6 +57,15 @@ function switchDashTab(tabName) {
     if (b.getAttribute("onclick") && b.getAttribute("onclick").includes("'" + tabName + "'"))
       b.classList.add("active");
   });
+
+  // Show entity bar for all accounting tabs
+  let entityBar = document.getElementById("entity-bar");
+  if (entityBar) {
+    let isAccounting = ACCOUNTING_TABS.includes(tabName);
+    entityBar.style.display = isAccounting ? "flex" : "none";
+    if (isAccounting) initEntityBar();
+  }
+
   if (tabName === "clients")         { renderClients("all"); checkPendingApprovals(); }
   if (tabName === "forms")           { currentCategory = "uploaded"; loadFormsFromFirebase(); }
   if (tabName === "documents")       renderDocuments();

@@ -49,6 +49,17 @@ const MASTER_COA = [
 let chartOfAccounts = [];
 let coaLoaded = false;
 
+// ── ENTITY BAR — global accounting context ──
+const ACCOUNTING_TABS = ['gl','is','bs','scf','sshe','master-accounts','trial-balance','import','manual-stmt'];
+
+let activeEntity = {
+  clientId:    null,
+  clientName:  null,
+  periodId:    null,
+  periodLabel: null,
+  periodType:  null
+};
+
 // ══════════════════════════════════════
 //  GROUPED ACCOUNT DROPDOWN BUILDER
 //  Used in journal entry forms — groups by account type with optgroup labels
@@ -240,6 +251,137 @@ async function loadPeriodsForClient(clientId, periodSelectId) {
   }, true); // capture phase so we intercept before original handler
 }
 
+// ══════════════════════════════════════
+//  ENTITY BAR FUNCTIONS
+// ══════════════════════════════════════
+
+function initEntityBar() {
+  let sel = document.getElementById("entity-client-sel");
+  if (!sel) return;
+  let prev = sel.value;
+  sel.innerHTML = `<option value="">— Select Client —</option>`;
+  clients.forEach(c => {
+    let opt = document.createElement("option");
+    opt.value = c.uid;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+  // Restore previous selection
+  if (activeEntity.clientId) {
+    sel.value = activeEntity.clientId;
+    _restoreEntityPeriodSel();
+  } else if (prev) {
+    sel.value = prev;
+  }
+  updateEntityBarStatus();
+}
+
+async function _restoreEntityPeriodSel() {
+  if (!activeEntity.clientId) return;
+  let periodSel = document.getElementById("entity-period-sel");
+  if (!periodSel) return;
+  // Build period options without triggering auto-load
+  let snap = await db.collection("clientLedger").doc(activeEntity.clientId).collection("periods").get();
+  let periods = [];
+  snap.forEach(doc => { let d = doc.data(); d._id = doc.id; periods.push(d); });
+  periods.sort((a, b) => (b.taxYear || 0) - (a.taxYear || 0));
+  periodSel.innerHTML = `<option value="">— Select Period —</option>`;
+  periods.forEach(p => {
+    let opt = document.createElement("option");
+    opt.value = p._id;
+    opt.textContent = p.periodLabel || p.period;
+    opt.dataset.periodType  = p.periodType  || "annual";
+    opt.dataset.companyName = p.companyName || "";
+    periodSel.appendChild(opt);
+  });
+  if (activeEntity.periodId) periodSel.value = activeEntity.periodId;
+  periodSel.disabled = false;
+}
+
+async function onEntityClientChange() {
+  let sel = document.getElementById("entity-client-sel");
+  activeEntity.clientId   = sel.value;
+  activeEntity.clientName = sel.options[sel.selectedIndex]?.textContent || "";
+  activeEntity.periodId    = null;
+  activeEntity.periodLabel = null;
+  activeEntity.periodType  = null;
+
+  let periodSel = document.getElementById("entity-period-sel");
+  if (!activeEntity.clientId) {
+    periodSel.disabled = true;
+    periodSel.innerHTML = `<option value="">— Select Period —</option>`;
+    updateEntityBarStatus();
+    return;
+  }
+  await loadPeriodsForClient(activeEntity.clientId, "entity-period-sel");
+  updateEntityBarStatus();
+}
+
+async function onEntityPeriodChange() {
+  let sel = document.getElementById("entity-period-sel");
+  if (!sel || sel.value === "__add__") return;
+  let opt = sel.options[sel.selectedIndex];
+  activeEntity.periodId    = sel.value;
+  activeEntity.periodLabel = opt?.textContent || "";
+  activeEntity.periodType  = opt?.dataset.periodType || "annual";
+  updateEntityBarStatus();
+  refreshCurrentAccountingTab();
+}
+
+function updateEntityBarStatus() {
+  let el = document.getElementById("entity-bar-status");
+  if (!el) return;
+  if (activeEntity.clientId && activeEntity.periodId) {
+    el.innerHTML = `<span class="entity-ready-badge">✓ ${esc(activeEntity.clientName)} · ${esc(activeEntity.periodLabel)}</span>`;
+  } else if (activeEntity.clientId) {
+    el.innerHTML = `<span style="color:var(--text-dim);font-size:12px;">Select a period →</span>`;
+  } else {
+    el.innerHTML = "";
+  }
+}
+
+function refreshCurrentAccountingTab() {
+  for (let name of ACCOUNTING_TABS) {
+    let el = document.getElementById("tab-" + name);
+    if (el && el.style.display !== "none") {
+      if (name === "gl") {
+        glClientId = activeEntity.clientId;
+        glPeriodId = activeEntity.periodId;
+        loadGLEntries();
+      } else if (['is','bs','scf','sshe'].includes(name)) {
+        onStmtPeriodChange(name);
+      } else if (name === "trial-balance") {
+        loadTBFromEntity();
+      } else if (name === "import") {
+        refreshImportForEntity();
+      } else if (name === "manual-stmt") {
+        refreshManualStmtForEntity();
+      }
+      break;
+    }
+  }
+}
+
+async function _loadCompareDropdown(tabId) {
+  if (!activeEntity.clientId) return;
+  let sel = document.getElementById(tabId + "-compare");
+  if (!sel) return;
+  let snap = await db.collection("clientLedger").doc(activeEntity.clientId).collection("periods").get();
+  let periods = [];
+  snap.forEach(doc => { let d = doc.data(); d._id = doc.id; periods.push(d); });
+  periods.sort((a, b) => (b.taxYear || 0) - (a.taxYear || 0));
+  sel.innerHTML = `<option value="">— No Comparison —</option>`;
+  periods.forEach(p => {
+    let opt = document.createElement("option");
+    opt.value = p._id;
+    opt.textContent = p.periodLabel || p.period;
+    opt.dataset.periodType  = p.periodType  || "annual";
+    opt.dataset.companyName = p.companyName || "";
+    sel.appendChild(opt);
+  });
+  sel.disabled = false;
+}
+
 async function computeBalances(clientId, periodId, dateFrom, dateTo) {
   let snap = await db.collection("journalEntries")
     .where("clientId", "==", clientId)
@@ -397,24 +539,8 @@ function buildStatementHeader(tabId, containerId, stmtTitle, periodHint, onLoadF
   let el = document.getElementById(containerId);
   if (!el) return;
 
-  let clientOpts = clients.map(c =>
-    `<option value="${c.uid}">${c.name}</option>`).join("");
-
   el.innerHTML = `
     <div class="acct-selectors">
-      <div class="acct-selector-group">
-        <label>Client</label>
-        <select id="${tabId}-client" class="assign-select" onchange="onStmtClientChange('${tabId}')">
-          <option value="">— Select Client —</option>
-          ${clientOpts}
-        </select>
-      </div>
-      <div class="acct-selector-group">
-        <label>Current Period</label>
-        <select id="${tabId}-period" class="assign-select" disabled onchange="onStmtPeriodChange('${tabId}')">
-          <option value="">— Select Period —</option>
-        </select>
-      </div>
       <div class="acct-selector-group">
         <label>Compare to (optional)</label>
         <select id="${tabId}-compare" class="assign-select" disabled onchange="onStmtComparePeriodChange('${tabId}')">
@@ -429,6 +555,14 @@ function buildStatementHeader(tabId, containerId, stmtTitle, periodHint, onLoadF
       </div>
     </div>
     <div id="${tabId}-stmt-output" style="margin-top:24px;"></div>`;
+
+  if (activeEntity.clientId && activeEntity.periodId) {
+    onStmtPeriodChange(tabId);
+    _loadCompareDropdown(tabId);
+  } else {
+    let out = document.getElementById(tabId + "-stmt-output");
+    if (out) out.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;">Select a client and period in the entity bar above.</div>`;
+  }
 }
 
 async function onStmtClientChange(tabId) {
@@ -463,15 +597,11 @@ async function onStmtClientChange(tabId) {
 }
 
 async function onStmtPeriodChange(tabId) {
-  let clientSel = document.getElementById(tabId + "-client");
-  let periodSel = document.getElementById(tabId + "-period");
-  if (!clientSel || !periodSel) return;
-  let clientId    = clientSel.value;
-  let periodId    = periodSel.value;
-  let periodLabel = periodSel.options[periodSel.selectedIndex]?.textContent || "";
-  let companyName = periodSel.options[periodSel.selectedIndex]?.dataset.companyName
-                 || clientSel.options[clientSel.selectedIndex]?.textContent || "";
-  let periodType  = periodSel.options[periodSel.selectedIndex]?.dataset.periodType || "annual";
+  let clientId    = activeEntity.clientId;
+  let periodId    = activeEntity.periodId;
+  let periodLabel = activeEntity.periodLabel;
+  let companyName = activeEntity.clientName;
+  let periodType  = activeEntity.periodType;
   if (!clientId || !periodId) return;
 
   stmtOverrides = {};
@@ -512,11 +642,10 @@ function renderCurrentStatement(tabId, accounts, periodLabel, companyName) {
 }
 
 async function onStmtComparePeriodChange(tabId) {
-  let clientSel  = document.getElementById(tabId + "-client");
   let compareSel = document.getElementById(tabId + "-compare");
-  if (!clientSel || !compareSel || !window._finData) return;
+  if (!compareSel || !window._finData) return;
 
-  let clientId      = clientSel.value;
+  let clientId      = activeEntity.clientId;
   let comparePeriod = compareSel.value;
 
   if (!comparePeriod) {
@@ -1036,24 +1165,8 @@ function loadGLTab() {
   let el = document.getElementById("gl-main");
   if (!el) return;
 
-  let clientOpts = clients.map(c =>
-    `<option value="${c.uid}">${c.name}</option>`).join("");
-
   el.innerHTML = `
     <div class="acct-selectors">
-      <div class="acct-selector-group">
-        <label>Client</label>
-        <select id="gl-client-sel" class="assign-select" onchange="onGLClientChange()">
-          <option value="">— Select Client —</option>
-          ${clientOpts}
-        </select>
-      </div>
-      <div class="acct-selector-group">
-        <label>Period</label>
-        <select id="gl-period-sel" class="assign-select" disabled onchange="onGLPeriodChange()">
-          <option value="">— Select Period —</option>
-        </select>
-      </div>
       <div class="acct-selector-group">
         <label>Date Range (optional)</label>
         <div style="display:flex;gap:6px;align-items:center;">
@@ -1068,8 +1181,14 @@ function loadGLTab() {
     <div id="gl-new-entry-area" style="display:none;margin-top:8px;"></div>
 
     <div id="gl-content" style="margin-top:20px;">
-      <div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;">Select a client and period to view the general ledger.</div>
+      <div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;">Select a client and period in the entity bar above.</div>
     </div>`;
+
+  if (activeEntity.clientId && activeEntity.periodId) {
+    glClientId = activeEntity.clientId;
+    glPeriodId = activeEntity.periodId;
+    loadGLEntries();
+  }
 }
 
 async function onGLClientChange() {
@@ -1091,6 +1210,8 @@ async function applyGLDateFilter() {
 }
 
 async function loadGLEntries() {
+  if (activeEntity.clientId) glClientId = activeEntity.clientId;
+  if (activeEntity.periodId) glPeriodId = activeEntity.periodId;
   if (!glClientId || !glPeriodId) return;
   let content = document.getElementById("gl-content");
   content.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:13px;">Loading entries...</div>`;

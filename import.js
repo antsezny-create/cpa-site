@@ -16,31 +16,18 @@ function loadImportTab() {
   let el = document.getElementById("import-main");
   if (!el) return;
 
-  let clientOpts = clients.map(c =>
-    `<option value="${c.uid}">${c.name}</option>`).join("");
+  if (activeEntity.clientId) importClientId = activeEntity.clientId;
+  if (activeEntity.periodId) importPeriodId = activeEntity.periodId;
 
-  el.innerHTML = `
-    <div class="dash-card" style="margin-bottom:20px;">
-      <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;">Step 1 — Select Client & Period</h3>
-      <div class="acct-selectors">
-        <div class="acct-selector-group">
-          <label>Client</label>
-          <select id="import-client-sel" class="assign-select" onchange="onImportClientChange()">
-            <option value="">— Select Client —</option>
-            ${clientOpts}
-          </select>
-        </div>
-        <div class="acct-selector-group">
-          <label>Period</label>
-          <select id="import-period-sel" class="assign-select" disabled onchange="onImportPeriodChange()">
-            <option value="">— Select Period —</option>
-          </select>
-        </div>
-      </div>
-    </div>
+  let uploadDisplay = (activeEntity.clientId && activeEntity.periodId) ? "block" : "none";
 
-    <div class="dash-card" id="import-upload-card" style="margin-bottom:20px;display:none;">
-      <h3 style="font-size:15px;font-weight:700;margin-bottom:8px;">Step 2 — Upload File</h3>
+  let noEntityMsg = (!activeEntity.clientId || !activeEntity.periodId)
+    ? `<div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;" id="import-no-entity">Select a client and period in the entity bar above to begin importing.</div>`
+    : "";
+
+  el.innerHTML = noEntityMsg + `
+    <div class="dash-card" id="import-upload-card" style="margin-bottom:20px;display:${uploadDisplay};">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:8px;">Upload File</h3>
       <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
         Accepts CSV, Excel (.xlsx), QuickBooks export (.qbo), or a trial balance spreadsheet.
       </p>
@@ -80,6 +67,15 @@ function onImportPeriodChange() {
   if (!importPeriodId) return;
   document.getElementById("import-upload-card").style.display = "block";
   document.getElementById("import-upload-card").scrollIntoView({ behavior: "smooth" });
+}
+
+function refreshImportForEntity() {
+  importClientId = activeEntity.clientId;
+  importPeriodId = activeEntity.periodId;
+  let noEntity = document.getElementById("import-no-entity");
+  if (noEntity) noEntity.remove();
+  let card = document.getElementById("import-upload-card");
+  if (card) card.style.display = "block";
 }
 
 function handleImportDrop(e) {
@@ -715,26 +711,17 @@ function loadManualStmtTab() {
   if (!el) return;
   manualStmtData = {};
 
-  let clientOpts = clients.map(c =>
-    `<option value="${c.uid}">${c.name}</option>`).join("");
+  if (activeEntity.clientId)   manualStmtClient  = activeEntity.clientId;
+  if (activeEntity.clientName) manualStmtCompany = activeEntity.clientName;
+  if (activeEntity.periodId)   manualStmtPeriod  = activeEntity.periodId;
+  if (activeEntity.periodLabel) manualStmtLabel  = activeEntity.periodLabel;
+
+  let formDisplay = (activeEntity.clientId && activeEntity.periodId) ? "block" : "none";
 
   el.innerHTML = `
     <div class="dash-card" style="margin-bottom:20px;">
       <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;">Build a Manual Financial Statement</h3>
       <div class="acct-selectors" style="flex-wrap:wrap;">
-        <div class="acct-selector-group">
-          <label>Client</label>
-          <select id="ms-client" class="assign-select" onchange="onMSClientChange()">
-            <option value="">— Select Client —</option>
-            ${clientOpts}
-          </select>
-        </div>
-        <div class="acct-selector-group">
-          <label>Period</label>
-          <select id="ms-period" class="assign-select" disabled onchange="onMSPeriodChange()">
-            <option value="">— Select Period —</option>
-          </select>
-        </div>
         <div class="acct-selector-group">
           <label>Statement Type</label>
           <select id="ms-type" class="assign-select" onchange="onMSTypeChange()">
@@ -746,24 +733,26 @@ function loadManualStmtTab() {
         </div>
       </div>
     </div>
-    <div id="ms-form-area"></div>`;
+    <div id="ms-form-area" style="display:${formDisplay};"></div>`;
+
+  if (!activeEntity.clientId || !activeEntity.periodId) {
+    let formArea = document.getElementById("ms-form-area");
+    if (formArea) {
+      formArea.style.display = "block";
+      formArea.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px;">Select a client and period in the entity bar above.</div>`;
+    }
+  } else {
+    renderManualStmtForm();
+  }
 }
 
-async function onMSClientChange() {
-  let sel = document.getElementById("ms-client");
-  manualStmtClient = sel.value;
-  manualStmtCompany = sel.options[sel.selectedIndex]?.textContent || "";
-  if (!manualStmtClient) return;
-  await loadPeriodsForClient(manualStmtClient, "ms-period");
-  document.getElementById("ms-period").disabled = false;
-}
-
-function onMSPeriodChange() {
-  let sel = document.getElementById("ms-period");
-  manualStmtPeriod = sel.value;
-  manualStmtLabel  = sel.options[sel.selectedIndex]?.textContent || "";
-  if (!manualStmtPeriod) return;
-  renderManualStmtForm();
+function refreshManualStmtForEntity() {
+  manualStmtClient  = activeEntity.clientId;
+  manualStmtCompany = activeEntity.clientName;
+  manualStmtPeriod  = activeEntity.periodId;
+  manualStmtLabel   = activeEntity.periodLabel;
+  let formArea = document.getElementById("ms-form-area");
+  if (formArea) { formArea.style.display = "block"; renderManualStmtForm(); }
 }
 
 function onMSTypeChange() {
@@ -1085,33 +1074,38 @@ function loadTrialBalanceTab() {
   let el = document.getElementById("tb-main");
   if (!el) return;
 
-  let clientOpts = clients.map(c =>
-    `<option value="${c.uid}">${c.name}</option>`).join("");
-
   el.innerHTML = `
     <div class="acct-selectors" style="margin-bottom:20px;">
-      <div class="acct-selector-group">
-        <label>Client</label>
-        <select id="tb-client-sel" class="assign-select" onchange="onTBClientChange()">
-          <option value="">— Select Client —</option>
-          ${clientOpts}
-        </select>
-      </div>
-      <div class="acct-selector-group">
-        <label>Period</label>
-        <select id="tb-period-sel" class="assign-select" disabled onchange="onTBPeriodChange()">
-          <option value="">— Select Period —</option>
-        </select>
-      </div>
       <div class="acct-selector-group" style="align-self:flex-end;">
         <button class="ghost-btn" id="tb-export-btn" style="display:none;" onclick="exportTrialBalance()">Export Excel ↓</button>
       </div>
     </div>
     <div id="tb-content">
       <div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px;">
-        Select a client and period to view the trial balance.
+        Select a client and period in the entity bar above.
       </div>
     </div>`;
+
+  if (activeEntity.clientId && activeEntity.periodId) loadTBFromEntity();
+}
+
+async function loadTBFromEntity() {
+  tbViewClientId = activeEntity.clientId;
+  tbViewPeriodId = activeEntity.periodId;
+  if (!tbViewClientId || !tbViewPeriodId) return;
+
+  let content = document.getElementById("tb-content");
+  if (!content) return;
+  content.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Computing trial balance...</div>`;
+
+  await initChartOfAccounts();
+  let { from, to } = getPeriodDateRange(activeEntity.periodLabel, activeEntity.periodType);
+  let accounts = await computeBalances(tbViewClientId, tbViewPeriodId, from, to);
+
+  let exportBtn = document.getElementById("tb-export-btn");
+  if (exportBtn) exportBtn.style.display = "inline-flex";
+
+  renderTrialBalance(accounts, activeEntity.periodLabel, activeEntity.clientName);
 }
 
 async function onTBClientChange() {
