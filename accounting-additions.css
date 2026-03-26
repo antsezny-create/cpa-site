@@ -321,7 +321,7 @@
 /* Header — fixed column widths, no auto tracks */
 .je-ledger-header {
   display: grid;
-  grid-template-columns: 82px 38px 220px 1fr 120px 120px;
+  grid-template-columns: 82px 38px 245px 1fr 120px 120px;
   align-items: center;
   column-gap: 0;
   padding: 8px 0;
@@ -344,7 +344,7 @@
 /* Per-entry grid — all lines of one entry share one grid so description can span rows */
 .je-entry-grid {
   display: grid;
-  grid-template-columns: 82px 38px 220px 1fr 120px 120px;
+  grid-template-columns: 82px 38px 245px 1fr 120px 120px;
   align-items: start;
   column-gap: 0;
 }
