@@ -340,7 +340,51 @@ exports.onClientApproved = functions
   });
 
 // ══════════════════════════════════════
-//  8. JOURNAL ENTRY WRITTEN
+//  8. CLIENT FULFILLS A DOCUMENT REQUEST
+//     → Email YOU
+// ══════════════════════════════════════
+exports.onDocumentRequestFulfilled = functions
+  .runWith({ secrets: ["GMAIL_USER", "GMAIL_PASSWORD"] })
+  .firestore.document("documentRequests/{reqId}")
+  .onUpdate(async (change) => {
+    const before = change.before.data();
+    const after  = change.after.data();
+
+    // Only fire when fulfilled flips from false → true
+    if (before.fulfilled === after.fulfilled) return null;
+    if (!after.fulfilled) return null;
+
+    const clientId = after.clientId;
+    const clientDoc = await change.after.ref.firestore.collection("clients").doc(clientId).get();
+    const client = clientDoc.exists ? clientDoc.data() : null;
+    const clientName = client ? `${client.firstName} ${client.lastName}` : "A client";
+
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: `"Sesny Advisory" <${process.env.GMAIL_USER}>`,
+      to: ADMIN_EMAIL,
+      subject: `✅ ${clientName} uploaded a requested document`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; padding: 32px; background: #f9f9f9; border-radius: 12px;">
+          <h2 style="color: #1a1a1a; margin-bottom: 8px;">Document Request Fulfilled</h2>
+          <p style="color: #666; margin-bottom: 24px;">A client has uploaded a document you requested.</p>
+          <div style="background: #fff; border: 1px solid #e5e4e0; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px;"><strong>Client:</strong> ${clientName}</p>
+            <p style="margin: 0;"><strong>Document:</strong> ${after.documentName || "—"}</p>
+          </div>
+          <a href="https://cpa-site-pied.vercel.app/dashboard.html" style="display:inline-block;background:#1a1a1a;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View in Dashboard →</a>
+          <p style="color: #999; font-size: 12px; margin-top: 24px;">Sesny Advisory · sesnyanthony@gmail.com</p>
+        </div>
+      `,
+    });
+
+    console.log(`Email sent to admin: ${clientName} fulfilled request for ${after.documentName}`);
+    return null;
+  });
+
+
+// ══════════════════════════════════════
+//  9. JOURNAL ENTRY WRITTEN
 //     → Server-side balance validation
 //     Fires on create and update
 // ══════════════════════════════════════
