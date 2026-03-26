@@ -1698,15 +1698,15 @@ function reverseGLEntry(id) {
     confirmText: "Reverse",
     type: "danger",
     onConfirm: async function() {
-      // Block if the current active period is closed
-      if (await isPeriodClosed(glClientId, glPeriodId)) {
-        toast("The active period is closed. Switch to an open period to post the reversing entry.", "error");
-        return;
-      }
-
       let doc = await db.collection("journalEntries").doc(id).get();
       if (!doc.exists) return;
       let e = doc.data();
+
+      // Block if the original entry's period is closed
+      if (await isPeriodClosed(e.clientId, e.periodId)) {
+        toast("The original period is closed. Reversals must be posted in the same period as the original entry. Open that period first if a correction is needed.", "error");
+        return;
+      }
 
       // Flip every debit↔credit on each line
       let reversedLines = (e.lines || []).map(l => ({
@@ -1722,11 +1722,11 @@ function reverseGLEntry(id) {
 
       let batch = db.batch();
 
-      // Write the reversing entry into the CURRENTLY ACTIVE period (not the original period)
-      // Standard practice: reversals are dated in the period the accountant is currently working in
+      // Write the reversing entry into the SAME period as the original
+      // so it correctly offsets the original on that period's financial statements
       batch.set(reversalRef, {
-        clientId:    glClientId,
-        periodId:    glPeriodId,
+        clientId:    e.clientId,
+        periodId:    e.periodId,
         entryDate:   firebase.firestore.Timestamp.fromDate(today),
         description: "REVERSAL: " + (e.description || ""),
         isAdjusting: true,
