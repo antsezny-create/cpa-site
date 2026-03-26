@@ -171,7 +171,7 @@ body {
 
 .hero-left {
   background: var(--navy);
-  padding: 80px 64px 80px 80px;
+  padding: 110px 64px 80px 80px;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -191,9 +191,9 @@ body {
 .hero-left::after {
   content: "";
   position: absolute;
-  top: 60px; right: 0;
-  width: 1px; height: calc(100% - 120px);
-  background: linear-gradient(to bottom, transparent, rgba(0,166,81,0.4), transparent);
+  top: 0; right: 0;
+  width: 3px; height: 100%;
+  background: var(--green);
 }
 
 .hero-eyebrow {
@@ -337,11 +337,11 @@ body {
 
 /* Hero Right */
 .hero-right {
-  background: var(--off-white);
+  background: #F5F3EF;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  padding: 80px 80px 80px 64px;
+  padding: 110px 80px 80px 64px;
   gap: 24px;
 }
 
