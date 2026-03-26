@@ -136,6 +136,93 @@
 .coa-bal.credit { background: var(--green-light, rgba(34,197,94,0.1));  color: var(--green, #22c55e); }
 
 /* ══════════════════════════════════════
+   DEPRECIATION SCHEDULE PANEL
+══════════════════════════════════════ */
+.depr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.depr-header-left  { display: flex; align-items: center; gap: 10px; }
+.depr-title        { font-size: 14px; font-weight: 700; color: var(--text); }
+.depr-period-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(59,130,246,0.1);
+  color: #3b82f6;
+  border-radius: 99px;
+  padding: 2px 10px;
+}
+.depr-header-right { display: flex; gap: 8px; align-items: center; }
+.depr-close-btn    { padding: 0 10px !important; }
+
+.depr-table-header {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr 1fr 1.2fr 1fr 1fr 1fr 40px;
+  gap: 8px;
+  padding: 8px 20px;
+  background: var(--bg-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.depr-row {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr 1fr 1.2fr 1fr 1fr 1fr 40px;
+  gap: 8px;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+  align-items: center;
+  font-size: 13px;
+  transition: background 0.1s;
+}
+.depr-row:hover  { background: var(--bg-secondary); }
+.depr-name       { font-weight: 500; color: var(--text); }
+.depr-cell       { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted); }
+.depr-highlight  { color: #3b82f6; font-weight: 700; }
+
+.depr-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--bg-secondary);
+  border-top: 2px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.depr-total-amt {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.depr-add-form {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  padding: 16px 20px;
+}
+.depr-form-row   { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.depr-form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
+.depr-form-group label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+
+/* ══════════════════════════════════════
    FINANCIAL STATEMENT — FULL LAYOUT
    Covers wrapper, rows, sections, totals
 ══════════════════════════════════════ */

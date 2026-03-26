@@ -1178,6 +1178,8 @@ function loadGLTab() {
       </div>
     </div>
 
+    <div id="depreciation-panel" style="display:none;margin-bottom:20px;"></div>
+
     <div id="gl-new-entry-area" style="display:none;margin-top:8px;"></div>
 
     <div id="gl-content" style="margin-top:20px;">
@@ -1266,6 +1268,7 @@ async function loadGLEntries() {
             .join("")}
         </select>
         <button class="ghost-btn" onclick="document.getElementById('gl-acct-filter').value='';filterGLByAccount()">Clear</button>
+        <button class="ghost-btn" onclick="toggleDepreciationPanel()">Depreciation ▾</button>
         <button class="primary-btn" onclick="openGLNewEntry()">+ New Entry</button>
       </div>
     </div>
@@ -1755,6 +1758,292 @@ function filterGLByAccount() {
       </div>
     </div>`;
   }).join("");
+}
+
+// ══════════════════════════════════════
+//  DEPRECIATION SCHEDULE
+// ══════════════════════════════════════
+
+const MACRS_TABLES = {
+  "3-year":  [33.33, 44.45, 14.81, 7.41],
+  "5-year":  [20.00, 32.00, 19.20, 11.52, 11.52, 5.76],
+  "7-year":  [14.29, 24.49, 17.49, 12.49, 8.93, 8.92, 8.93, 4.46],
+  "10-year": [10.00, 18.00, 14.40, 11.52, 9.22, 7.37, 6.55, 6.55, 6.56, 6.55, 3.28],
+  "15-year": [5.00, 9.50, 8.55, 7.70, 6.93, 6.23, 5.90, 5.90, 5.91, 5.90, 5.91, 5.90, 5.91, 5.90, 5.91, 2.95]
+};
+
+function _getPeriodFraction(periodType) {
+  if (periodType === "quarterly") return 1/4;
+  if (periodType === "monthly")   return 1/12;
+  return 1;
+}
+
+function calcPeriodDepr(asset, currentYear, periodType) {
+  let purchaseYear = new Date(asset.purchaseDate + "T12:00:00").getFullYear();
+  let fraction     = _getPeriodFraction(periodType);
+
+  if (asset.method === "straight-line") {
+    let life    = Math.max(parseInt(asset.usefulLife) || 5, 1);
+    let salvage = parseFloat(asset.salvageValue) || 0;
+    let annual  = (asset.cost - salvage) / life;
+    let elapsed = currentYear - purchaseYear;
+    if (elapsed < 0 || elapsed >= life) return 0;
+    return annual * fraction;
+  }
+
+  if (asset.method === "macrs") {
+    let table = MACRS_TABLES[asset.macrsClass];
+    if (!table) return 0;
+    let idx = currentYear - purchaseYear;
+    if (idx < 0 || idx >= table.length) return 0;
+    return (table[idx] / 100) * asset.cost * fraction;
+  }
+
+  return 0;
+}
+
+function calcAccumDepr(asset, throughYear) {
+  let purchaseYear = new Date(asset.purchaseDate + "T12:00:00").getFullYear();
+  let total = 0;
+
+  if (asset.method === "straight-line") {
+    let life    = Math.max(parseInt(asset.usefulLife) || 5, 1);
+    let salvage = parseFloat(asset.salvageValue) || 0;
+    let annual  = (asset.cost - salvage) / life;
+    let years   = Math.min(throughYear - purchaseYear, life);
+    if (years > 0) total = annual * years;
+  } else if (asset.method === "macrs") {
+    let table = MACRS_TABLES[asset.macrsClass];
+    if (table) {
+      let years = Math.min(throughYear - purchaseYear, table.length);
+      for (let i = 0; i < years; i++) total += (table[i] / 100) * asset.cost;
+    }
+  }
+
+  return Math.max(total, 0);
+}
+
+function toggleDepreciationPanel() {
+  let panel = document.getElementById("depreciation-panel");
+  if (!panel) return;
+  if (panel.style.display === "none" || panel.style.display === "") {
+    panel.style.display = "block";
+    loadDepreciationAssets();
+  } else {
+    panel.style.display = "none";
+  }
+}
+
+async function loadDepreciationAssets() {
+  if (!activeEntity.clientId) return;
+  let panel = document.getElementById("depreciation-panel");
+  if (!panel) return;
+  panel.innerHTML = `<div class="dash-card" style="padding:24px;text-align:center;color:var(--text-dim);font-size:13px;">Loading assets...</div>`;
+
+  let snap = await db.collection("clientLedger").doc(activeEntity.clientId)
+    .collection("fixedAssets").where("isActive", "==", true).get();
+
+  let assets = [];
+  snap.forEach(doc => { let d = doc.data(); d._id = doc.id; assets.push(d); });
+  assets.sort((a,b) => (a.purchaseDate || "").localeCompare(b.purchaseDate || ""));
+  renderDepreciationPanel(assets);
+}
+
+function renderDepreciationPanel(assets) {
+  let panel = document.getElementById("depreciation-panel");
+  if (!panel) return;
+
+  let currentYear = parseInt((activeEntity.periodLabel || "").match(/\d{4}/)?.[0]) || new Date().getFullYear();
+  let periodType  = activeEntity.periodType || "annual";
+  let totalPeriodDepr = 0;
+
+  let rows = assets.map(a => {
+    let periodDepr = calcPeriodDepr(a, currentYear, periodType);
+    let accumDepr  = calcAccumDepr(a, currentYear);
+    let nbv        = a.cost - accumDepr;
+    totalPeriodDepr += periodDepr;
+    let methodLabel = a.method === "macrs" ? `MACRS ${a.macrsClass}` : `SL ${a.usefulLife}yr`;
+    return `<div class="depr-row">
+      <span class="depr-name">${esc(a.name)}</span>
+      <span class="depr-cell">$${fmtMoney(a.cost)}</span>
+      <span class="depr-cell">${a.purchaseDate || "—"}</span>
+      <span class="depr-cell">${methodLabel}</span>
+      <span class="depr-cell depr-highlight">$${fmtMoney(periodDepr)}</span>
+      <span class="depr-cell">$${fmtMoney(accumDepr)}</span>
+      <span class="depr-cell">$${fmtMoney(nbv)}</span>
+      <button class="action-btn-delete" onclick="deleteFixedAsset('${a._id}')" title="Remove asset">×</button>
+    </div>`;
+  }).join("");
+
+  if (!assets.length) {
+    rows = `<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:13px;">No fixed assets on file. Click "+ Add Asset" to add one.</div>`;
+  }
+
+  panel.innerHTML = `
+    <div class="dash-card" style="padding:0;overflow:hidden;">
+      <div class="depr-header">
+        <div class="depr-header-left">
+          <span class="depr-title">Depreciation Schedule</span>
+          <span class="depr-period-badge">${esc(activeEntity.periodLabel || "")}</span>
+        </div>
+        <div class="depr-header-right">
+          <button class="ghost-btn" onclick="showAddAssetForm()">+ Add Asset</button>
+          <button class="primary-btn" ${totalPeriodDepr <= 0 ? "disabled" : ""}
+            onclick="postDepreciationEntry(${totalPeriodDepr.toFixed(2)})">
+            Post Entry ($${fmtMoney(totalPeriodDepr)})
+          </button>
+          <button class="ghost-btn depr-close-btn" onclick="toggleDepreciationPanel()" title="Close">✕</button>
+        </div>
+      </div>
+      <div id="depr-add-form-area" style="display:none;"></div>
+      <div class="depr-table-header">
+        <span>Asset</span><span>Cost</span><span>Acquired</span>
+        <span>Method</span><span>Period Depr</span><span>Accum Depr</span><span>Book Value</span><span></span>
+      </div>
+      <div id="depr-asset-rows">${rows}</div>
+      <div class="depr-footer">
+        <span>Total Period Depreciation</span>
+        <span class="depr-total-amt">$${fmtMoney(totalPeriodDepr)}</span>
+      </div>
+    </div>`;
+}
+
+function showAddAssetForm() {
+  let area = document.getElementById("depr-add-form-area");
+  if (!area) return;
+  if (area.style.display === "block") { area.style.display = "none"; return; }
+  area.style.display = "block";
+  area.innerHTML = `
+    <div class="depr-add-form">
+      <div class="depr-form-row">
+        <div class="depr-form-group">
+          <label>Asset Name</label>
+          <input type="text" id="depr-f-name" class="modal-input" placeholder="e.g. Delivery Van">
+        </div>
+        <div class="depr-form-group">
+          <label>Cost</label>
+          <input type="number" id="depr-f-cost" class="modal-input" placeholder="45000" min="0" step="0.01">
+        </div>
+        <div class="depr-form-group">
+          <label>Purchase Date</label>
+          <input type="date" id="depr-f-date" class="modal-input">
+        </div>
+      </div>
+      <div class="depr-form-row">
+        <div class="depr-form-group">
+          <label>Method</label>
+          <select id="depr-f-method" class="assign-select" onchange="onDeprMethodChange()">
+            <option value="straight-line">Straight-Line</option>
+            <option value="macrs">MACRS</option>
+          </select>
+        </div>
+        <div class="depr-form-group" id="depr-f-life-group">
+          <label>Useful Life (years)</label>
+          <input type="number" id="depr-f-life" class="modal-input" placeholder="5" min="1" step="1" value="5">
+        </div>
+        <div class="depr-form-group" id="depr-f-salvage-group">
+          <label>Salvage Value</label>
+          <input type="number" id="depr-f-salvage" class="modal-input" placeholder="0" min="0" step="0.01" value="0">
+        </div>
+        <div class="depr-form-group" id="depr-f-macrs-group" style="display:none;">
+          <label>MACRS Class</label>
+          <select id="depr-f-macrs" class="assign-select">
+            <option value="3-year">3-Year Property</option>
+            <option value="5-year" selected>5-Year Property</option>
+            <option value="7-year">7-Year Property</option>
+            <option value="10-year">10-Year Property</option>
+            <option value="15-year">15-Year Property</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;padding:0 20px 16px;">
+        <button class="primary-btn" onclick="saveFixedAsset()">Save Asset</button>
+        <button class="ghost-btn" onclick="document.getElementById('depr-add-form-area').style.display='none'">Cancel</button>
+      </div>
+    </div>`;
+}
+
+function onDeprMethodChange() {
+  let method = document.getElementById("depr-f-method")?.value;
+  let show = (id, visible) => { let el = document.getElementById(id); if (el) el.style.display = visible ? "block" : "none"; };
+  if (method === "macrs") {
+    show("depr-f-life-group", false);
+    show("depr-f-salvage-group", false);
+    show("depr-f-macrs-group", true);
+  } else {
+    show("depr-f-life-group", true);
+    show("depr-f-salvage-group", true);
+    show("depr-f-macrs-group", false);
+  }
+}
+
+async function saveFixedAsset() {
+  let name         = document.getElementById("depr-f-name")?.value.trim();
+  let cost         = parseFloat(document.getElementById("depr-f-cost")?.value);
+  let purchaseDate = document.getElementById("depr-f-date")?.value;
+  let method       = document.getElementById("depr-f-method")?.value;
+  let usefulLife   = parseInt(document.getElementById("depr-f-life")?.value)    || 5;
+  let salvageValue = parseFloat(document.getElementById("depr-f-salvage")?.value) || 0;
+  let macrsClass   = document.getElementById("depr-f-macrs")?.value || "5-year";
+
+  if (!name)              { toast("Asset name is required", "warning"); return; }
+  if (!cost || cost <= 0) { toast("Enter a valid cost", "warning");     return; }
+  if (!purchaseDate)      { toast("Purchase date is required", "warning"); return; }
+
+  let data = { name, cost, purchaseDate, method, isActive: true,
+               createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+  if (method === "straight-line") { data.usefulLife = usefulLife; data.salvageValue = salvageValue; }
+  if (method === "macrs")          { data.macrsClass = macrsClass; }
+
+  await db.collection("clientLedger").doc(activeEntity.clientId)
+    .collection("fixedAssets").add(data);
+  toast("Asset added", "success");
+  loadDepreciationAssets();
+}
+
+async function deleteFixedAsset(id) {
+  await db.collection("clientLedger").doc(activeEntity.clientId)
+    .collection("fixedAssets").doc(id).update({ isActive: false });
+  toast("Asset removed", "success");
+  loadDepreciationAssets();
+}
+
+async function postDepreciationEntry(totalAmount) {
+  if (!activeEntity.clientId || !activeEntity.periodId) { toast("No entity selected", "warning"); return; }
+  if (!totalAmount || totalAmount <= 0) { toast("No depreciation to post", "warning"); return; }
+
+  await initChartOfAccounts();
+  let deprExpAcct   = chartOfAccounts.find(a => a.number === "640");
+  let accumDeprAcct = chartOfAccounts.find(a => a.number === "160");
+
+  if (!deprExpAcct || !accumDeprAcct) {
+    toast("Depreciation accounts (640 / 160) not found in chart of accounts", "error"); return;
+  }
+
+  let currentYear = parseInt((activeEntity.periodLabel || "").match(/\d{4}/)?.[0]) || new Date().getFullYear();
+  let entryDate   = `${currentYear}-12-31`;
+
+  db.collection("journalEntries").add({
+    clientId:    activeEntity.clientId,
+    periodId:    activeEntity.periodId,
+    entryDate:   firebase.firestore.Timestamp.fromDate(new Date(entryDate + "T12:00:00")),
+    description: `Depreciation expense — ${activeEntity.periodLabel}`,
+    isAdjusting: true,
+    status:      "posted",
+    isBalanced:  true,
+    lines: [
+      { accountId: deprExpAcct._id,   accountNumber: deprExpAcct.number,   accountName: deprExpAcct.name,
+        debit: parseFloat(totalAmount.toFixed(2)), credit: 0 },
+      { accountId: accumDeprAcct._id, accountNumber: accumDeprAcct.number, accountName: accumDeprAcct.name,
+        debit: 0, credit: parseFloat(totalAmount.toFixed(2)) }
+    ],
+    postedBy:  "Anthony Sesny",
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    toast("Depreciation entry posted", "success");
+    toggleDepreciationPanel();
+    loadGLEntries();
+  }).catch(e => toast(e.message, "error"));
 }
 
 // ══════════════════════════════════════
