@@ -1302,23 +1302,46 @@ async function loadGLEntries() {
       let isReversed = !!e.reversedBy;
       let isReversal = !!e.reversalOf;
 
-      let postBtn    = isDraft ? `<button class="ghost-btn" onclick="postDraftEntry('${e._id}')">Post</button>` : "";
-      let editBtn    = isDraft ? `<button class="ghost-btn" onclick="editGLEntry('${e._id}')">Edit</button>` : "";
-      let deleteBtn  = isDraft ? `<button class="action-btn-delete" onclick="deleteGLEntry('${e._id}')">Delete</button>` : "";
-      let reverseBtn = (!isDraft && !isReversed && !isReversal)
-        ? `<button class="ghost-btn" onclick="reverseGLEntry('${e._id}')">Reverse</button>` : "";
+      let postBtn   = isDraft ? `<button class="ghost-btn" onclick="postDraftEntry('${e._id}')">Post</button>` : "";
+      let editBtn   = isDraft ? `<button class="ghost-btn" onclick="editGLEntry('${e._id}')">Edit</button>` : "";
+      let deleteBtn = isDraft ? `<button class="action-btn-delete" onclick="deleteGLEntry('${e._id}')">Delete</button>` : "";
+      let fileMenu  = (!isDraft && !isReversed && !isReversal) ? `
+        <div class="file-menu">
+          <button class="ghost-btn file-menu-btn" onclick="toggleFileMenu(event,this)">File ▾</button>
+          <div class="file-menu-dropdown">
+            <button class="file-menu-item" onclick="reverseGLEntry('${e._id}');closeFileMenus()">↩ Reverse Entry</button>
+          </div>
+        </div>` : "";
       let reversedTag = isReversed ? `<span class="je-reversed-tag">REVERSED</span>` : "";
       let reversalTag = isReversal ? `<span class="je-reversal-tag">REVERSAL</span>` : "";
 
-      html += `<div class="je-list-row${isReversed?" je-row-reversed":""}">
-        <span class="je-date">${dateStr}</span>
-        <span class="je-desc">${e.description||"—"}${e.isAdjusting?` <span class="je-adj-tag">ADJ</span>`:""}${reversedTag}${reversalTag}</span>
-        <span class="je-amount">$${fmtMoney(totalDr)}</span>
-        <span class="je-amount">$${fmtMoney(totalCr)}</span>
-        ${statusPill}
-        <div style="display:flex;gap:6px;">
-          <button class="ghost-btn" onclick="expandGLEntry('${e._id}',this)">View</button>
-          ${editBtn}${postBtn}${reverseBtn}${deleteBtn}
+      let linesHTML = (e.lines||[]).map(l => `
+        <div class="je-expand-line">
+          <span class="je-exp-num">${l.accountNumber}</span>
+          <span class="je-exp-name">${l.accountName}</span>
+          <span class="je-exp-dr">${l.debit>0 ? "$"+fmtMoney(l.debit) : ""}</span>
+          <span class="je-exp-cr">${l.credit>0 ? "$"+fmtMoney(l.credit) : ""}</span>
+        </div>`).join("");
+
+      html += `<div class="je-entry-block${isReversed?" je-row-reversed":""}">
+        <div class="je-list-row">
+          <span class="je-date">${dateStr}</span>
+          <span class="je-desc">${e.description||"—"}${e.isAdjusting?` <span class="je-adj-tag">ADJ</span>`:""}${reversedTag}${reversalTag}</span>
+          <span class="je-amount">$${fmtMoney(totalDr)}</span>
+          <span class="je-amount">$${fmtMoney(totalCr)}</span>
+          ${statusPill}
+          <div style="display:flex;gap:6px;align-items:center;">
+            ${editBtn}${postBtn}${fileMenu}${deleteBtn}
+          </div>
+        </div>
+        <div class="je-entry-lines">
+          <div class="je-expand-header">
+            <span class="je-exp-num">No.</span>
+            <span class="je-exp-name">Account</span>
+            <span class="je-exp-dr">Debit</span>
+            <span class="je-exp-cr">Credit</span>
+          </div>
+          ${linesHTML}
         </div>
       </div>`;
     });
@@ -1581,9 +1604,6 @@ function expandGLEntry(id, btn) {
   db.collection("journalEntries").doc(id).get().then(doc => {
     let e = doc.data();
     let lines = e.lines || [];
-    let totalDr = lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
-    let totalCr = lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
-    let balanced = Math.abs(totalDr-totalCr) < 0.01;
     let expand = document.createElement("div");
     expand.className = "je-expand-row";
     expand.innerHTML = `
@@ -1599,13 +1619,7 @@ function expandGLEntry(id, btn) {
         <span class="je-exp-name">${l.accountName}</span>
         <span class="je-exp-dr">${l.debit>0 ? "$"+fmtMoney(l.debit) : ""}</span>
         <span class="je-exp-cr">${l.credit>0 ? "$"+fmtMoney(l.credit) : ""}</span>
-      </div>`).join("") + `
-      <div class="je-expand-totals">
-        <span class="je-exp-num"></span>
-        <span class="je-exp-name">${balanced ? "✓ Balanced" : "⚠ Unbalanced"}</span>
-        <span class="je-exp-dr">$${fmtMoney(totalDr)}</span>
-        <span class="je-exp-cr">$${fmtMoney(totalCr)}</span>
-      </div>`;
+      </div>`).join("");
     row.parentNode.insertBefore(expand, row.nextSibling);
   });
 }
@@ -1689,6 +1703,20 @@ function deleteGLEntry(id) {
     }
   });
 }
+
+// ── File menu — per-row admin action dropdown ──
+function toggleFileMenu(event, btn) {
+  event.stopPropagation();
+  let dropdown = btn.nextElementSibling;
+  let isOpen   = dropdown.classList.contains("open");
+  closeFileMenus();
+  if (!isOpen) dropdown.classList.add("open");
+}
+function closeFileMenus() {
+  document.querySelectorAll(".file-menu-dropdown.open").forEach(m => m.classList.remove("open"));
+}
+// Close on any click outside a file menu
+document.addEventListener("click", function() { closeFileMenus(); });
 
 // ── Reverse a posted entry — creates an equal/opposite JE, marks original as reversed ──
 function reverseGLEntry(id) {

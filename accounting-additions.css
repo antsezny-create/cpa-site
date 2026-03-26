@@ -223,8 +223,64 @@
 }
 
 /* ══════════════════════════════════════
-   JOURNAL ENTRY — EXPAND ROW (View button)
-   Shows the debit/credit lines in a mini ledger table
+   GL — FILE MENU (per-row admin dropdown)
+══════════════════════════════════════ */
+.file-menu {
+  position: relative;
+  display: inline-block;
+}
+.file-menu-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 200;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 160px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+.file-menu-dropdown.open {
+  display: block;
+}
+.file-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.file-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+/* ══════════════════════════════════════
+   JOURNAL ENTRY — ALWAYS-VISIBLE LINES
+   Each entry block = header row + lines underneath, no toggle
+══════════════════════════════════════ */
+.je-entry-block {
+  border-bottom: 1px solid var(--border);
+}
+.je-entry-block .je-list-row {
+  border-bottom: none;
+}
+.je-entry-lines {
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  padding: 4px 0 8px;
+}
+
+/* ══════════════════════════════════════
+   JOURNAL ENTRY — EXPAND ROW (legacy, kept for other uses)
+   Lines table layout
 ══════════════════════════════════════ */
 .je-expand-header,
 .je-expand-line,
