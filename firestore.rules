@@ -168,9 +168,24 @@ service cloud.firestore {
 
     // ─────────────────────────────────────────────
     //  JOURNAL ENTRIES (GL entries — admin only)
+    //  Posted entries are immutable from the client:
+    //  - Only drafts can be deleted or edited
+    //  - Creates are blocked if the target period is closed
+    //  - Cloud Functions (Admin SDK) bypass these rules
+    //    and can still update isBalanced / integrityError
     // ─────────────────────────────────────────────
     match /journalEntries/{entryId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+
+      // Allow creating a new entry only if the target period is not closed
+      allow create: if isAdmin() &&
+        !get(/databases/$(database)/documents/clientLedger/$(request.resource.data.clientId)/periods/$(request.resource.data.periodId)).data.get('isClosed', false);
+
+      // Allow updating only if the entry is currently a draft
+      allow update: if isAdmin() && resource.data.status == "draft";
+
+      // Allow deleting only drafts — posted entries are permanent
+      allow delete: if isAdmin() && resource.data.status == "draft";
     }
 
 
@@ -186,7 +201,12 @@ service cloud.firestore {
     //  CLIENT LEDGER (subcollection under clientId)
     // ─────────────────────────────────────────────
     match /clientLedger/{clientId}/periods/{periodId} {
-      allow read, write: if isAdmin();
+      allow read:   if isAdmin();
+      allow create: if isAdmin();
+      // Allow updates, but once isClosed is true it cannot be set back to false
+      allow update: if isAdmin() &&
+        !(resource.data.get('isClosed', false) == true && request.resource.data.get('isClosed', false) == false);
+      allow delete: if isAdmin();
     }
 
     match /clientLedger/{clientId}/fixedAssets/{assetId} {

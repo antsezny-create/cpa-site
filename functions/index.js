@@ -360,8 +360,87 @@ exports.onJournalEntryWritten = functions
     const totalCr = lines.reduce((s, l) => s + (parseFloat(l.credit) || 0), 0);
     const isBalanced = Math.abs(totalDr - totalCr) < 0.01;
 
-    // Only write if the value actually changed to avoid infinite loops
-    if (data.isBalanced === isBalanced) return null;
+    // Build the update payload
+    const update = {
+      isBalanced,
+      integrityCheckedAt: functions.firestore.Timestamp ? undefined : null,
+    };
 
-    return change.after.ref.update({ isBalanced });
+    // Use admin Firestore timestamp
+    const admin = require("firebase-admin");
+    if (!admin.apps.length) admin.initializeApp();
+    update.integrityCheckedAt = admin.firestore.FieldValue.serverTimestamp();
+
+    if (!isBalanced) {
+      update.integrityError = `Unbalanced entry: DR $${totalDr.toFixed(2)} ≠ CR $${totalCr.toFixed(2)}. Difference: $${Math.abs(totalDr - totalCr).toFixed(2)}.`;
+    } else {
+      update.integrityError = null;
+    }
+
+    // Only write if something actually changed — prevents infinite trigger loops
+    const noChange = data.isBalanced === isBalanced && !data.integrityError === !update.integrityError;
+    if (noChange) return null;
+
+    return change.after.ref.update(update);
+  });
+
+
+// ══════════════════════════════════════
+//  9. CLIENT DELETED
+//     → Cascade delete all related data
+// ══════════════════════════════════════
+exports.onClientDeleted = functions
+  .firestore.document("clients/{clientId}")
+  .onDelete(async (snap, context) => {
+    const clientId = context.params.clientId;
+    const admin = require("firebase-admin");
+    if (!admin.apps.length) admin.initializeApp();
+    const db = admin.firestore();
+
+    // Collections with a top-level clientId field
+    const flatCollections = [
+      "journalEntries",
+      "financialStatements",
+      "documents",
+      "messages",
+      "activity",
+      "documentRequests",
+      "assignedForms",
+      "savedForms",
+      "clientReturns",
+    ];
+
+    const deleteQueryBatch = async (query) => {
+      const snap = await query.get();
+      if (snap.empty) return;
+      const batch = db.batch();
+      snap.docs.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+    };
+
+    // Delete all flat-collection documents where clientId matches
+    await Promise.all(
+      flatCollections.map(col =>
+        deleteQueryBatch(db.collection(col).where("clientId", "==", clientId))
+      )
+    );
+
+    // Delete clientLedger subcollections (periods + fixedAssets)
+    const ledgerRef = db.collection("clientLedger").doc(clientId);
+    const subCollections = ["periods", "fixedAssets"];
+    await Promise.all(
+      subCollections.map(async (sub) => {
+        const subSnap = await ledgerRef.collection(sub).get();
+        if (subSnap.empty) return;
+        const batch = db.batch();
+        subSnap.docs.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+      })
+    );
+
+    // Delete the clientLedger root document itself
+    await ledgerRef.delete().catch(() => {});
+
+    console.log(`Cascade delete complete for client: ${clientId}`);
+    return null;
   });

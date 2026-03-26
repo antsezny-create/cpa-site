@@ -183,12 +183,13 @@ async function loadPeriodsForClient(clientId, periodSelectId) {
   periods.forEach(p => {
     let opt = document.createElement("option");
     opt.value = p._id;
-    opt.textContent = p.periodLabel || p.period;
+    let label = p.periodLabel || p.period;
+    opt.textContent = p.isClosed ? `🔒 ${label}` : label;
     opt.dataset.companyName = p.companyName || "";
     opt.dataset.periodType  = p.periodType  || "annual";
     sel.appendChild(opt);
     // Auto-select the period matching current year
-    if ((p.periodLabel || p.period || "").includes(currentYear)) {
+    if (label.includes(currentYear)) {
       bestMatch = opt;
     }
   });
@@ -289,7 +290,8 @@ async function _restoreEntityPeriodSel() {
   periods.forEach(p => {
     let opt = document.createElement("option");
     opt.value = p._id;
-    opt.textContent = p.periodLabel || p.period;
+    let label = p.periodLabel || p.period;
+    opt.textContent = p.isClosed ? `🔒 ${label}` : label;
     opt.dataset.periodType  = p.periodType  || "annual";
     opt.dataset.companyName = p.companyName || "";
     periodSel.appendChild(opt);
@@ -1249,6 +1251,8 @@ async function loadGLEntries() {
   window._glEntries = entries;
   entries.sort((a,b) => (a.entryDate&&b.entryDate) ? a.entryDate.seconds - b.entryDate.seconds : 0);
 
+  let periodClosed = await isPeriodClosed(glClientId, glPeriodId);
+
   let html = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap;">
       <div class="gl-view-toggle">
@@ -1260,6 +1264,7 @@ async function loadGLEntries() {
         </button>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        ${periodClosed ? '<span class="period-lock-badge">🔒 Period Closed</span>' : ''}
         <select id="gl-acct-filter" class="assign-select" style="min-width:220px;" onchange="filterGLByAccount()">
           <option value="">— Filter by Account —</option>
           ${[...new Set(entries.flatMap(e=>e.lines.map(l=>l.accountNumber+"||"+l.accountName)))]
@@ -1268,8 +1273,9 @@ async function loadGLEntries() {
             .join("")}
         </select>
         <button class="ghost-btn" onclick="document.getElementById('gl-acct-filter').value='';filterGLByAccount()">Clear</button>
-        <button class="ghost-btn" onclick="toggleDepreciationPanel()">Depreciation ▾</button>
-        <button class="primary-btn" onclick="openGLNewEntry()">+ New Entry</button>
+        <button class="ghost-btn" onclick="toggleDepreciationPanel()" ${periodClosed ? 'disabled title="Period is closed"' : ''}>Depreciation ▾</button>
+        ${periodClosed ? '' : '<button class="ghost-btn" onclick="closePeriod()">🔒 Close Period</button>'}
+        <button class="primary-btn" onclick="openGLNewEntry()" ${periodClosed ? 'disabled title="Period is closed"' : ''}>+ New Entry</button>
       </div>
     </div>
     <div class="dash-card" style="padding:0;overflow:hidden;">
@@ -1292,20 +1298,27 @@ async function loadGLEntries() {
       let statusPill = e.status === "draft"
         ? `<span class="status-pill draft">Draft</span>`
         : `<span class="status-pill filed">Posted</span>`;
-      let postBtn = e.status === "draft"
-        ? `<button class="ghost-btn" onclick="postDraftEntry('${e._id}')">Post</button>`
-        : "";
-      html += `<div class="je-list-row">
+      let isDraft = e.status === "draft";
+      let isReversed = !!e.reversedBy;
+      let isReversal = !!e.reversalOf;
+
+      let postBtn    = isDraft ? `<button class="ghost-btn" onclick="postDraftEntry('${e._id}')">Post</button>` : "";
+      let editBtn    = isDraft ? `<button class="ghost-btn" onclick="editGLEntry('${e._id}')">Edit</button>` : "";
+      let deleteBtn  = isDraft ? `<button class="action-btn-delete" onclick="deleteGLEntry('${e._id}')">Delete</button>` : "";
+      let reverseBtn = (!isDraft && !isReversed && !isReversal)
+        ? `<button class="ghost-btn" onclick="reverseGLEntry('${e._id}')">Reverse</button>` : "";
+      let reversedTag = isReversed ? `<span class="je-reversed-tag">REVERSED</span>` : "";
+      let reversalTag = isReversal ? `<span class="je-reversal-tag">REVERSAL</span>` : "";
+
+      html += `<div class="je-list-row${isReversed?" je-row-reversed":""}">
         <span class="je-date">${dateStr}</span>
-        <span class="je-desc">${e.description||"—"}${e.isAdjusting?` <span class="je-adj-tag">ADJ</span>`:""}</span>
+        <span class="je-desc">${e.description||"—"}${e.isAdjusting?` <span class="je-adj-tag">ADJ</span>`:""}${reversedTag}${reversalTag}</span>
         <span class="je-amount">$${fmtMoney(totalDr)}</span>
         <span class="je-amount">$${fmtMoney(totalCr)}</span>
         ${statusPill}
         <div style="display:flex;gap:6px;">
           <button class="ghost-btn" onclick="expandGLEntry('${e._id}',this)">View</button>
-          <button class="ghost-btn" onclick="editGLEntry('${e._id}')">Edit</button>
-          ${postBtn}
-          <button class="action-btn-delete" onclick="deleteGLEntry('${e._id}')">Delete</button>
+          ${editBtn}${postBtn}${reverseBtn}${deleteBtn}
         </div>
       </div>`;
     });
@@ -1485,7 +1498,44 @@ function cancelGLEntry() {
   glFormState  = { date:"", desc:"", isAdjusting:false, month:"", day:"", year:"" };
 }
 
-function postGLEntry() {
+// ── Period lock: fetch isClosed from the period document ──
+async function isPeriodClosed(clientId, periodId) {
+  if (!clientId || !periodId) return false;
+  try {
+    let doc = await db.collection("clientLedger").doc(clientId).collection("periods").doc(periodId).get();
+    return doc.exists && doc.data().isClosed === true;
+  } catch(e) { return false; }
+}
+
+// ── Close the active period — irreversible, admin-only ──
+async function closePeriod() {
+  if (!glClientId || !glPeriodId) { toast("No period selected.", "warning"); return; }
+  if (await isPeriodClosed(glClientId, glPeriodId)) { toast("This period is already closed.", "info"); return; }
+  let label = activeEntity.periodLabel || "this period";
+  showModal({
+    title: "Close Period",
+    message: `Close ${label}? Once closed, no new entries can be posted to this period. This cannot be undone.`,
+    confirmText: "Close Period",
+    type: "danger",
+    onConfirm: async function() {
+      await db.collection("clientLedger").doc(glClientId).collection("periods").doc(glPeriodId).update({
+        isClosed: true,
+        closedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        closedBy: "Anthony Sesny"
+      });
+      toast("Period closed.", "success");
+      loadGLEntries();
+    }
+  });
+}
+
+async function postGLEntry() {
+  // Period lock check — block posting to a closed period
+  if (await isPeriodClosed(glClientId, glPeriodId)) {
+    toast("This period is closed. Post a reversing entry in the current open period.", "error");
+    return;
+  }
+
   let month = document.getElementById("gl-je-date-month")?.value;
   let day   = document.getElementById("gl-je-date-day")?.value;
   let year  = document.getElementById("gl-je-date-year")?.value;
@@ -1616,9 +1666,63 @@ function updateGLEntry(id) {
 }
 
 function deleteGLEntry(id) {
-  showModal({ title:"Delete Entry", message:"Delete this journal entry? This cannot be undone.",
+  showModal({ title:"Delete Draft", message:"Delete this draft entry? This cannot be undone.",
     confirmText:"Delete", type:"danger", onConfirm: function() {
       db.collection("journalEntries").doc(id).delete().then(() => loadGLEntries());
+    }
+  });
+}
+
+// ── Reverse a posted entry — creates an equal/opposite JE, marks original as reversed ──
+function reverseGLEntry(id) {
+  showModal({
+    title: "Reverse Entry",
+    message: "This will create a new reversing journal entry with all debits and credits flipped. The original entry will be marked as reversed. This cannot be undone.",
+    confirmText: "Reverse",
+    type: "danger",
+    onConfirm: async function() {
+      let doc = await db.collection("journalEntries").doc(id).get();
+      if (!doc.exists) return;
+      let e = doc.data();
+
+      // Flip every debit↔credit on each line
+      let reversedLines = (e.lines || []).map(l => ({
+        accountId:     l.accountId,
+        accountNumber: l.accountNumber,
+        accountName:   l.accountName,
+        debit:         parseFloat(l.credit) || 0,
+        credit:        parseFloat(l.debit)  || 0
+      }));
+
+      let today = new Date();
+      let reversalRef = db.collection("journalEntries").doc();
+
+      let batch = db.batch();
+
+      // Write the reversing entry
+      batch.set(reversalRef, {
+        clientId:    e.clientId,
+        periodId:    e.periodId,
+        entryDate:   firebase.firestore.Timestamp.fromDate(today),
+        description: "REVERSAL: " + (e.description || ""),
+        isAdjusting: true,
+        status:      "posted",
+        isBalanced:  true,
+        reversalOf:  id,
+        lines:       reversedLines,
+        postedBy:    "Anthony Sesny",
+        createdAt:   firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Mark the original entry as reversed
+      batch.update(db.collection("journalEntries").doc(id), {
+        reversedBy: reversalRef.id,
+        reversedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      await batch.commit();
+      toast("Reversing entry posted", "success");
+      loadGLEntries();
     }
   });
 }
@@ -1700,9 +1804,13 @@ function saveDraftUpdate(id) {
 }
 
 function postDraftEntry(id) {
-  db.collection("journalEntries").doc(id).get().then(doc => {
+  db.collection("journalEntries").doc(id).get().then(async doc => {
     if (!doc.exists) return;
     let e = doc.data();
+    if (await isPeriodClosed(e.clientId, e.periodId)) {
+      toast("This period is closed. Cannot post to a closed period.", "error");
+      return;
+    }
     let totalDr = e.lines.reduce((s,l)=>s+(parseFloat(l.debit)||0),0);
     let totalCr = e.lines.reduce((s,l)=>s+(parseFloat(l.credit)||0),0);
     if (Math.abs(totalDr-totalCr) > 0.01) {
@@ -2011,6 +2119,25 @@ async function deleteFixedAsset(id) {
 async function postDepreciationEntry(totalAmount) {
   if (!activeEntity.clientId || !activeEntity.periodId) { toast("No entity selected", "warning"); return; }
   if (!totalAmount || totalAmount <= 0) { toast("No depreciation to post", "warning"); return; }
+
+  // Period lock check
+  if (await isPeriodClosed(activeEntity.clientId, activeEntity.periodId)) {
+    toast("This period is closed. Cannot post depreciation.", "error");
+    return;
+  }
+
+  // Duplicate guard — block double-posting depreciation for the same period
+  let deprDesc = `Depreciation expense — ${activeEntity.periodLabel}`;
+  let existingSnap = await db.collection("journalEntries")
+    .where("clientId", "==", activeEntity.clientId)
+    .where("periodId", "==", activeEntity.periodId)
+    .where("description", "==", deprDesc)
+    .where("status", "==", "posted")
+    .get();
+  if (!existingSnap.empty) {
+    toast(`Depreciation already posted for ${activeEntity.periodLabel}. Reverse the existing entry to re-post.`, "error");
+    return;
+  }
 
   await initChartOfAccounts();
   let deprExpAcct   = chartOfAccounts.find(a => a.number === "640");
