@@ -50,6 +50,46 @@ function toggleSidebar() {
   }
 })();
 
+function loadInquiries() {
+  let list = document.getElementById("inquiries-list");
+  if (!list) return;
+  list.innerHTML = '<div style="color:#6B7280;font-size:13px;padding:20px;">Loading...</div>';
+
+  db.collection("inquiries").orderBy("createdAt", "desc").get().then(snap => {
+    if (snap.empty) {
+      list.innerHTML = '<div style="color:#6B7280;font-size:13px;padding:20px;">No inquiries yet.</div>';
+      return;
+    }
+    list.innerHTML = "";
+    snap.forEach(doc => {
+      let d = doc.data();
+      let time = d.createdAt ? new Date(d.createdAt.seconds * 1000).toLocaleString("en-US", { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "";
+      let card = document.createElement("div");
+      card.style.cssText = "background:#1e293b;border:1px solid #2d3748;border-radius:12px;padding:20px 24px;";
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div>
+            <span style="font-size:15px;font-weight:600;color:#f1f5f9;">${d.name || "—"}</span>
+            <span style="font-size:11px;color:#64748b;margin-left:12px;">${time}</span>
+          </div>
+          <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:rgba(58,140,92,0.15);color:#3A8C5C;border:1px solid rgba(58,140,92,0.25);">${d.status || "new"}</span>
+        </div>
+        <div style="display:flex;gap:24px;font-size:12px;color:#94a3b8;margin-bottom:12px;">
+          <span>✉ ${d.email || "—"}</span>
+          ${d.phone ? `<span>📞 ${d.phone}</span>` : ""}
+        </div>
+        <p style="font-size:13px;color:#cbd5e1;line-height:1.6;margin:0;">${d.message || ""}</p>`;
+      list.appendChild(card);
+    });
+
+    // Update badge
+    let badge = document.getElementById("inquiries-badge");
+    if (badge) { badge.textContent = snap.size; badge.style.display = snap.size > 0 ? "inline" : "none"; }
+  }).catch(e => {
+    list.innerHTML = `<div style="color:#EF4444;font-size:13px;padding:20px;">Failed to load: ${e.message}</div>`;
+  });
+}
+
 function switchDashTab(tabName) {
   document.querySelectorAll(".dash-tab").forEach(t => t.style.display = "none");
   document.getElementById("tab-" + tabName).style.display = "block";

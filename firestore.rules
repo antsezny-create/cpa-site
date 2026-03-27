@@ -254,5 +254,15 @@ service cloud.firestore {
     match /returnWorkspaces/{wsId} {
       allow read, write: if isAdmin();
     }
+
+
+    // ─────────────────────────────────────────────
+    //  INQUIRIES (contact form submissions)
+    //  - Cloud Function writes via Admin SDK (bypasses rules).
+    //  - Only admins can read or manage inquiries.
+    // ─────────────────────────────────────────────
+    match /inquiries/{inquiryId} {
+      allow read, write: if isAdmin();
+    }
   }
 }

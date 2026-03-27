@@ -286,7 +286,7 @@
         <span class="contact-info-label">Hours</span>
         <span class="contact-info-value">Mon–Fri, 9am–6pm EST</span>
       </div>
-      <button class="btn-copy" onclick="copyEmail()">Copy Email Address</button>
+      <button class="btn-copy" onclick="openContactModal()">Contact Me</button>
     </div>
     </div>
   </div>
@@ -306,6 +306,30 @@
     </div>
   </div>
 </footer>
+
+<!-- Contact Modal -->
+<div id="contact-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:20px;padding:40px;max-width:480px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.18);position:relative;">
+    <button onclick="closeContactModal()" style="position:absolute;top:16px;right:20px;background:none;border:none;font-size:22px;cursor:pointer;color:#999;line-height:1;">×</button>
+    <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:28px;font-weight:500;color:#1C1917;margin-bottom:6px;">Let's Talk</h2>
+    <p style="font-size:13px;color:#6B6560;margin-bottom:28px;">Fill out the form below and I'll get back to you within 24 hours.</p>
+    <div id="contact-form-wrap">
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <input id="cf-name"    type="text"  placeholder="Your Name"         style="padding:11px 14px;border:1px solid #E8E3D8;border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:#1C1917;">
+        <input id="cf-email"   type="email" placeholder="Email Address"      style="padding:11px 14px;border:1px solid #E8E3D8;border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:#1C1917;">
+        <input id="cf-phone"   type="tel"   placeholder="Phone (optional)"   style="padding:11px 14px;border:1px solid #E8E3D8;border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:#1C1917;">
+        <textarea id="cf-msg"  placeholder="Send a quick message..."         style="padding:11px 14px;border:1px solid #E8E3D8;border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:#1C1917;resize:vertical;min-height:100px;"></textarea>
+        <div id="cf-error" style="font-size:12px;color:#C0392B;display:none;"></div>
+        <button onclick="submitContactForm()" id="cf-submit" style="padding:13px;background:#1B2A4A;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:opacity 0.2s;">Send Message</button>
+      </div>
+    </div>
+    <div id="contact-success" style="display:none;text-align:center;padding:20px 0;">
+      <div style="font-size:40px;margin-bottom:16px;">✓</div>
+      <h3 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:500;margin-bottom:8px;">Message Sent</h3>
+      <p style="font-size:13px;color:#6B6560;">I'll get back to you within 24 hours.</p>
+    </div>
+  </div>
+</div>
 
 <script src="script.js"></script>
 </body>

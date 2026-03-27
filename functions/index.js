@@ -488,3 +488,61 @@ exports.onClientDeleted = functions
     console.log(`Cascade delete complete for client: ${clientId}`);
     return null;
   });
+
+
+// ══════════════════════════════════════
+//  CONTACT FORM SUBMISSION
+//  → Writes to inquiries collection
+//  → Emails Anthony
+// ══════════════════════════════════════
+exports.submitInquiry = functions
+  .runWith({ secrets: ["GMAIL_USER", "GMAIL_PASSWORD"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+
+    const { name, email, phone, message } = req.body;
+    if (!name || !email || !message) {
+      res.status(400).json({ error: "Name, email, and message are required." });
+      return;
+    }
+
+    const admin = require("firebase-admin");
+    if (!admin.apps.length) admin.initializeApp();
+    const db = admin.firestore();
+
+    const inquiry = {
+      name:      name.trim(),
+      email:     email.trim(),
+      phone:     (phone || "").trim(),
+      message:   message.trim(),
+      status:    "new",
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    await db.collection("inquiries").add(inquiry);
+
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from:    `"Sesny Advisory" <${process.env.GMAIL_USER}>`,
+      to:      ADMIN_EMAIL,
+      subject: `📬 New inquiry from ${inquiry.name}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px;background:#f9f9f9;border-radius:12px;">
+          <h2 style="color:#1a1a1a;margin-bottom:8px;">New Contact Form Submission</h2>
+          <p style="color:#666;margin-bottom:24px;">Someone submitted the contact form on your website.</p>
+          <div style="background:#fff;border:1px solid #e5e4e0;border-radius:8px;padding:20px;margin-bottom:24px;">
+            <p style="margin:0 0 8px;"><strong>Name:</strong> ${inquiry.name}</p>
+            <p style="margin:0 0 8px;"><strong>Email:</strong> ${inquiry.email}</p>
+            <p style="margin:0 0 8px;"><strong>Phone:</strong> ${inquiry.phone || "—"}</p>
+            <p style="margin:0;"><strong>Message:</strong><br>${inquiry.message}</p>
+          </div>
+          <a href="https://cpa-site-pied.vercel.app/dashboard.html" style="display:inline-block;background:#1B2A4A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View in Dashboard →</a>
+        </div>`
+    });
+
+    res.status(200).json({ success: true });
+  });
