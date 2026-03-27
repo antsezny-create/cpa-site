@@ -69,16 +69,16 @@ function loadInquiries() {
       card.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <div>
-            <span style="font-size:15px;font-weight:600;color:#f1f5f9;">${d.name || "—"}</span>
+            <span style="font-size:15px;font-weight:600;color:#f1f5f9;">${esc(d.name) || "—"}</span>
             <span style="font-size:11px;color:#64748b;margin-left:12px;">${time}</span>
           </div>
-          <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:rgba(58,140,92,0.15);color:#3A8C5C;border:1px solid rgba(58,140,92,0.25);">${d.status || "new"}</span>
+          <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:rgba(58,140,92,0.15);color:#3A8C5C;border:1px solid rgba(58,140,92,0.25);">${esc(d.status) || "new"}</span>
         </div>
         <div style="display:flex;gap:24px;font-size:12px;color:#94a3b8;margin-bottom:12px;">
-          <span>✉ ${d.email || "—"}</span>
-          ${d.phone ? `<span>📞 ${d.phone}</span>` : ""}
+          <span>✉ ${esc(d.email) || "—"}</span>
+          ${d.phone ? `<span>📞 ${esc(d.phone)}</span>` : ""}
         </div>
-        <p style="font-size:13px;color:#cbd5e1;line-height:1.6;margin:0;">${d.message || ""}</p>`;
+        <p style="font-size:13px;color:#cbd5e1;line-height:1.6;margin:0;">${esc(d.message) || ""}</p>`;
       list.appendChild(card);
     });
 
@@ -261,10 +261,10 @@ function updateRecentClientsList() {
     let div = document.createElement("div");
     div.className = "overview-activity-item";
     div.innerHTML = `
-      <span class="overview-activity-icon" style="background:${c.color||"#1B2A4A"};color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">${c.initials||"?"}</span>
+      <span class="overview-activity-icon" style="background:${c.color||"#1B2A4A"};color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">${esc(c.initials||"?")}</span>
       <div class="overview-activity-content">
-        <span class="overview-activity-text">${c.firstName||""} ${c.lastName||""}</span>
-        <span class="overview-activity-time">${c.status||"pending"}</span>
+        <span class="overview-activity-text">${esc(c.firstName||"")} ${esc(c.lastName||"")}</span>
+        <span class="overview-activity-time">${esc(c.status||"pending")}</span>
       </div>`;
     el.appendChild(div);
   });
@@ -295,7 +295,7 @@ function loadOverviewActivity() {
         item.innerHTML = `
           <span class="overview-activity-icon">${icon}</span>
           <div class="overview-activity-content">
-            <span class="overview-activity-text">${d.text || "Activity recorded"}</span>
+            <span class="overview-activity-text">${esc(d.text || "Activity recorded")}</span>
             <span class="overview-activity-time">${timeStr}</span>
           </div>`;
         el.appendChild(item);
@@ -699,7 +699,7 @@ function loadSavedForms() {
       item.className = "saved-form-item";
       item.innerHTML = `
         <div class="doc-thumb doc-thumb-pdf"><span>PDF</span></div>
-        <div class="doc-review-info"><strong>${f.formName}</strong><span>Saved ${dateStr}</span></div>
+        <div class="doc-review-info"><strong>${esc(f.formName)}</strong><span>Saved ${dateStr}</span></div>
         <div class="doc-actions">
           <a href="${f.storageUrl}" target="_blank" class="action-btn approve" style="text-decoration:none;">Open</a>
           <button class="action-btn-delete" data-id="${esc(f._id)}" data-path="${esc(f.storagePath||'')}" onclick="deleteSavedForm(this.dataset.id, this.dataset.path)">Delete</button>
@@ -804,8 +804,8 @@ function renderDocuments() {
 
     item.innerHTML = thumbHTML +
       `<div class="${iconClass}">${iconText}</div>
-       <div class="doc-review-info"><strong>${doc.fileName||"Unknown file"}</strong>
-       <span>${clientMap[doc.clientId]||"Unknown Client"} · ${timeText} · ${doc.fileSize||""}</span></div>` +
+       <div class="doc-review-info"><strong>${esc(doc.fileName||"Unknown file")}</strong>
+       <span>${esc(clientMap[doc.clientId]||"Unknown Client")} · ${timeText} · ${esc(doc.fileSize||"")}</span></div>` +
       actionsHTML;
     list.appendChild(item);
   });
@@ -866,9 +866,9 @@ function loadFirebaseClients() {
         if (dot) dot.remove();
         openConvo(doc.id, name, c.firstName[0]+c.lastName[0], color, c.type||"Individual");
       };
-      item.innerHTML = `<div class="msg-client-avatar ${color}">${c.firstName[0]}${c.lastName[0]}</div>
-        <div class="msg-client-info"><div class="msg-client-top"><strong>${name}</strong></div>
-        <p class="msg-preview">${c.type||"Individual"} · ${c.email||""}</p></div>`;
+      item.innerHTML = `<div class="msg-client-avatar ${color}">${esc(c.firstName[0])}${esc(c.lastName[0])}</div>
+        <div class="msg-client-info"><div class="msg-client-top"><strong>${esc(name)}</strong></div>
+        <p class="msg-preview">${esc(c.type||"Individual")} · ${esc(c.email||"")}</p></div>`;
       list.appendChild(item);
     });
     checkUnreadMessages();
@@ -892,7 +892,7 @@ function checkUnreadMessages() {
 function openConvo(clientId, name, initials, color, type) {
   activeClientId=clientId; activeClientName=name;
   document.getElementById("msg-conv-header").innerHTML =
-    `<div class="msg-conv-avatar ${color}">${initials}</div><div><strong>${name}</strong><span>${type} · 2025 Return</span></div>`;
+    `<div class="msg-conv-avatar ${color}">${esc(initials)}</div><div><strong>${esc(name)}</strong><span>${esc(type)} · 2025 Return</span></div>`;
   let input = document.getElementById("admin-msg-input");
   input.placeholder = "Type a message to " + name.split(" ")[0] + "...";
   input.disabled = false;
@@ -918,12 +918,12 @@ function openConvo(clientId, name, initials, color, type) {
         }
         let bubble = document.createElement("div");
         bubble.className = "msg-bubble " + (msg.senderRole === "admin" ? "sent" : "received");
-        bubble.innerHTML = `<div class="msg-bubble-meta"><strong>${msg.senderName || "Unknown"}</strong> <span>${timeText}</span></div>
-          <div class="msg-bubble-text">${msg.text || ""}</div>`;
+        bubble.innerHTML = `<div class="msg-bubble-meta"><strong>${esc(msg.senderName || "Unknown")}</strong> <span>${timeText}</span></div>
+          <div class="msg-bubble-text">${esc(msg.text || "")}</div>`;
         thread.appendChild(bubble);
       });
       thread.scrollTop = thread.scrollHeight;
-    }, e => { document.getElementById("admin-msg-thread").innerHTML = `<div style="text-align:center;color:#EF4444;padding:40px;font-size:13px;">Error: ${e.message}</div>`; });
+    }, e => { document.getElementById("admin-msg-thread").innerHTML = `<div style="text-align:center;color:#EF4444;padding:40px;font-size:13px;">Error loading messages.</div>`; });
   db.collection("messages").get().then(snapshot => {
     snapshot.forEach(doc => {
       let m=doc.data();
@@ -952,8 +952,8 @@ function loadMessagesForClient(clientId) {
       }
       let bubble=document.createElement("div");
       bubble.className="msg-bubble "+(msg.senderRole==="admin"?"sent":"received");
-      bubble.innerHTML=`<div class="msg-bubble-meta"><strong>${msg.senderName||"Unknown"}</strong> <span>${timeText}</span></div>
-        <div class="msg-bubble-text">${msg.text||""}</div>`;
+      bubble.innerHTML=`<div class="msg-bubble-meta"><strong>${esc(msg.senderName||"Unknown")}</strong> <span>${timeText}</span></div>
+        <div class="msg-bubble-text">${esc(msg.text||"")}</div>`;
       thread.appendChild(bubble);
     });
     thread.scrollTop=thread.scrollHeight;
@@ -1209,9 +1209,9 @@ function loadExistingRequests(clientId) {
       let item = document.createElement("div");
       item.className = "doc-request-item";
       item.innerHTML =
-        '<span class="doc-request-name">' + r.documentName + '</span>' +
+        '<span class="doc-request-name">' + esc(r.documentName) + '</span>' +
         '<span class="doc-request-status ' + (r.fulfilled ? "fulfilled" : "pending") + '">' + (r.fulfilled ? "Received" : "Pending") + '</span>' +
-        '<button class="form-action-btn delete" onclick="deleteDocRequest(\'' + doc.id + '\')">✕</button>';
+        '<button class="form-action-btn delete" onclick="deleteDocRequest(\'' + esc(doc.id) + '\')">✕</button>';
       list.appendChild(item);
     });
   });
@@ -1350,8 +1350,8 @@ function renderReturnRow(r, container) {
   row.className = "return-admin-row";
   row.setAttribute("data-id", r._id);
   row.innerHTML = `
-    <div class="return-admin-year">${r.taxYear || "—"}</div>
-    <div class="return-admin-form">${r.formName || "Unknown Form"}</div>
+    <div class="return-admin-year">${esc(String(r.taxYear || "—"))}</div>
+    <div class="return-admin-form">${esc(r.formName || "Unknown Form")}</div>
     <select class="cell-dropdown return-status-select status-return-${r.returnStatus||"need-docs"}"
       data-rid="${r._id}" onchange="updateReturnStatus(this)">
       <option value="need-docs"   ${r.returnStatus==="need-docs"   ?" selected":""}>Need Docs</option>
@@ -1509,8 +1509,8 @@ function renderPendingApprovalBanner(snapshot) {
       <div class="client-cell">
         <div class="client-cell-avatar ${color}">${initials}</div>
         <div>
-          <div class="cell-name">${name}</div>
-          <div class="cell-sub">${d.email || ""} · Registered ${timeText}</div>
+          <div class="cell-name">${esc(name)}</div>
+          <div class="cell-sub">${esc(d.email || "")} · Registered ${timeText}</div>
         </div>
       </div>
       <div class="pending-actions">
