@@ -351,6 +351,14 @@ function loadMessages() {
 
         wrapper.appendChild(bubble);
         wrapper.appendChild(time);
+
+        if (isMe && msg.readByAdmin) {
+          let read = document.createElement("div");
+          read.style.cssText = "font-size:10px;color:#3A8C5C;font-weight:500;margin-top:2px;text-align:right;";
+          read.textContent = "Read";
+          wrapper.appendChild(read);
+        }
+
         thread.appendChild(wrapper);
       });
       thread.scrollTop = thread.scrollHeight;
