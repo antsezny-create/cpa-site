@@ -1507,6 +1507,7 @@ body {
   .nav-mobile-menu { display: block; }
   .nav-inner, .mobile-menu { padding-left: 20px; padding-right: 20px; }
 
+  .hero { height: auto; min-height: 100svh; }
   .hero-left { padding: 80px 20px 60px; }
   .hero-headline { font-size: 40px; }
   .hero-actions { flex-direction: column; align-items: flex-start; }
@@ -1515,8 +1516,12 @@ body {
   .services-header { grid-template-columns: 1fr; gap: 20px; }
   .services-grid, .process-steps { grid-template-columns: 1fr; }
   .breakdown-grid { grid-template-columns: 1fr; }
+  .contact-grid { grid-template-columns: 1fr; gap: 40px; }
   .contact-info-row { padding: 16px 20px; }
   .contact-watermark { font-size: 56px; }
+
+  .about-left { padding: 48px 20px 36px; }
+  .about-right { padding: 28px 20px 48px; }
 
   .section-title { font-size: 30px; }
 

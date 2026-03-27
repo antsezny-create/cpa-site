@@ -928,6 +928,8 @@ body {
   .portal-grid { grid-template-columns: 1fr; }
   .status-steps { display: none; }
   .portal-user { display: none; }
+  .portal-stmt-amt { min-width: 0; }
+  .portal-card { padding: 18px 16px; }
 
   .mobile-bottom-nav {
     display: flex;

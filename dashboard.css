@@ -1586,14 +1586,52 @@ body {
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* ── Responsive ── */
-@media (max-width: 768px) {
-  .dash-sidebar { display: none; }
-  .dash-main { margin-left: 0; padding: 20px; }
-  .stat-grid { grid-template-columns: repeat(2, 1fr); }
-  .overview-grid { grid-template-columns: 1fr; }
-  .forms-grid { grid-template-columns: 1fr; }
-  .messages-layout { grid-template-columns: 1fr; }
+/* ── Desktop Only Wall ── */
+.dash-mobile-wall {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #0B0F17;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.dash-mobile-wall-icon {
+  width: 56px; height: 56px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #3B82F6, #6366F1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 22px;
+  color: white;
+  margin: 0 auto 24px;
+}
+
+.dash-mobile-wall h2 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 12px;
+}
+
+.dash-mobile-wall p {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 300;
+  color: rgba(255,255,255,0.4);
+  line-height: 1.7;
+  max-width: 280px;
+}
+
+@media (max-width: 1024px) {
+  .dash-mobile-wall { display: flex; }
 }
 
 /* ── Docs column → Request button ── */
