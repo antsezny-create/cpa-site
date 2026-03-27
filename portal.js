@@ -53,6 +53,10 @@ function loadUserData() {
       let navUser = document.querySelector(".portal-user");
       if (navUser) navUser.textContent = fullName;
 
+      // Set logo initial to client's first initial
+      let logoEl = document.querySelector(".portal-logo");
+      if (logoEl) logoEl.textContent = firstName ? firstName[0].toUpperCase() : "S";
+
       // Show Financials tab if bookkeeping is enabled
       checkBookkeepingEnabled();
 
@@ -273,7 +277,7 @@ function renderActivity(items) {
       timeText = months[d.getMonth()] + " " + d.getDate() + " at " + h + ":" + mn + " " + ap;
     }
     let el = document.createElement("div");
-    el.className = "activity-item" + (item.type === "filed" ? " activity-filed" : "");
+    el.className = "activity-item " + color;
     el.innerHTML =
       '<div class="activity-dot ' + color + '"></div>' +
       '<div><strong>' + (item.text || "") + '</strong><span>' + timeText + '</span></div>';

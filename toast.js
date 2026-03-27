@@ -28,7 +28,7 @@ function toast(message, type = "info", duration = 3500) {
     success: { bg: "rgba(61,214,140,0.12)", border: "rgba(61,214,140,0.3)", icon: "#3DD68C", text: "#3DD68C" },
     error:   { bg: "rgba(240,96,112,0.12)", border: "rgba(240,96,112,0.3)", icon: "#F06070", text: "#F06070" },
     warning: { bg: "rgba(240,160,80,0.12)", border: "rgba(240,160,80,0.3)", icon: "#F0A050", text: "#F0A050" },
-    info:    { bg: "rgba(91,141,239,0.12)", border: "rgba(91,141,239,0.3)", icon: "#5B8DEF", text: "#E8E9EE" }
+    info:    { bg: "rgba(58,140,92,0.12)",  border: "rgba(58,140,92,0.3)",  icon: "#3A8C5C", text: "#E8E9EE" }
   };
   let icons = {
     success: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><polyline points="5,8 7,10 11,6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
@@ -90,7 +90,7 @@ function showModal({ title, message, confirmText = "Confirm", cancelText = "Canc
     danger:  "background:#F06070;color:white;",
     success: "background:#3DD68C;color:#0E0F13;",
     warning: "background:#F0A050;color:#0E0F13;",
-    default: "background:#5B8DEF;color:white;"
+    default: "background:#3A8C5C;color:white;"
   };
   let btnStyle = btnColors[type] || btnColors.default;
 
@@ -173,7 +173,7 @@ function showInputModal({ title, message, fields = [], confirmText = "Save", can
       ${fieldsHTML}
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
         <button id="imodal-cancel" style="padding:10px 20px;background:transparent;border:1px solid #252830;border-radius:8px;color:#9499AD;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;">${cancelText}</button>
-        <button id="imodal-confirm" style="padding:10px 20px;background:#5B8DEF;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">${confirmText}</button>
+        <button id="imodal-confirm" style="padding:10px 20px;background:#3A8C5C;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">${confirmText}</button>
       </div>
     </div>
   `;
