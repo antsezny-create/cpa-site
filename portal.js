@@ -405,8 +405,9 @@ function loadDocuments() {
       snapshot.forEach(function(doc) {
         let file = doc.data(); count++;
         let ext = file.fileName.split(".").pop().toUpperCase();
-        let statusClass = file.status === "reviewed" ? "reviewed" : "received";
-        let statusText  = file.status === "reviewed" ? "Reviewed" : "Received";
+        let reviewStatus = file.reviewStatus || "received";
+        let statusClass  = reviewStatus === "approved" ? "approved" : reviewStatus === "flagged" ? "flagged" : "received";
+        let statusText   = reviewStatus === "approved" ? "Approved" : reviewStatus === "flagged" ? "Flagged" : "Received";
         let timeText = "";
         if (file.uploadedAt && typeof file.uploadedAt.toDate === "function") {
           let d = file.uploadedAt.toDate();
