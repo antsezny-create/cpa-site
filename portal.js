@@ -411,7 +411,9 @@ function loadDocuments() {
       fileList.innerHTML = "";
       let count = 0;
       snapshot.forEach(function(doc) {
-        let file = doc.data(); count++;
+        let file = doc.data();
+        if (file.deleted === true) return;
+        count++;
         let ext = file.fileName.split(".").pop().toUpperCase();
         let reviewStatus = file.reviewStatus || "received";
         let statusClass  = reviewStatus === "approved" ? "approved" : reviewStatus === "flagged" ? "flagged" : "received";
@@ -439,7 +441,11 @@ function loadDocuments() {
 
 function deleteDocument(docId, fileURL, fileName) {
   if (!confirm("Delete this document? This cannot be undone.")) return;
-  db.collection("documents").doc(docId).delete().then(function() {
+  db.collection("documents").doc(docId).update({
+    deleted:   true,
+    deletedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    deletedBy: currentUser.uid
+  }).then(function() {
     if (fileURL) { try { storage.refFromURL(fileURL).delete().catch(function(){}); } catch(e){} }
     db.collection("activity").add({
       clientId:  currentUser.uid,
@@ -447,7 +453,7 @@ function deleteDocument(docId, fileURL, fileName) {
       text:      "Deleted document: " + (fileName || "unknown file"),
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
-  }).catch(function(e) { alert("Failed to delete: " + e.message); });
+  }).catch(function() { alert("Failed to delete document."); });
 }
 
 function handleUpload(input) {

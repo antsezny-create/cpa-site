@@ -781,7 +781,7 @@ function deleteSavedForm(docId, storagePath) {
 function loadAllDocuments() {
   db.collection("documents").get().then(snapshot => {
     allDocuments = [];
-    snapshot.forEach(doc => { let d=doc.data(); d._id=doc.id; d.reviewStatus=d.reviewStatus||"pending"; allDocuments.push(d); });
+    snapshot.forEach(doc => { let d=doc.data(); d._id=doc.id; d.reviewStatus=d.reviewStatus||"pending"; if (d.deleted !== true) allDocuments.push(d); });
     renderDocuments();
   });
 }
@@ -876,14 +876,29 @@ function reviewDocument(docId, newStatus) {
 function deleteDocumentAdmin(docId, fileURL) {
   showModal({
     title: "Delete Document",
-    message: "Delete this document permanently? This cannot be undone.",
+    message: "Delete this document? The record will be preserved for audit purposes.",
     confirmText: "Delete",
     type: "danger",
     onConfirm: () => {
-      db.collection("documents").doc(docId).delete().then(() => {
+      let doc      = allDocuments.find(x => x._id === docId);
+      let fileName = doc ? (doc.fileName || "unknown file") : "unknown file";
+      let clientId = doc ? doc.clientId : null;
+      db.collection("documents").doc(docId).update({
+        deleted:   true,
+        deletedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        deletedBy: "admin"
+      }).then(() => {
         allDocuments = allDocuments.filter(x => x._id !== docId);
         renderDocuments();
         if (fileURL) { try { storage.refFromURL(fileURL).delete().catch(()=>{}); } catch(e){} }
+        if (clientId) {
+          db.collection("activity").add({
+            clientId,
+            type:      "delete",
+            text:      "Document deleted by firm: " + fileName,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
       }).catch(e => toast("Failed: " + e.message, "error"));
     }
   });
