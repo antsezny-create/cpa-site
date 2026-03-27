@@ -2602,6 +2602,75 @@ function exportCurrentStatement(tabId) {
   wsTB["!cols"] = [{wch:10},{wch:40},{wch:18},{wch:18}];
   XLSX.utils.book_append_sheet(wb, wsTB, "Trial Balance");
 
+  // Balance Sheet
+  let sub   = t => accounts.filter(a=>a.subType===t);
+  let sum   = arr => arr.reduce((s,a)=>s+getBalance(a),0);
+  let ca=sub("current_asset"),fa=sub("fixed_asset"),con=sub("contra_asset"),oa=sub("other_asset");
+  let cl=sub("current_liability"),ll=sub("long_term_liability"),eq=accounts.filter(a=>a.type==="equity");
+  let tCA=sum(ca),tFA=sum(fa),tCon=sum(con),tOA=sum(oa),tA=tCA+tFA-tCon+tOA;
+  let tCL=sum(cl),tLL=sum(ll),tL=tCL+tLL,tE=sum(eq)+ni;
+  let bsData = [[clientName],["BALANCE SHEET"],["As of " + periodLabel],[],["Acct #","Account Name","Amount"],
+    ["","ASSETS"],["","Current Assets"]];
+  ca.forEach(a=>bsData.push([a.number,a.name,getBalance(a)]));
+  bsData.push(["","Total Current Assets",tCA],[]);
+  if(fa.length||con.length){
+    bsData.push(["","Property, Plant & Equipment"]);
+    fa.forEach(a=>bsData.push([a.number,a.name,getBalance(a)]));
+    con.forEach(a=>bsData.push([a.number,a.name,-getBalance(a)]));
+    bsData.push(["","Net PP&E",tFA-tCon],[]);
+  }
+  if(oa.length){ bsData.push(["","Other Assets"]); oa.forEach(a=>bsData.push([a.number,a.name,getBalance(a)])); bsData.push([]); }
+  bsData.push(["","TOTAL ASSETS",tA],[],["","LIABILITIES"]);
+  if(cl.length){ bsData.push(["","Current Liabilities"]); cl.forEach(a=>bsData.push([a.number,a.name,getBalance(a)])); bsData.push(["","Total Current Liabilities",tCL]); }
+  if(ll.length){ bsData.push(["","Long-Term Liabilities"]); ll.forEach(a=>bsData.push([a.number,a.name,getBalance(a)])); bsData.push(["","Total Long-Term Liabilities",tLL]); }
+  bsData.push(["","Total Liabilities",tL],[],["","SHAREHOLDERS' EQUITY"]);
+  eq.forEach(a=>bsData.push([a.number,a.name,getBalance(a)]));
+  bsData.push(["","Net Income",ni],["","Total Shareholders' Equity",tE],[],["","TOTAL LIABILITIES & EQUITY",tL+tE]);
+  let wsBS = XLSX.utils.aoa_to_sheet(bsData);
+  wsBS["!cols"] = [{wch:10},{wch:40},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, wsBS, "Balance Sheet");
+
+  // Cash Flow Statement
+  let g     = num => accounts.filter(a=>a.number===num).reduce((s,a)=>s+getBalance(a),0);
+  let depr  = g("640")+g("650");
+  let cfOps = ni+depr-g("110")-g("120")-g("130")+g("200")+g("210");
+  let cfInv = -(g("150")+g("170"));
+  let cfFin = g("220")+g("250")+g("300")+g("310")-g("330");
+  let cfNet = cfOps+cfInv+cfFin, cfBeg=g("100"), cfEnd=cfBeg+cfNet;
+  let cfData = [[clientName],["STATEMENT OF CASH FLOWS"],["Period: " + periodLabel],[],
+    ["","Description","Amount"],["","CASH FLOWS FROM OPERATING ACTIVITIES"],["","Net Income",ni]];
+  if(depr)     cfData.push(["640/650","Depreciation & Amortization",depr]);
+  if(g("110"))  cfData.push(["110","Change in Accounts Receivable",-g("110")]);
+  if(g("120"))  cfData.push(["120","Change in Inventory",-g("120")]);
+  if(g("200"))  cfData.push(["200","Change in Accounts Payable",g("200")]);
+  if(g("210"))  cfData.push(["210","Change in Accrued Liabilities",g("210")]);
+  cfData.push(["","Net Cash from Operating Activities",cfOps],[],["","CASH FLOWS FROM INVESTING ACTIVITIES"]);
+  if(g("150"))  cfData.push(["150","Purchase of PP&E",-g("150")]);
+  if(g("170"))  cfData.push(["170","Purchase of Intangibles",-g("170")]);
+  cfData.push(["","Net Cash from Investing Activities",cfInv],[],["","CASH FLOWS FROM FINANCING ACTIVITIES"]);
+  if(g("220")||g("250")) cfData.push(["220/250","Proceeds from Notes Payable",g("220")+g("250")]);
+  if(g("300")||g("310")) cfData.push(["300/310","Proceeds from Equity Issuance",g("300")+g("310")]);
+  if(g("330"))  cfData.push(["330","Dividends / Distributions Paid",-g("330")]);
+  cfData.push(["","Net Cash from Financing Activities",cfFin],[],
+    ["","Net Increase (Decrease) in Cash",cfNet],["","Cash at Beginning of Period",cfBeg],["","CASH AT END OF PERIOD",cfEnd]);
+  let wsCF = XLSX.utils.aoa_to_sheet(cfData);
+  wsCF["!cols"] = [{wch:10},{wch:40},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, wsCF, "Cash Flow");
+
+  // Shareholders' Equity
+  let cs=g("300"),apic=g("310"),re=g("320"),div=g("330"),tsy=g("340");
+  let endRE=re+ni-div, tEq=cs+apic+endRE-tsy;
+  let eqData = [[clientName],["STATEMENT OF SHAREHOLDERS' EQUITY"],["Period: " + periodLabel],[],
+    ["Acct #","Account Name","Amount"],["","PAID-IN CAPITAL"],["300","Common Stock",cs]];
+  if(apic) eqData.push(["310","Additional Paid-In Capital",apic]);
+  eqData.push(["","Total Paid-In Capital",cs+apic],[],["","RETAINED EARNINGS"],
+    ["320","Retained Earnings (Beginning)",re],["","Net Income (Current Period)",ni]);
+  if(div) eqData.push(["330","Less: Dividends",div]);
+  eqData.push(["","Retained Earnings (Ending)",endRE],[],["","TOTAL SHAREHOLDERS' EQUITY",tEq]);
+  let wsEQ = XLSX.utils.aoa_to_sheet(eqData);
+  wsEQ["!cols"] = [{wch:10},{wch:40},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, wsEQ, "Shareholders Equity");
+
   XLSX.writeFile(wb, clientName.replace(/\s+/g,"-") + "_" + periodLabel.replace(/\s+/g,"-") + "_Financials.xlsx");
 }
 

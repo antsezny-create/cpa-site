@@ -416,7 +416,7 @@ function loadDocuments() {
           '<div class="file-info"><strong>' + file.fileName + '</strong>' +
           '<span>' + file.fileSize + ' · Uploaded ' + timeText + '</span></div>' +
           '<span class="file-status ' + statusClass + '">' + statusText + '</span>' +
-          '<button class="file-delete-btn" onclick="deleteDocument(\'' + doc.id + '\',\'' + (file.fileURL||"") + '\')">✕</button>';
+          '<button class="file-delete-btn" onclick="deleteDocument(\'' + doc.id + '\',\'' + (file.fileURL||"") + '\',\'' + (file.fileName||"").replace(/'/g,"") + '\')">✕</button>';
         fileList.appendChild(item);
       });
       let docCount = document.getElementById("doc-count");
@@ -424,10 +424,16 @@ function loadDocuments() {
     });
 }
 
-function deleteDocument(docId, fileURL) {
+function deleteDocument(docId, fileURL, fileName) {
   if (!confirm("Delete this document? This cannot be undone.")) return;
   db.collection("documents").doc(docId).delete().then(function() {
     if (fileURL) { try { storage.refFromURL(fileURL).delete().catch(function(){}); } catch(e){} }
+    db.collection("activity").add({
+      clientId:  currentUser.uid,
+      type:      "delete",
+      text:      "Deleted document: " + (fileName || "unknown file"),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
   }).catch(function(e) { alert("Failed to delete: " + e.message); });
 }
 
@@ -807,20 +813,107 @@ function downloadStatementsExcel(periodId) {
   if (!window._portalPeriods || !window._portalPeriods[periodId]) return;
   if (typeof XLSX === "undefined") { alert("Excel library not loaded."); return; }
 
-  let period   = window._portalPeriods[periodId];
-  let accounts = period.statements['income']?.accounts || [];
-  let ni       = period.statements['income']?.netIncome || 0;
-  let wb       = XLSX.utils.book_new();
+  let period = window._portalPeriods[periodId];
+  let wb     = XLSX.utils.book_new();
+  let cols3  = [{wch:10},{wch:40},{wch:18}];
+  let ni     = period.statements['income']?.netIncome || 0;
 
-  let isData = [[period.clientName||""],["INCOME STATEMENT"],["Period: "+period.label],[""],["Acct #","Account Name","Amount"]];
-  accounts.filter(a=>a.type==="revenue").forEach(a=>isData.push([a.number,a.name,a.balance]));
-  accounts.filter(a=>a.type==="cogs").forEach(a=>isData.push([a.number,a.name,a.balance]));
-  accounts.filter(a=>a.type==="expense").forEach(a=>isData.push([a.number,a.name,a.balance]));
-  accounts.filter(a=>a.type==="tax").forEach(a=>isData.push([a.number,a.name,a.balance]));
-  isData.push(["","NET INCOME",ni]);
-  let ws = XLSX.utils.aoa_to_sheet(isData);
-  ws["!cols"] = [{wch:10},{wch:40},{wch:18}];
-  XLSX.utils.book_append_sheet(wb, ws, "Income Statement");
+  // ── Income Statement ──
+  let isStmt = period.statements['income'];
+  if (isStmt) {
+    let accts  = isStmt.accounts || [];
+    let isData = [[period.clientName||""],["INCOME STATEMENT"],["Period: "+period.label],[],["Acct #","Account Name","Amount"]];
+    accts.filter(a=>a.type==="revenue").forEach(a=>isData.push([a.number,a.name,a.balance]));
+    accts.filter(a=>a.type==="cogs").forEach(a=>isData.push([a.number,a.name,a.balance]));
+    accts.filter(a=>a.type==="expense").forEach(a=>isData.push([a.number,a.name,a.balance]));
+    accts.filter(a=>a.type==="tax").forEach(a=>isData.push([a.number,a.name,a.balance]));
+    isData.push(["","NET INCOME",ni]);
+    let wsIS = XLSX.utils.aoa_to_sheet(isData);
+    wsIS["!cols"] = cols3;
+    XLSX.utils.book_append_sheet(wb, wsIS, "Income Statement");
+  }
+
+  // ── Balance Sheet ──
+  let bsStmt = period.statements['balance'];
+  if (bsStmt) {
+    let accts = bsStmt.accounts || [];
+    let sub   = t => accts.filter(a=>a.subType===t);
+    let sum   = arr => arr.reduce((s,a)=>s+a.balance,0);
+    let ca=sub("current_asset"),fa=sub("fixed_asset"),con=sub("contra_asset"),oa=sub("other_asset");
+    let cl=sub("current_liability"),ll=sub("long_term_liability"),eq=accts.filter(a=>a.type==="equity");
+    let tCA=sum(ca),tFA=sum(fa),tCon=sum(con),tOA=sum(oa),tA=tCA+tFA-tCon+tOA;
+    let tCL=sum(cl),tLL=sum(ll),tL=tCL+tLL,tE=sum(eq)+ni;
+    let bsData = [[period.clientName||""],["BALANCE SHEET"],["As of: "+period.label],[],["Acct #","Account Name","Amount"],
+      ["","ASSETS"],["","Current Assets"]];
+    ca.forEach(a=>bsData.push([a.number,a.name,a.balance]));
+    bsData.push(["","Total Current Assets",tCA],[]);
+    if(fa.length||con.length){
+      bsData.push(["","Property, Plant & Equipment"]);
+      fa.forEach(a=>bsData.push([a.number,a.name,a.balance]));
+      con.forEach(a=>bsData.push([a.number,a.name,-a.balance]));
+      bsData.push(["","Net PP&E",tFA-tCon],[]);
+    }
+    if(oa.length){ bsData.push(["","Other Assets"]); oa.forEach(a=>bsData.push([a.number,a.name,a.balance])); bsData.push([]); }
+    bsData.push(["","TOTAL ASSETS",tA],[],["","LIABILITIES"]);
+    if(cl.length){ bsData.push(["","Current Liabilities"]); cl.forEach(a=>bsData.push([a.number,a.name,a.balance])); bsData.push(["","Total Current Liabilities",tCL]); }
+    if(ll.length){ bsData.push(["","Long-Term Liabilities"]); ll.forEach(a=>bsData.push([a.number,a.name,a.balance])); bsData.push(["","Total Long-Term Liabilities",tLL]); }
+    bsData.push(["","Total Liabilities",tL],[],["","SHAREHOLDERS' EQUITY"]);
+    eq.forEach(a=>bsData.push([a.number,a.name,a.balance]));
+    bsData.push(["","Net Income",ni],["","Total Shareholders' Equity",tE],[],["","TOTAL LIABILITIES & EQUITY",tL+tE]);
+    let wsBS = XLSX.utils.aoa_to_sheet(bsData);
+    wsBS["!cols"] = cols3;
+    XLSX.utils.book_append_sheet(wb, wsBS, "Balance Sheet");
+  }
+
+  // ── Cash Flow Statement ──
+  let cfStmt = period.statements['cashflow'];
+  if (cfStmt) {
+    let accts = cfStmt.accounts || [];
+    let g     = num => accts.filter(a=>a.number===num).reduce((s,a)=>s+a.balance,0);
+    let depr=g("640")+g("650");
+    let cfOps=ni+depr-g("110")-g("120")-g("130")+g("200")+g("210");
+    let cfInv=-(g("150")+g("170"));
+    let cfFin=g("220")+g("250")+g("300")+g("310")-g("330");
+    let net=cfOps+cfInv+cfFin, beg=g("100"), end=beg+net;
+    let cfData = [[period.clientName||""],["STATEMENT OF CASH FLOWS"],["Period: "+period.label],[],
+      ["","Description","Amount"],["","CASH FLOWS FROM OPERATING ACTIVITIES"],["","Net Income",ni]];
+    if(depr)     cfData.push(["640/650","Depreciation & Amortization",depr]);
+    if(g("110"))  cfData.push(["110","Change in Accounts Receivable",-g("110")]);
+    if(g("120"))  cfData.push(["120","Change in Inventory",-g("120")]);
+    if(g("200"))  cfData.push(["200","Change in Accounts Payable",g("200")]);
+    if(g("210"))  cfData.push(["210","Change in Accrued Liabilities",g("210")]);
+    cfData.push(["","Net Cash from Operating Activities",cfOps],[],["","CASH FLOWS FROM INVESTING ACTIVITIES"]);
+    if(g("150"))  cfData.push(["150","Purchase of PP&E",-g("150")]);
+    if(g("170"))  cfData.push(["170","Purchase of Intangibles",-g("170")]);
+    cfData.push(["","Net Cash from Investing Activities",cfInv],[],["","CASH FLOWS FROM FINANCING ACTIVITIES"]);
+    if(g("220")||g("250")) cfData.push(["220/250","Proceeds from Notes Payable",g("220")+g("250")]);
+    if(g("300")||g("310")) cfData.push(["300/310","Proceeds from Equity Issuance",g("300")+g("310")]);
+    if(g("330"))  cfData.push(["330","Dividends / Distributions Paid",-g("330")]);
+    cfData.push(["","Net Cash from Financing Activities",cfFin],[],
+      ["","Net Increase (Decrease) in Cash",net],["","Cash at Beginning of Period",beg],["","CASH AT END OF PERIOD",end]);
+    let wsCF = XLSX.utils.aoa_to_sheet(cfData);
+    wsCF["!cols"] = cols3;
+    XLSX.utils.book_append_sheet(wb, wsCF, "Cash Flow");
+  }
+
+  // ── Shareholders' Equity ──
+  let eqStmt = period.statements['equity'];
+  if (eqStmt) {
+    let accts = eqStmt.accounts || [];
+    let g     = id => accts.filter(a=>a.number===id).reduce((s,a)=>s+a.balance,0);
+    let cs=g("300"),apic=g("310"),re=g("320"),div=g("330"),tsy=g("340");
+    let endRE=re+ni-div, tEq=cs+apic+endRE-tsy;
+    let eqData = [[period.clientName||""],["STATEMENT OF SHAREHOLDERS' EQUITY"],["Period: "+period.label],[],
+      ["Acct #","Account Name","Amount"],["","PAID-IN CAPITAL"],["300","Common Stock",cs]];
+    if(apic) eqData.push(["310","Additional Paid-In Capital",apic]);
+    eqData.push(["","Total Paid-In Capital",cs+apic],[],["","RETAINED EARNINGS"],
+      ["320","Retained Earnings (Beginning)",re],["","Net Income (Current Period)",ni]);
+    if(div) eqData.push(["330","Less: Dividends",div]);
+    eqData.push(["","Retained Earnings (Ending)",endRE],[],["","TOTAL SHAREHOLDERS' EQUITY",tEq]);
+    let wsEQ = XLSX.utils.aoa_to_sheet(eqData);
+    wsEQ["!cols"] = cols3;
+    XLSX.utils.book_append_sheet(wb, wsEQ, "Shareholders Equity");
+  }
 
   XLSX.writeFile(wb, (period.clientName||"Statements").replace(/\s+/g,"-") + "_" + period.label.replace(/\s+/g,"-") + ".xlsx");
 }

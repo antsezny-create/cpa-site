@@ -13,6 +13,7 @@ let currentCategory = "uploaded";
 let activeClientId        = null;
 let activeClientName      = "";
 let messageRefreshInterval = null;
+let messageListener        = null;
 
 // ══════════════════════════════════════
 //  SECURITY HELPERS
@@ -203,6 +204,30 @@ function updateOverviewStats() {
 
   // Activity feed
   loadOverviewActivity();
+}
+
+function updateRecentClientsList() {
+  let el = document.getElementById("recent-clients-list");
+  if (!el) return;
+  let yearClients = clients.filter(c => c.year === activeYear);
+  yearClients.sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0));
+  let recent = yearClients.slice(0, 5);
+  if (!recent.length) {
+    el.innerHTML = `<div class="overview-empty">No clients for this year.</div>`;
+    return;
+  }
+  el.innerHTML = "";
+  recent.forEach(c => {
+    let div = document.createElement("div");
+    div.className = "overview-activity-item";
+    div.innerHTML = `
+      <span class="overview-activity-icon" style="background:${c.color||"#1B2A4A"};color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">${c.initials||"?"}</span>
+      <div class="overview-activity-content">
+        <span class="overview-activity-text">${c.firstName||""} ${c.lastName||""}</span>
+        <span class="overview-activity-time">${c.status||"pending"}</span>
+      </div>`;
+    el.appendChild(div);
+  });
 }
 
 function loadOverviewActivity() {
@@ -748,7 +773,15 @@ function renderDocuments() {
 function reviewDocument(docId, newStatus) {
   db.collection("documents").doc(docId).update({reviewStatus: newStatus}).then(() => {
     let d = allDocuments.find(x => x._id===docId);
-    if (d) d.reviewStatus = newStatus;
+    if (d) {
+      d.reviewStatus = newStatus;
+      db.collection("activity").add({
+        clientId:  d.clientId,
+        type:      "upload",
+        text:      (newStatus === "approved" ? "Document approved" : "Document flagged for review") + ": " + (d.fileName || "unknown file"),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
     renderDocuments();
   }).catch(e => toast("Failed: " + e.message, "error"));
 }
@@ -823,9 +856,34 @@ function openConvo(clientId, name, initials, color, type) {
   let input = document.getElementById("admin-msg-input");
   input.placeholder = "Type a message to " + name.split(" ")[0] + "...";
   input.disabled = false;
-  if (messageRefreshInterval) clearInterval(messageRefreshInterval);
-  loadMessagesForClient(clientId);
-  messageRefreshInterval = setInterval(() => loadMessagesForClient(clientId), 3000);
+  if (messageRefreshInterval) { clearInterval(messageRefreshInterval); messageRefreshInterval = null; }
+  if (messageListener) { messageListener(); messageListener = null; }
+  messageListener = db.collection("messages")
+    .where("clientId", "==", clientId)
+    .orderBy("timestamp", "asc")
+    .onSnapshot(snapshot => {
+      let thread = document.getElementById("admin-msg-thread");
+      if (!thread) return;
+      let msgs = snapshot.docs.map(d => d.data());
+      thread.innerHTML = "";
+      if (!msgs.length) { thread.innerHTML = '<div style="text-align:center;color:#6B7280;padding:40px;font-size:13px;">No messages yet.</div>'; return; }
+      msgs.forEach(msg => {
+        let timeText = "";
+        if (msg.timestamp) {
+          let d = new Date(msg.timestamp.seconds * 1000);
+          let h = d.getHours(), mn = d.getMinutes(), ap = h >= 12 ? "PM" : "AM";
+          h = h % 12 || 12; if (mn < 10) mn = "0" + mn;
+          let mo = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+          timeText = mo[d.getMonth()] + " " + d.getDate() + ", " + h + ":" + mn + " " + ap;
+        }
+        let bubble = document.createElement("div");
+        bubble.className = "msg-bubble " + (msg.senderRole === "admin" ? "sent" : "received");
+        bubble.innerHTML = `<div class="msg-bubble-meta"><strong>${msg.senderName || "Unknown"}</strong> <span>${timeText}</span></div>
+          <div class="msg-bubble-text">${msg.text || ""}</div>`;
+        thread.appendChild(bubble);
+      });
+      thread.scrollTop = thread.scrollHeight;
+    }, e => { document.getElementById("admin-msg-thread").innerHTML = `<div style="text-align:center;color:#EF4444;padding:40px;font-size:13px;">Error: ${e.message}</div>`; });
   db.collection("messages").get().then(snapshot => {
     snapshot.forEach(doc => {
       let m=doc.data();
@@ -870,7 +928,7 @@ function sendAdminMessage() {
     clientId:activeClientId, senderId:auth.currentUser?auth.currentUser.uid:"admin",
     senderName:"Anthony Sesny", senderRole:"admin", text:text,
     readByAdmin:true, timestamp:firebase.firestore.FieldValue.serverTimestamp()
-  }).then(()=>loadMessagesForClient(activeClientId));
+  });
 }
 function filterMessageClients(query) {
   document.querySelectorAll(".msg-client-item").forEach(item => {
