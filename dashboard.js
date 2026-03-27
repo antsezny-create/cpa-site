@@ -56,23 +56,53 @@ function loadInquiries() {
   list.innerHTML = '<div style="color:#6B7280;font-size:13px;padding:20px;">Loading...</div>';
 
   db.collection("inquiries").orderBy("createdAt", "desc").get().then(snap => {
+    // Mark all unread as read and clear badge
+    let batch = db.batch();
+    snap.forEach(doc => { if (!doc.data().read) batch.update(doc.ref, { read: true }); });
+    batch.commit().catch(() => {});
+    let badge = document.getElementById("inquiries-badge");
+    if (badge) { badge.textContent = "0"; badge.style.display = "none"; }
+
     if (snap.empty) {
       list.innerHTML = '<div style="color:#6B7280;font-size:13px;padding:20px;">No inquiries yet.</div>';
       return;
     }
+
     list.innerHTML = "";
     snap.forEach(doc => {
-      let d = doc.data();
-      let time = d.createdAt ? new Date(d.createdAt.seconds * 1000).toLocaleString("en-US", { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "";
+      let d      = doc.data();
+      let did    = doc.id;
+      let time   = d.createdAt
+        ? new Date(d.createdAt.seconds * 1000).toLocaleString("en-US", { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" })
+        : "";
+      let status = d.status || "new";
+      let statusStyles = {
+        new:       "background:rgba(58,140,92,0.15);color:#3A8C5C;border:1px solid rgba(58,140,92,0.25);",
+        contacted: "background:rgba(234,179,8,0.15);color:#CA8A04;border:1px solid rgba(234,179,8,0.25);",
+        closed:    "background:rgba(100,116,139,0.15);color:#64748b;border:1px solid rgba(100,116,139,0.25);"
+      };
+      let ss = statusStyles[status] || statusStyles.new;
+
       let card = document.createElement("div");
-      card.style.cssText = "background:#1e293b;border:1px solid #2d3748;border-radius:12px;padding:20px 24px;";
+      card.style.cssText = "background:#1e293b;border:1px solid #2d3748;border-radius:12px;padding:20px 24px;margin-bottom:12px;";
       card.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <div>
             <span style="font-size:15px;font-weight:600;color:#f1f5f9;">${esc(d.name) || "—"}</span>
             <span style="font-size:11px;color:#64748b;margin-left:12px;">${time}</span>
           </div>
-          <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;background:rgba(58,140,92,0.15);color:#3A8C5C;border:1px solid rgba(58,140,92,0.25);">${esc(d.status) || "new"}</span>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <select data-did="${esc(did)}" onchange="updateInquiryStatus(this.dataset.did, this.value, this)"
+              style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;${ss}cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;">
+              <option value="new"       ${status==="new"       ?"selected":""}>New</option>
+              <option value="contacted" ${status==="contacted" ?"selected":""}>Contacted</option>
+              <option value="closed"    ${status==="closed"    ?"selected":""}>Closed</option>
+            </select>
+            <a href="mailto:${esc(d.email)}?subject=${encodeURIComponent("Re: Your Inquiry - Sesny Advisory")}&body=${encodeURIComponent("Hi " + (d.name || "") + ",\n\n")}"
+              style="font-size:11px;font-weight:600;padding:4px 12px;border-radius:99px;background:rgba(59,130,246,0.15);color:#60A5FA;border:1px solid rgba(59,130,246,0.25);text-decoration:none;white-space:nowrap;">
+              ✉ Reply
+            </a>
+          </div>
         </div>
         <div style="display:flex;gap:24px;font-size:12px;color:#94a3b8;margin-bottom:12px;">
           <span>✉ ${esc(d.email) || "—"}</span>
@@ -81,13 +111,30 @@ function loadInquiries() {
         <p style="font-size:13px;color:#cbd5e1;line-height:1.6;margin:0;">${esc(d.message) || ""}</p>`;
       list.appendChild(card);
     });
-
-    // Update badge
-    let badge = document.getElementById("inquiries-badge");
-    if (badge) { badge.textContent = snap.size; badge.style.display = snap.size > 0 ? "inline" : "none"; }
-  }).catch(e => {
-    list.innerHTML = `<div style="color:#EF4444;font-size:13px;padding:20px;">Failed to load: ${e.message}</div>`;
+  }).catch(() => {
+    list.innerHTML = '<div style="color:#EF4444;font-size:13px;padding:20px;">Failed to load inquiries.</div>';
   });
+}
+
+function updateInquiryStatus(docId, newStatus, selectEl) {
+  let statusStyles = {
+    new:       "background:rgba(58,140,92,0.15);color:#3A8C5C;border:1px solid rgba(58,140,92,0.25);",
+    contacted: "background:rgba(234,179,8,0.15);color:#CA8A04;border:1px solid rgba(234,179,8,0.25);",
+    closed:    "background:rgba(100,116,139,0.15);color:#64748b;border:1px solid rgba(100,116,139,0.25);"
+  };
+  let ss = statusStyles[newStatus] || statusStyles.new;
+  selectEl.style.cssText = "font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;" + ss + "cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;";
+  db.collection("inquiries").doc(docId).update({ status: newStatus })
+    .catch(() => toast("Failed to update status.", "error"));
+}
+
+function checkUnreadInquiries() {
+  db.collection("inquiries").get().then(snap => {
+    let unread = 0;
+    snap.forEach(doc => { if (!doc.data().read) unread++; });
+    let badge = document.getElementById("inquiries-badge");
+    if (badge) { badge.textContent = unread; badge.style.display = unread > 0 ? "inline" : "none"; }
+  }).catch(() => {});
 }
 
 function switchDashTab(tabName) {
@@ -122,6 +169,7 @@ function switchDashTab(tabName) {
   if (tabName === "trial-balance") loadTrialBalanceTab();
   if (tabName === "import")        loadImportTab();
   if (tabName === "manual-stmt")   loadManualStmtTab();
+  if (tabName === "inquiries")     loadInquiries();
 }
 
 
@@ -1045,6 +1093,7 @@ auth.onAuthStateChanged(user => {
     setInterval(checkUnreadMessages, 10000);
     setInterval(checkPendingApprovals, 30000);
     checkPendingApprovals();
+    checkUnreadInquiries();
 
   }).catch(err => {
     console.error("Admin check failed:", err);
