@@ -372,6 +372,12 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.hero-stat-card:hover .hero-stat-icon {
+  background: rgba(0,166,81,0.18);
+  transform: scale(1.08);
 }
 
 .hero-stat-num {
