@@ -75,8 +75,8 @@ service cloud.firestore {
       allow create: if isAdmin();
       allow update: if isAdmin() ||
         (isOwner(uid) &&
-          !request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(['role', 'status', 'approvalStatus', 'bookkeeping', 'caseOpen', 'year', 'type']));
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['firstName', 'lastName', 'phone']));
       allow delete: if isAdmin();
     }
 

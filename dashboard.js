@@ -273,6 +273,7 @@ function updateOverviewStats() {
   document.getElementById("stat-total").textContent    = total;
   document.getElementById("stat-pending").textContent  = pending;
   document.getElementById("stat-progress").textContent = progress;
+  document.getElementById("stat-review").textContent   = review;
   document.getElementById("stat-filed").textContent    = filed;
 
   // Filing progress bar

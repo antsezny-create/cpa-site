@@ -378,6 +378,7 @@ body {
 .stat-value.cyan { color: var(--cyan); }
 .stat-value.orange { color: var(--orange); }
 .stat-value.green { color: var(--green); }
+.stat-value.purple { color: var(--purple); }
 
 /* ── Filing Progress Card ── */
 .filing-progress-card {
