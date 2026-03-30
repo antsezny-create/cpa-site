@@ -3,10 +3,12 @@
 // ══════════════════════════════════════
 let currentUser     = null;
 let currentUserData = null;
-let unreadListener  = null;
-let statusListener  = null;
+let unreadListener    = null;
+let statusListener    = null;
 let checklistListener = null;
 let activityListener  = null;
+let messagesListener  = null;
+let documentsListener = null;
 
 // ══════════════════════════════════════
 //  AUTH CHECK
@@ -280,7 +282,8 @@ function renderActivity(items) {
     el.className = "activity-item " + color;
     el.innerHTML =
       '<div class="activity-dot ' + color + '"></div>' +
-      '<div><strong>' + (item.text || "") + '</strong><span>' + timeText + '</span></div>';
+      '<div><strong></strong><span>' + timeText + '</span></div>';
+    el.querySelector("strong").textContent = item.text || "";
     list.appendChild(el);
   });
 }
@@ -314,8 +317,9 @@ function listenForUnreadMessages() {
 }
 
 function loadMessages() {
+  if (messagesListener) messagesListener();
   let thread = document.getElementById("messages-thread");
-  db.collection("messages")
+  messagesListener = db.collection("messages")
     .where("clientId", "==", currentUser.uid)
     .onSnapshot(function(snapshot) {
       thread.innerHTML = "";
@@ -404,7 +408,8 @@ function sendMessage() {
 //  DOCUMENT UPLOADS
 // ══════════════════════════════════════
 function loadDocuments() {
-  db.collection("documents")
+  if (documentsListener) documentsListener();
+  documentsListener = db.collection("documents")
     .where("clientId", "==", currentUser.uid)
     .onSnapshot(function(snapshot) {
       let fileList = document.getElementById("file-list");
@@ -440,20 +445,27 @@ function loadDocuments() {
 }
 
 function deleteDocument(docId, fileURL, fileName) {
-  if (!confirm("Delete this document? This cannot be undone.")) return;
-  db.collection("documents").doc(docId).update({
-    deleted:   true,
-    deletedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    deletedBy: currentUser.uid
-  }).then(function() {
-    if (fileURL) { try { storage.refFromURL(fileURL).delete().catch(function(){}); } catch(e){} }
-    db.collection("activity").add({
-      clientId:  currentUser.uid,
-      type:      "delete",
-      text:      "Deleted document: " + (fileName || "unknown file"),
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-  }).catch(function() { alert("Failed to delete document."); });
+  showModal({
+    title:       "Delete Document",
+    message:     "This cannot be undone.",
+    confirmText: "Delete",
+    cancelText:  "Cancel",
+    onConfirm:   function() {
+      db.collection("documents").doc(docId).update({
+        deleted:   true,
+        deletedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        deletedBy: currentUser.uid
+      }).then(function() {
+        if (fileURL) { try { storage.refFromURL(fileURL).delete().catch(function(){}); } catch(e){} }
+        db.collection("activity").add({
+          clientId:  currentUser.uid,
+          type:      "delete",
+          text:      "Deleted document: " + (fileName || "unknown file"),
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }).catch(function() { showToast("Failed to delete document.", "error"); });
+    }
+  });
 }
 
 function handleUpload(input) {
@@ -521,8 +533,9 @@ function handleUpload(input) {
               .get().then(function(snapshot) {
                 snapshot.forEach(function(doc) {
                   let req = doc.data();
-                  if (file.name.toLowerCase().includes(req.documentName.toLowerCase()) ||
-                      req.documentName.toLowerCase().includes(file.name.toLowerCase().replace(/\.[^.]+$/, ""))) {
+                  let normalizedFile = file.name.toLowerCase().replace(/\.[^.]+$/, "").trim();
+                  let normalizedReq  = req.documentName.toLowerCase().trim();
+                  if (normalizedFile === normalizedReq) {
                     db.collection("documentRequests").doc(doc.id).update({ fulfilled: true });
                   }
                 });
