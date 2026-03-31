@@ -264,5 +264,22 @@ service cloud.firestore {
     match /inquiries/{inquiryId} {
       allow read, write: if isAdmin();
     }
+
+
+    // ─────────────────────────────────────────────
+    //  CALENDAR EVENTS (internal admin tool)
+    //  - Admin-only. Clients never see this data.
+    // ─────────────────────────────────────────────
+    match /calendarEvents/{eventId} {
+      allow read, write: if isAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────
+    //  FIRM SETTINGS (admin-only configuration)
+    // ─────────────────────────────────────────────
+    match /settings/{docId} {
+      allow read, write: if isAdmin();
+    }
   }
 }

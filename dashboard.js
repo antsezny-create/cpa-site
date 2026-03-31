@@ -157,19 +157,40 @@ function switchDashTab(tabName) {
   if (tabName === "clients")         { renderClients("all"); checkPendingApprovals(); }
   if (tabName === "forms")           { currentCategory = "uploaded"; loadFormsFromFirebase(); }
   if (tabName === "documents")       renderDocuments();
-  if (tabName === "messages")        loadFirebaseClients();
+  if (tabName === "messages")        { loadFirebaseClients(); resetMsgSubtab(); }
   if (tabName === "saved-forms")     loadSavedForms();
   if (tabName === "returns")         loadReturnsTab();
+  if (tabName === "calendar")        initCalendar();
   if (tabName === "gl")              loadGLTab();
   if (tabName === "is")              loadStatementTab("is");
   if (tabName === "bs")              loadStatementTab("bs");
   if (tabName === "scf")             loadStatementTab("scf");
   if (tabName === "sshe")            loadStatementTab("sshe");
   if (tabName === "master-accounts") loadMasterAccountsTab();
-  if (tabName === "trial-balance") loadTrialBalanceTab();
-  if (tabName === "import")        loadImportTab();
-  if (tabName === "manual-stmt")   loadManualStmtTab();
-  if (tabName === "inquiries")     loadInquiries();
+  if (tabName === "trial-balance")   loadTrialBalanceTab();
+  if (tabName === "import")          loadImportTab();
+  if (tabName === "manual-stmt")     loadManualStmtTab();
+}
+
+function resetMsgSubtab() {
+  let panels = document.getElementById('msg-panel-client-messages');
+  let inquiries = document.getElementById('msg-panel-inquiries');
+  if (panels) panels.style.display = 'block';
+  if (inquiries) inquiries.style.display = 'none';
+  document.querySelectorAll('.msg-subtab-btn').forEach((b, i) => {
+    b.classList.toggle('active', i === 0);
+  });
+}
+
+function switchMsgSubtab(tab, btn) {
+  let clientPanel   = document.getElementById('msg-panel-client-messages');
+  let inquiryPanel  = document.getElementById('msg-panel-inquiries');
+  if (clientPanel)  clientPanel.style.display  = tab === 'client-messages' ? 'block' : 'none';
+  if (inquiryPanel) inquiryPanel.style.display = tab === 'inquiries'       ? 'block' : 'none';
+  document.querySelectorAll('.msg-subtab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  if (tab === 'inquiries')       loadInquiries();
+  if (tab === 'client-messages') loadFirebaseClients();
 }
 
 
