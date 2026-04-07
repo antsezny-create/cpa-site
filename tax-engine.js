@@ -1177,15 +1177,15 @@ function teRunFlags(calc, K, fs) {
   let ctcThr = K.ctc.phaseoutThreshold[fs] || K.ctc.phaseoutThreshold.single;
   let numQC  = (r.dependents||[]).filter(d => d.isQualifyingChild && teIsUnder17(d.dob, r.taxYear)).length;
   if (numQC > 0 && calc.agi > ctcThr * 0.90 && calc.agi <= ctcThr) {
-    flags.push({ type: 'warning', text: 'AGI is within ' + teFmt(ctcThr - calc.agi) + ' of the CTC phase-out threshold (' + teFmt(ctcThr) + '). Pre-tax retirement contributions or deductions could preserve the full credit. IRC §24(b)(1)' });
+    flags.push({ type: 'warning', text: 'AGI is within ' + teFmt(ctcThr - calc.agi) + ' of the CTC phase-out threshold (' + teFmt(ctcThr) + '). Pre-tax retirement contributions or deductions could preserve the full credit.' });
   }
   if (numQC > 0 && calc.agi > ctcThr) {
-    flags.push({ type: 'info', text: 'CTC reduced by ' + teFmt(Math.ceil((calc.agi - ctcThr)/1000)*50) + ' due to phase-out. IRC §24(b)(1)' });
+    flags.push({ type: 'info', text: 'CTC reduced by ' + teFmt(Math.ceil((calc.agi - ctcThr)/1000)*50) + ' due to phase-out.' });
   }
 
   // Withholding vs. tax
   if (calc.taxAfterCredits > 0 && calc.w2Withholding < calc.taxAfterCredits) {
-    flags.push({ type: 'warning', text: 'Withholding (' + teFmt(calc.w2Withholding) + ') is below tax liability (' + teFmt(calc.taxAfterCredits) + '). Balance due of ' + teFmt(calc.taxAfterCredits - calc.w2Withholding) + '. Consider W-4 adjustment. IRC §3402' });
+    flags.push({ type: 'warning', text: 'Withholding (' + teFmt(calc.w2Withholding) + ') is below tax liability (' + teFmt(calc.taxAfterCredits) + '). Balance due of ' + teFmt(calc.taxAfterCredits - calc.w2Withholding) + '. Consider W-4 adjustment.' });
   }
 
   // AOC phase-out proximity
@@ -1194,13 +1194,13 @@ function teRunFlags(calc, K, fs) {
     let fg = (fs === 'mfj' || fs === 'qss') ? 'mfj' : 'single';
     let lo = K.aoc.phaseoutLower[fg], hi = K.aoc.phaseoutUpper[fg];
     if (calc.agi >= lo && calc.agi <= hi)
-      flags.push({ type: 'warning', text: 'AGI is within the AOC phase-out range (' + teFmt(lo) + ' – ' + teFmt(hi) + '). Education credit is being reduced. IRC §25A(d)' });
+      flags.push({ type: 'warning', text: 'AGI is within the AOC phase-out range (' + teFmt(lo) + ' – ' + teFmt(hi) + '). Education credit is being reduced.' });
     if (calc.agi > hi)
-      flags.push({ type: 'info', text: 'AGI exceeds AOC/LLC phase-out ceiling (' + teFmt(hi) + '). Education credits fully phased out. IRC §25A(d)' });
+      flags.push({ type: 'info', text: 'AGI exceeds AOC/LLC phase-out ceiling (' + teFmt(hi) + '). Education credits fully phased out.' });
   }
 
   // Standard deduction note
-  flags.push({ type: 'info', text: 'Standard deduction of ' + teFmt(calc.stdDed) + ' applied. Itemized comparison available in Phase 2. IRC §63(c); OBBBA P.L. 119-21' });
+  flags.push({ type: 'info', text: 'Standard deduction of ' + teFmt(calc.stdDed) + ' applied. Itemized comparison available in Phase 2.' });
 
   let panel = document.getElementById('te-flags-panel');
   let list  = document.getElementById('te-flags-list');

@@ -3949,12 +3949,7 @@ input[type="number"].te-input {
   letter-spacing: 0.01em;
 }
 .te-ded-cite {
-  font-size: 9px;
-  color: var(--accent);
-  font-family: 'JetBrains Mono', monospace;
-  opacity: 0.55;
-  margin-top: 3px;
-  letter-spacing: 0.02em;
+  display: none;
 }
 .te-ded-amt {
   font-size: 20px;
@@ -4172,7 +4167,9 @@ input[type="number"].te-input {
   border-radius: var(--radius);
   position: sticky;
   top: 16px;
-  overflow: hidden;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -4276,7 +4273,7 @@ input[type="number"].te-input {
 
 /* Optimization Flags */
 .te-flags-wrap {
-  padding: 0 14px 12px;
+  padding: 0 14px 16px;
   border-top: 1px solid var(--border);
 }
 .te-flags-header {
