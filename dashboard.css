@@ -3426,34 +3426,12 @@ select.cal-input { cursor: pointer; }
    Bloomberg Terminal / Professional SaaS
    ══════════════════════════════════════════ */
 
-/* ── IRC Citations: Invisible by default. Hover shows ⓘ icon only. ── */
+/* ── IRC Citations: Removed from visible UI per CPA professional standard ── */
+/* Source citations remain in code comments and JS logic; not rendered in UI */
 .te-cite,
 .te-irc-cite {
-  font-size: 0;
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  vertical-align: middle;
-  cursor: help;
-  position: relative;
-  margin-left: 3px;
+  display: none;
 }
-.te-cite::before,
-.te-irc-cite::before {
-  content: 'ⓘ';
-  font-size: 10px;
-  color: var(--accent);
-  opacity: 0.25;
-  font-family: sans-serif;
-  font-weight: normal;
-  transition: opacity 0.2s;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-.te-cite:hover::before,
-.te-irc-cite:hover::before { opacity: 0.9; }
 
 /* ── Stats Row ── */
 .te-stats-row {
@@ -3519,19 +3497,37 @@ select.cal-input { cursor: pointer; }
 
 /* Status pills */
 .te-status-badge {
-  display: inline-block;
-  padding: 2px 7px;
-  border-radius: 3px;
-  font-size: 9px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px 3px 7px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
-.te-status-gray   { background: rgba(74,86,115,0.15); color: var(--text-dim); border: 1px solid var(--border); }
-.te-status-cyan   { background: rgba(6,182,212,0.08); color: var(--cyan); border: 1px solid rgba(6,182,212,0.2); }
+.te-status-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+/* Not Started — gray */
+.te-status-gray { background: rgba(74,86,115,0.12); color: var(--text-muted); border: 1px solid var(--border); }
+.te-status-gray::before { background: var(--text-dim); }
+/* In Progress — amber */
+.te-status-cyan { background: rgba(245,158,11,0.08); color: #D4900A; border: 1px solid rgba(245,158,11,0.25); }
+.te-status-cyan::before { background: var(--orange); }
+/* Under Review — blue */
+.te-status-purple { background: rgba(59,130,246,0.08); color: var(--accent); border: 1px solid rgba(59,130,246,0.25); }
+.te-status-purple::before { background: var(--accent); }
+/* Filed — green */
+.te-status-green { background: rgba(16,185,129,0.08); color: var(--green); border: 1px solid rgba(16,185,129,0.2); }
+.te-status-green::before { background: var(--green); }
+/* Legacy orange variant */
 .te-status-orange { background: rgba(245,158,11,0.08); color: var(--orange); border: 1px solid rgba(245,158,11,0.2); }
-.te-status-purple { background: rgba(139,92,246,0.08); color: var(--purple); border: 1px solid rgba(139,92,246,0.2); }
-.te-status-green  { background: rgba(16,185,129,0.08); color: var(--green); border: 1px solid rgba(16,185,129,0.2); }
+.te-status-orange::before { background: var(--orange); }
 
 .te-type-badge {
   display: inline-block;
@@ -3668,13 +3664,21 @@ select.cal-input { cursor: pointer; }
 .te-sec-btn svg { flex-shrink: 0; opacity: 0.6; }
 .te-sec-btn.active svg { opacity: 1; }
 .te-sec-stub { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+.te-sec-label { flex: 1; }
 .te-sec-ic {
-  font-size: 10px;
-  color: var(--text-dim);
-  margin-left: auto;
+  font-size: 11px;
+  color: transparent;
   flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  transition: color 0.2s;
 }
-.te-sec-ic.te-sec-done { color: var(--green); font-weight: 700; }
+.te-sec-ic.te-sec-done {
+  color: var(--green);
+  font-weight: 700;
+}
+/* Dot for incomplete sections that have been visited */
+.te-sec-ic:not(.te-sec-done):not(:empty) { color: var(--text-dim); }
 
 .te-nav-divider { height: 1px; background: var(--border); margin: 5px 8px; }
 .te-nav-section-label {
@@ -3693,7 +3697,6 @@ select.cal-input { cursor: pointer; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 24px;
-  min-height: 460px;
 }
 
 /* Section Header */
@@ -4176,7 +4179,7 @@ input[type="number"].te-input {
 
 /* Result block — top of meter */
 .te-meter-top {
-  padding: 20px 18px 16px;
+  padding: 28px 22px 22px;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(160deg, rgba(15,22,35,1) 0%, rgba(8,13,23,1) 100%);
   text-align: center;
@@ -4186,8 +4189,8 @@ input[type="number"].te-input {
   content: '';
   position: absolute;
   bottom: 0;
-  left: 20%;
-  right: 20%;
+  left: 15%;
+  right: 15%;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--border-light), transparent);
 }
@@ -4196,77 +4199,80 @@ input[type="number"].te-input {
   font-weight: 800;
   color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.15em;
-  margin-bottom: 12px;
+  letter-spacing: 0.18em;
+  margin-bottom: 16px;
 }
 .te-meter-result {
-  font-size: 38px;
+  font-size: 48px;
   font-weight: 900;
   color: var(--text-dim);
   font-family: 'JetBrains Mono', monospace;
   line-height: 1;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.04em;
   transition: color 0.4s;
 }
 .te-meter-result.te-res-refund { color: var(--green); }
 .te-meter-result.te-res-due    { color: var(--red); }
 .te-meter-label {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  margin-top: 8px;
+  letter-spacing: 0.14em;
+  margin-top: 10px;
 }
 
 /* Calculation chain body */
 .te-meter-body {
-  padding: 10px 16px 12px;
+  padding: 14px 18px 16px;
   flex: 1;
 }
 .te-meter-section-lbl {
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
-  color: var(--text-dim);
+  color: var(--accent);
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  padding: 7px 0 3px;
-  opacity: 0.6;
+  letter-spacing: 0.13em;
+  padding: 10px 0 5px;
+  opacity: 0.7;
+  border-bottom: 1px solid rgba(59,130,246,0.1);
+  margin-bottom: 4px;
 }
 .te-meter-divider {
   height: 1px;
   background: var(--border);
-  margin: 4px 0;
+  margin: 6px 0 2px;
 }
 .te-meter-line {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 2.5px 0;
-  font-size: 11px;
+  padding: 3.5px 0;
+  font-size: 12px;
 }
 .te-meter-key {
   color: var(--text-muted);
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  gap: 3px;
+  font-size: 12px;
+  flex: 1;
+  padding-right: 8px;
 }
 .te-meter-val {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
   color: var(--text);
   text-align: right;
+  min-width: 70px;
 }
 .te-meter-sub { color: var(--text-dim); }
 .te-meter-line-total {
-  border-top: 1px solid rgba(30,45,69,0.6);
-  margin-top: 3px;
-  padding-top: 4px;
-  margin-bottom: 1px;
+  border-top: 1px solid rgba(30,45,69,0.7);
+  margin-top: 4px;
+  padding-top: 5px;
+  margin-bottom: 2px;
 }
-.te-meter-line-total .te-meter-key { color: var(--text); font-weight: 700; font-size: 11px; }
-.te-meter-line-total .te-meter-val { color: var(--text); font-weight: 800; }
+.te-meter-line-total .te-meter-key { color: var(--text); font-weight: 700; font-size: 12px; }
+.te-meter-line-total .te-meter-val { color: var(--text); font-weight: 800; font-size: 12px; }
 
 /* Optimization Flags */
 .te-flags-wrap {
@@ -4334,3 +4340,19 @@ input[type="number"].te-input {
 .te-note-body { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
 .te-note-dt { font-size: 9px; color: var(--text-dim); margin-top: 4px; }
 .te-notes-empty { font-size: 11px; color: var(--text-dim); font-style: italic; padding: 6px 0; }
+
+/* ── Tabular nums: all dollar values align cleanly ── */
+.te-ded-amt,
+.te-total-val,
+.te-result-refund,
+.te-result-due,
+.te-stat-val,
+.te-ctc-row span:last-child,
+.te-pay-row span:last-child,
+.te-pay-tot span:last-child,
+.te-edu-calc-lbl strong,
+.te-w2-row input[type="number"],
+.te-return-row .te-col-result {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
