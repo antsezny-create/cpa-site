@@ -718,6 +718,15 @@ function teRmW2(i) {
 //  DEDUCTIONS SECTION
 // ──────────────────────────────────────────────────────────────────────
 
+function teToggleAdj(id) {
+  let body = document.getElementById('te-adj-body-' + id);
+  let row  = document.getElementById('te-adj-row-'  + id);
+  if (!body || !row) return;
+  let isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  row.classList.toggle('te-adj-open', !isOpen);
+}
+
 function teRenderDeductions() {
   let r      = teCurrentReturn;
   let fs     = r.filingStatus || 'single';
@@ -736,96 +745,108 @@ function teRenderDeductions() {
   let isMFJ  = (fs === 'mfj');
   let iraLimit = teFmt(K.ira.limit + (a.iraAge50Plus ? K.ira.catchUp : 0));
 
+  // Default open: expand rows that already have a value
+  let sliOpen = parseFloat(a.studentLoanInterest) > 0;
+  let hsaOpen = parseFloat(a.hsaContributions)    > 0;
+  let iraOpen = parseFloat(a.iraContributions)     > 0;
+
   return `
     <div class="te-sec-hdr"><h2>Deductions</h2>
     <p class="te-sec-sub">Reduces gross income to AGI and taxable income &mdash; <span class="te-cite">IRC §62, §63</span></p></div>
 
-    <div class="te-subsec-lbl" style="margin-bottom:12px;">Above-the-Line Adjustments <span class="te-cite">IRC §62</span></div>
+    <div class="te-subsec-lbl" style="margin-bottom:10px;">Above-the-Line Adjustments <span class="te-cite">IRC §62</span></div>
 
-    <div class="te-ded-card te-ded-active" style="margin-bottom:10px;">
-      <div class="te-ded-card-hdr">
-        <div><div class="te-ded-title">Student Loan Interest <span class="te-cite">IRC §221</span></div></div>
-        <div class="te-ded-amt" id="te-ded-sli-calc">${teFmt(sliAmt)}</div>
-      </div>
-      <div class="te-ded-body">
-        ${isMFS
-          ? '<div class="te-ded-note">Not available for Married Filing Separately. <span class="te-cite">IRC §221(b)(2)(B)</span></div>'
-          : `<div class="te-frow" style="align-items:flex-end;gap:12px;">
-               <div class="te-field-group" style="max-width:180px;">
-                 <label class="te-lbl">Interest Paid in ${yr}</label>
-                 <input type="number" id="te-adj-sli" class="te-input te-mono" value="${esc(String(a.studentLoanInterest||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
-               </div>
-               <div class="te-ded-note" style="flex:1;padding-bottom:4px;">Maximum $2,500. Phase-out: ${teFmt(sliPo.floor)}–${teFmt(sliPo.ceiling)} MAGI. <span class="te-cite">IRC §221(b)(1),(b)(2)</span></div>
-             </div>`}
-      </div>
-    </div>
+    <div class="te-adj-list">
 
-    <div class="te-ded-card te-ded-active" style="margin-bottom:10px;">
-      <div class="te-ded-card-hdr">
-        <div><div class="te-ded-title">HSA Deduction <span class="te-cite">IRC §223</span></div></div>
-        <div class="te-ded-amt" id="te-ded-hsa-calc">${teFmt(hsaAmt)}</div>
-      </div>
-      <div class="te-ded-body">
-        <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
-          <div class="te-field-group" style="max-width:165px;">
-            <label class="te-lbl">Coverage Type</label>
-            <select id="te-adj-hsa-type" class="te-select" onchange="teOnAgiAdj()">
-              <option value="self"   ${a.hsaCoverageType!=='family'?'selected':''}>Self-Only (${teFmt(K.hsa.limitSelf)} limit)</option>
-              <option value="family" ${a.hsaCoverageType==='family'?'selected':''}>Family (${teFmt(K.hsa.limitFamily)} limit)</option>
-            </select>
-          </div>
-          <div class="te-field-group" style="max-width:165px;">
-            <label class="te-lbl">Contributions Made</label>
-            <input type="number" id="te-adj-hsa-contrib" class="te-input te-mono" value="${esc(String(a.hsaContributions||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
-          </div>
-          <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding-bottom:6px;">
-            <input type="checkbox" id="te-adj-hsa-55" ${a.hsaTaxpayerAge55?'checked':''} onchange="teOnAgiAdj()">
-            Age 55+ catch-up (+$1,000) <span class="te-cite">IRC §223(b)(3)(B)</span>
-          </label>
+      <div class="te-adj-row${sliOpen ? ' te-adj-open' : ''}" id="te-adj-row-sli">
+        <div class="te-adj-row-hdr" onclick="teToggleAdj('sli')">
+          <span class="te-adj-row-label">Student Loan Interest <span class="te-cite">IRC §221</span></span>
+          <span class="te-adj-row-val" id="te-ded-sli-calc">${teFmt(sliAmt)}</span>
+          <span class="te-adj-chevron">&#8250;</span>
         </div>
-        <div class="te-ded-note">No income phase-out. Requires qualifying HDHP coverage. Taxpayer certifies eligibility. <span class="te-cite">IRC §223(b)(1)</span></div>
+        <div class="te-adj-body" id="te-adj-body-sli" style="display:${sliOpen ? 'block' : 'none'};">
+          ${isMFS
+            ? '<div class="te-ded-note">Not available for Married Filing Separately. <span class="te-cite">IRC §221(b)(2)(B)</span></div>'
+            : `<div class="te-frow" style="align-items:flex-end;gap:12px;">
+                 <div class="te-field-group" style="max-width:180px;">
+                   <label class="te-lbl">Interest Paid in ${yr}</label>
+                   <input type="number" id="te-adj-sli" class="te-input te-mono" value="${esc(String(a.studentLoanInterest||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
+                 </div>
+                 <div class="te-ded-note" style="flex:1;padding-bottom:0;">Maximum $2,500. Phase-out: ${teFmt(sliPo.floor)}–${teFmt(sliPo.ceiling)} MAGI. <span class="te-cite">IRC §221(b)(1),(b)(2)</span></div>
+               </div>`}
+        </div>
       </div>
-    </div>
 
-    <div class="te-ded-card te-ded-active" style="margin-bottom:10px;">
-      <div class="te-ded-card-hdr">
-        <div><div class="te-ded-title">Traditional IRA Deduction <span class="te-cite">IRC §219</span></div></div>
-        <div class="te-ded-amt" id="te-ded-ira-calc">${teFmt(iraAmt)}</div>
-      </div>
-      <div class="te-ded-body">
-        <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
-          <div class="te-field-group" style="max-width:180px;">
-            <label class="te-lbl">IRA Contributions</label>
-            <input type="number" id="te-adj-ira-contrib" class="te-input te-mono" value="${esc(String(a.iraContributions||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
+      <div class="te-adj-row${hsaOpen ? ' te-adj-open' : ''}" id="te-adj-row-hsa">
+        <div class="te-adj-row-hdr" onclick="teToggleAdj('hsa')">
+          <span class="te-adj-row-label">HSA Deduction <span class="te-cite">IRC §223</span></span>
+          <span class="te-adj-row-val" id="te-ded-hsa-calc">${teFmt(hsaAmt)}</span>
+          <span class="te-adj-chevron">&#8250;</span>
+        </div>
+        <div class="te-adj-body" id="te-adj-body-hsa" style="display:${hsaOpen ? 'block' : 'none'};">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div class="te-field-group" style="max-width:165px;">
+              <label class="te-lbl">Coverage Type</label>
+              <select id="te-adj-hsa-type" class="te-select" onchange="teOnAgiAdj()">
+                <option value="self"   ${a.hsaCoverageType!=='family'?'selected':''}>Self-Only (${teFmt(K.hsa.limitSelf)} limit)</option>
+                <option value="family" ${a.hsaCoverageType==='family'?'selected':''}>Family (${teFmt(K.hsa.limitFamily)} limit)</option>
+              </select>
+            </div>
+            <div class="te-field-group" style="max-width:165px;">
+              <label class="te-lbl">Contributions Made</label>
+              <input type="number" id="te-adj-hsa-contrib" class="te-input te-mono" value="${esc(String(a.hsaContributions||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
+            </div>
+            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding-bottom:6px;">
+              <input type="checkbox" id="te-adj-hsa-55" ${a.hsaTaxpayerAge55?'checked':''} onchange="teOnAgiAdj()">
+              Age 55+ (+$1,000) <span class="te-cite">IRC §223(b)(3)(B)</span>
+            </label>
           </div>
-          <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding-bottom:6px;">
-            <input type="checkbox" id="te-adj-ira-50" ${a.iraAge50Plus?'checked':''} onchange="teOnAgiAdj()">
-            Age 50+ catch-up (+$1,000) <span class="te-cite">IRC §219(b)(5)(B)</span>
-          </label>
+          <div class="te-ded-note">No income phase-out. Requires qualifying HDHP. Taxpayer certifies eligibility. <span class="te-cite">IRC §223(b)(1)</span></div>
         </div>
-        <div class="te-frow" style="gap:12px;margin-top:8px;flex-wrap:wrap;">
-          <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-            <input type="checkbox" id="te-adj-ira-active" ${a.iraActiveParticipant?'checked':''} onchange="teOnAgiAdj()">
-            Covered by employer retirement plan <span class="te-cite">IRC §219(g)(2)</span>
-          </label>
-          ${isMFJ ? `
-          <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-            <input type="checkbox" id="te-adj-ira-spouse-active" ${a.iraSpouseActive?'checked':''} onchange="teOnAgiAdj()">
-            Spouse covered by employer plan <span class="te-cite">IRC §219(g)(7)</span>
-          </label>` : ''}
-        </div>
-        <div class="te-ded-note">Limit: ${iraLimit}. Deductibility phases out when covered by an employer plan. <span class="te-cite">IRC §219(g)</span></div>
       </div>
+
+      <div class="te-adj-row${iraOpen ? ' te-adj-open' : ''}" id="te-adj-row-ira">
+        <div class="te-adj-row-hdr" onclick="teToggleAdj('ira')">
+          <span class="te-adj-row-label">Traditional IRA Deduction <span class="te-cite">IRC §219</span></span>
+          <span class="te-adj-row-val" id="te-ded-ira-calc">${teFmt(iraAmt)}</span>
+          <span class="te-adj-chevron">&#8250;</span>
+        </div>
+        <div class="te-adj-body" id="te-adj-body-ira" style="display:${iraOpen ? 'block' : 'none'};">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div class="te-field-group" style="max-width:180px;">
+              <label class="te-lbl">IRA Contributions</label>
+              <input type="number" id="te-adj-ira-contrib" class="te-input te-mono" value="${esc(String(a.iraContributions||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
+            </div>
+            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding-bottom:6px;">
+              <input type="checkbox" id="te-adj-ira-50" ${a.iraAge50Plus?'checked':''} onchange="teOnAgiAdj()">
+              Age 50+ (+$1,000) <span class="te-cite">IRC §219(b)(5)(B)</span>
+            </label>
+          </div>
+          <div class="te-frow" style="gap:16px;margin-top:8px;flex-wrap:wrap;">
+            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="checkbox" id="te-adj-ira-active" ${a.iraActiveParticipant?'checked':''} onchange="teOnAgiAdj()">
+              Covered by employer plan <span class="te-cite">IRC §219(g)(2)</span>
+            </label>
+            ${isMFJ ? `
+            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="checkbox" id="te-adj-ira-spouse-active" ${a.iraSpouseActive?'checked':''} onchange="teOnAgiAdj()">
+              Spouse covered by employer plan <span class="te-cite">IRC §219(g)(7)</span>
+            </label>` : ''}
+          </div>
+          <div class="te-ded-note">Limit: ${iraLimit}. Deductibility phases out when covered by an employer plan. <span class="te-cite">IRC §219(g)</span></div>
+        </div>
+      </div>
+
+      <div class="te-adj-row te-adj-row-stub">
+        <div class="te-adj-row-hdr">
+          <span class="te-adj-row-label">SE Tax Deduction <span class="te-cite">IRC §164(f)</span></span>
+          <span class="te-stub-pill">Track 3</span>
+        </div>
+      </div>
+
     </div>
 
-    <div class="te-stub-sec" style="margin-bottom:20px;">
-      <div class="te-stub-blk">
-        <span class="te-stub-title">SE Tax Deduction <span class="te-cite">IRC §164(f)</span></span>
-        <span class="te-stub-pill">Track 3</span>
-      </div>
-    </div>
-
-    <div class="te-subsec-lbl" style="margin-bottom:12px;">Below-the-Line Deductions <span class="te-cite">IRC §63</span></div>
+    <div class="te-subsec-lbl" style="margin-bottom:10px;">Below-the-Line Deductions <span class="te-cite">IRC §63</span></div>
 
     <div class="te-ded-card te-ded-active" style="margin-bottom:10px;">
       <div class="te-ded-card-hdr">
@@ -838,7 +859,7 @@ function teRenderDeductions() {
       <div class="te-ded-body">
         <div class="te-ded-row"><span>Filing Status</span><span>${esc(fsl)}</span></div>
         <div class="te-ded-row"><span>Standard Deduction (${yr})</span><span>${teFmt(stdAmt)}</span></div>
-        <div class="te-ded-note">Automatically applied. If Schedule A itemized deductions exceed ${teFmt(stdAmt)}, itemizing may be beneficial (Phase 2, Track 2).</div>
+        <div class="te-ded-note">Automatically applied. If Schedule A itemized deductions exceed ${teFmt(stdAmt)}, itemizing may be beneficial (Track 2).</div>
       </div>
     </div>
 
