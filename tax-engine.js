@@ -237,6 +237,22 @@ const TAX_CONSTANTS = {
       medical: {
         agiFloor: 0.075  // IRC §213(a) — statutory 7.5% floor
       }
+    },
+
+    // ── TRACK 3: Self-Employment Tax (2025) ──────────────────────────────
+
+    // IRC §1401 — Self-Employment Tax Rates (statutory, not inflation-adjusted)
+    // IRC §1402(a) — Net earnings from SE = net profit × 92.35%
+    //   The 92.35% factor = 1 − (employer-equivalent half of SE tax rate: 7.65%)
+    //   It reflects the §164(f) deduction in the SE tax base computation.
+    // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section1401
+    selfEmployment: {
+      netEarningsRate: 0.9235,  // IRC §1402(a) — statutory
+      ssTaxRate:       0.124,   // IRC §1401(a): 12.4% Social Security portion
+      medicareTaxRate: 0.029,   // IRC §1401(b): 2.9% Medicare portion
+      // Social Security wage base — applies to combined W-2 wages + SE earnings
+      // Source: SSA announcement Oct 2024; confirmed IRS Tax Topic 751
+      ssTaxWageBase: 176100     // 2025 — SSA / IRS Tax Topic 751
     }
   },
 
@@ -388,6 +404,18 @@ const TAX_CONSTANTS = {
       medical: {
         agiFloor: 0.075          // IRC §213(a) — statutory
       }
+    },
+
+    // ── TRACK 3: Self-Employment Tax (2026) ──────────────────────────────
+
+    // IRC §1401 — SE Tax Rates (statutory, not inflation-adjusted)
+    // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section1401
+    selfEmployment: {
+      netEarningsRate: 0.9235,  // IRC §1402(a) — statutory
+      ssTaxRate:       0.124,   // IRC §1401(a): 12.4%
+      medicareTaxRate: 0.029,   // IRC §1401(b): 2.9%
+      // Social Security wage base 2026 — confirmed IRS Tax Topic 751 (irs.gov/taxtopics/tc751)
+      ssTaxWageBase: 184500     // 2026 — IRS Tax Topic 751
     }
   }
 };
@@ -419,6 +447,16 @@ function teEmptyReturn(clientId, clientName, taxYear) {
     w2:           [],
     deductionType: 'standard',
     educationStudents: [],
+    scheduleC: {
+      netProfit: ''             // IRC §162 — Schedule C net profit (gross receipts minus expenses)
+    },
+    alimony: {
+      paid:        '',          // IRC §215 — alimony paid (pre-2019 agreements only)
+      preAgreement: false       // true = agreement executed before Jan 1, 2019 → deductible
+    },
+    estimatedPayments: {
+      q1: '', q2: '', q3: '', q4: ''  // Form 1040-ES — IRC §6654
+    },
     agiAdjustments: {
       studentLoanInterest: '',
       hsaCoverageType:      'self',
@@ -916,13 +954,18 @@ function teRenderIncome() {
       </div>
     </div>
 
-    <div class="te-stub-sec">
-      <div class="te-stub-blk"><span class="te-stub-title">1099-NEC / Self-Employment Income <span class="te-cite">IRC §162, Schedule C</span></span><span class="te-stub-pill">Phase 2</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">1099-INT / Interest Income <span class="te-cite">IRC §61(a)(4)</span></span><span class="te-stub-pill">Phase 2</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">1099-DIV / Qualified Dividends <span class="te-cite">IRC §61(a)(7), §1(h)</span></span><span class="te-stub-pill">Phase 2</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">Schedule D / Capital Gains &amp; Losses <span class="te-cite">IRC §1221, §1222</span></span><span class="te-stub-pill">Phase 2</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">Schedule E / Rental &amp; K-1 Income <span class="te-cite">IRC §212, §702</span></span><span class="te-stub-pill">Phase 2</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">Other Income (Alimony, Prizes, etc.) <span class="te-cite">IRC §61(a)</span></span><span class="te-stub-pill">Phase 2</span></div>
+    <div class="te-subsec" style="margin-top:20px;">
+      <div class="te-subsec-lbl">Schedule C — Self-Employment Income <span class="te-cite">IRC §162, §61(a)(2)</span></div>
+      <div class="te-subsec-desc">Net profit from self-employment (gross receipts minus business expenses). Loss entries reduce gross income and SE tax base.</div>
+      ${teRenderScheduleC()}
+    </div>
+
+    <div class="te-stub-sec" style="margin-top:8px;">
+      <div class="te-stub-blk"><span class="te-stub-title">1099-INT / Interest Income <span class="te-cite">IRC §61(a)(4)</span></span><span class="te-stub-pill">Track 4</span></div>
+      <div class="te-stub-blk"><span class="te-stub-title">1099-DIV / Qualified Dividends <span class="te-cite">IRC §61(a)(7), §1(h)</span></span><span class="te-stub-pill">Track 4</span></div>
+      <div class="te-stub-blk"><span class="te-stub-title">Schedule D / Capital Gains &amp; Losses <span class="te-cite">IRC §1221, §1222</span></span><span class="te-stub-pill">Track 4</span></div>
+      <div class="te-stub-blk"><span class="te-stub-title">Schedule E / Rental &amp; K-1 Income <span class="te-cite">IRC §212, §702</span></span><span class="te-stub-pill">Track 4</span></div>
+      <div class="te-stub-blk"><span class="te-stub-title">Other Income (Prizes, Gambling, etc.) <span class="te-cite">IRC §61(a)</span></span><span class="te-stub-pill">Track 4</span></div>
     </div>`;
 }
 
@@ -982,6 +1025,34 @@ function teRmW2(i) {
 }
 
 
+function teRenderScheduleC() {
+  let r    = teCurrentReturn;
+  let sc   = (r && r.scheduleC) || {};
+  let calc = (r && r._calc)     || {};
+  let hasIncome = calc.netSEIncome > 0;
+  return `
+    <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:8px;">
+      <div class="te-field-group" style="max-width:220px;">
+        <label class="te-lbl">Schedule C Net Profit / (Loss) <span class="te-cite">IRC §162</span></label>
+        <input type="number" id="te-sc-netprofit" class="te-input te-mono"
+          value="${esc(String(sc.netProfit||''))}" placeholder="0.00" step="0.01"
+          oninput="teOnScheduleC()">
+      </div>
+      ${hasIncome ? `
+      <div class="te-ded-note" style="flex:1;padding-bottom:6px;">
+        SE Tax Base: ${teFmt(calc.seTaxBase)} &nbsp;|&nbsp;
+        SE Tax: ${teFmt(calc.seTax)}
+        (SS: ${teFmt(calc.seSSTax)} + Medicare: ${teFmt(calc.seMedicareTax)}) &nbsp;|&nbsp;
+        §164(f) Deduction: ${teFmt(calc.seTaxDeduction)}
+      </div>` : ''}
+    </div>
+    <div class="te-ded-note" style="margin-top:4px;">
+      Enter net profit from all Schedule C businesses combined. Losses (negative values) reduce gross income and eliminate SE tax.
+      SE tax = net profit × 92.35% × 15.3% (SS limited to wage base less W-2 wages). <span class="te-cite">IRC §1401, §1402</span>
+    </div>`;
+}
+
+
 // ──────────────────────────────────────────────────────────────────────
 //  DEDUCTIONS SECTION
 // ──────────────────────────────────────────────────────────────────────
@@ -1006,9 +1077,11 @@ function teRenderDeductions() {
   let a      = r.agiAdjustments || {};
   let sa     = r.scheduleA      || {};
   let calc   = r._calc || {};
-  let sliAmt = calc.sliDeduction || 0;
-  let hsaAmt = calc.hsaDeduction || 0;
-  let iraAmt = calc.iraDeduction || 0;
+  let sliAmt = calc.sliDeduction    || 0;
+  let hsaAmt = calc.hsaDeduction    || 0;
+  let iraAmt = calc.iraDeduction    || 0;
+  let seAmt  = calc.seTaxDeduction  || 0;
+  let alAmt  = calc.alimonyDeduction|| 0;
   let sliPo  = (fs === 'mfj') ? K.studentLoanInterest.phaseout.mfj : K.studentLoanInterest.phaseout.single;
   let isMFS  = (fs === 'mfs');
   let isMFJ  = (fs === 'mfj');
@@ -1036,6 +1109,8 @@ function teRenderDeductions() {
   let sliOpen = parseFloat(a.studentLoanInterest) > 0;
   let hsaOpen = parseFloat(a.hsaContributions)    > 0;
   let iraOpen = parseFloat(a.iraContributions)     > 0;
+  let alOpen  = parseFloat((r.alimony||{}).paid)  > 0;
+  let al      = r.alimony || {};
 
   return `
     <div class="te-sec-hdr"><h2>Deductions</h2>
@@ -1124,10 +1199,44 @@ function teRenderDeductions() {
         </div>
       </div>
 
-      <div class="te-adj-row te-adj-row-stub">
-        <div class="te-adj-row-hdr">
+      <div class="te-adj-row${seAmt > 0 ? ' te-adj-open' : ''}" id="te-adj-row-se">
+        <div class="te-adj-row-hdr" onclick="teToggleAdj('se')">
           <span class="te-adj-row-label">SE Tax Deduction <span class="te-cite">IRC §164(f)</span></span>
-          <span class="te-stub-pill">Track 3</span>
+          <span class="te-adj-row-val" id="te-ded-se-calc">${teFmt(seAmt)}</span>
+          <span class="te-adj-chevron">&#8250;</span>
+        </div>
+        <div class="te-adj-body" id="te-adj-body-se" style="display:${seAmt > 0 ? 'block' : 'none'};">
+          ${calc.netSEIncome > 0
+            ? `<div class="te-ded-note">
+                Deductible amount: 50% of SE tax of ${teFmt(calc.seTax)} = <strong>${teFmt(seAmt)}</strong>.
+                Auto-calculated from Schedule C net profit in the Income section. <span class="te-cite">IRC §164(f)</span>
+               </div>`
+            : `<div class="te-ded-note">Enter Schedule C net profit in the Income section to calculate SE tax and this deduction. <span class="te-cite">IRC §164(f)</span></div>`}
+        </div>
+      </div>
+
+      <div class="te-adj-row${alOpen ? ' te-adj-open' : ''}" id="te-adj-row-al">
+        <div class="te-adj-row-hdr" onclick="teToggleAdj('al')">
+          <span class="te-adj-row-label">Alimony Paid <span class="te-cite">IRC §215</span></span>
+          <span class="te-adj-row-val" id="te-ded-al-calc">${teFmt(alAmt)}</span>
+          <span class="te-adj-chevron">&#8250;</span>
+        </div>
+        <div class="te-adj-body" id="te-adj-body-al" style="display:${alOpen ? 'block' : 'none'};">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div class="te-field-group" style="max-width:200px;">
+              <label class="te-lbl">Alimony Paid in ${yr}</label>
+              <input type="number" id="te-al-paid" class="te-input te-mono"
+                value="${esc(String(al.paid||''))}" placeholder="0.00" step="0.01" min="0"
+                oninput="teOnAlimony()">
+            </div>
+            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding-bottom:6px;">
+              <input type="checkbox" id="te-al-pre" ${al.preAgreement ? 'checked' : ''} onchange="teOnAlimony()">
+              Divorce/separation agreement executed before Jan 1, 2019 <span class="te-cite">TCJA §11051</span>
+            </label>
+          </div>
+          ${!al.preAgreement
+            ? '<div class="te-ded-note" style="margin-top:4px;color:var(--te-warn,#f59e0b);">Post-2018 agreements: alimony paid is NOT deductible under TCJA. <span class="te-cite">IRC §215(b)(2)</span></div>'
+            : '<div class="te-ded-note" style="margin-top:4px;">Pre-2019 agreements: full amount paid is deductible. Recipient must include in gross income. SSN of recipient required on Form 1040. <span class="te-cite">IRC §215(a), §71</span></div>'}
         </div>
       </div>
 
@@ -1537,6 +1646,56 @@ function teCalcIRA(adj, magi, K, fs) {
 
 
 // ──────────────────────────────────────────────────────────────────────
+//  TRACK 3 CALC FUNCTIONS
+// ──────────────────────────────────────────────────────────────────────
+
+// IRC §215 — Alimony Paid Deduction
+// Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section215
+// TCJA §11051 (P.L. 115-97): agreements executed after Dec 31, 2018 → NOT deductible.
+// Pre-2019 agreements: full amount paid is deductible above-the-line.
+// Practitioner responsibility: confirm the divorce/separation instrument date.
+function teCalcAlimony(alimony) {
+  if (!alimony.preAgreement) return 0;  // post-2018 → not deductible per TCJA §11051
+  return teRound(Math.max(0, parseFloat(alimony.paid) || 0));
+}
+
+// Handler — Schedule C field changes
+function teOnScheduleC() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.scheduleC) teCurrentReturn.scheduleC = {};
+  let g = id => { let el = document.getElementById(id); return el ? el.value : ''; };
+  teCurrentReturn.scheduleC.netProfit = g('te-sc-netprofit');
+  teRecalculate();
+}
+
+// Handler — Alimony field changes
+function teOnAlimony() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.alimony) teCurrentReturn.alimony = {};
+  let g  = id => { let el = document.getElementById(id); return el ? el.value   : ''; };
+  let gb = id => { let el = document.getElementById(id); return el ? el.checked : false; };
+  teCurrentReturn.alimony.paid         = g('te-al-paid');
+  teCurrentReturn.alimony.preAgreement = gb('te-al-pre');
+  teRecalculate();
+}
+
+// Handler — Estimated payments field changes
+function teOnEstPay() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.estimatedPayments) teCurrentReturn.estimatedPayments = {};
+  let g = id => { let el = document.getElementById(id); return el ? el.value : ''; };
+  teCurrentReturn.estimatedPayments.q1 = g('te-ep-q1');
+  teCurrentReturn.estimatedPayments.q2 = g('te-ep-q2');
+  teCurrentReturn.estimatedPayments.q3 = g('te-ep-q3');
+  teCurrentReturn.estimatedPayments.q4 = g('te-ep-q4');
+  teRecalculate();
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
 //  SCHEDULE A — TRACK 2 CALC FUNCTIONS
 // ──────────────────────────────────────────────────────────────────────
 
@@ -1633,6 +1792,32 @@ function teOnScheduleA() {
 //  PAYMENTS SECTION
 // ──────────────────────────────────────────────────────────────────────
 
+function teRenderEstimatedPayments() {
+  let r    = teCurrentReturn;
+  let ep   = (r && r.estimatedPayments) || {};
+  let calc = (r && r._calc) || {};
+  let yr   = r ? (r.taxYear || teActiveYear) : teActiveYear;
+  // Due dates — Q1: Apr 15, Q2: Jun 16, Q3: Sep 15, Q4: Jan 15 following year
+  let dates = [`Apr 15, ${yr}`, `Jun 16, ${yr}`, `Sep 15, ${yr}`, `Jan 15, ${yr + 1}`];
+  return `
+    <div class="te-frow" style="gap:12px;flex-wrap:wrap;margin-top:8px;">
+      ${['q1','q2','q3','q4'].map((q, i) => `
+        <div class="te-field-group" style="max-width:160px;">
+          <label class="te-lbl">Q${i+1} — ${dates[i]}</label>
+          <input type="number" id="te-ep-${q}" class="te-input te-mono"
+            value="${esc(String(ep[q]||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnEstPay()">
+        </div>`).join('')}
+    </div>
+    <div class="te-total-bar" style="margin-top:8px;">
+      <span>Total Estimated Payments <span class="te-cite">IRC §6654</span></span>
+      <span class="te-total-val">${teFmt(calc.estPayments || 0)}</span>
+    </div>
+    <div class="te-ded-note" style="margin-top:4px;">
+      Required for self-employed individuals. Underpayment penalty applies if total payments are less than 90% of current-year tax or 100% of prior-year tax (110% if AGI > $150,000). <span class="te-cite">IRC §6654(d)</span>
+    </div>`;
+}
+
 function teRenderPayments() {
   let w2s   = teCurrentReturn.w2 || [];
   let total = w2s.reduce((s, w) => s + (parseFloat(w.federalWithheld)||0), 0);
@@ -1653,20 +1838,19 @@ function teRenderPayments() {
       </div>
     </div>
 
+    <div class="te-subsec" style="margin-top:20px;">
+      <div class="te-subsec-lbl">Estimated Tax Payments (Form 1040-ES) <span class="te-cite">IRC §6654</span></div>
+      <div class="te-subsec-desc">Quarterly estimated payments. Self-employed individuals must pay quarterly to avoid underpayment penalties.</div>
+      ${teRenderEstimatedPayments()}
+    </div>
+
     <div class="te-stub-sec" style="margin-top:16px;">
-      <div class="te-stub-blk te-stub-blk-lg">
-        <div>
-          <span class="te-stub-title">Estimated Tax Payments (Form 1040-ES) <span class="te-cite">IRC §6654</span></span>
-          <div class="te-stub-desc">Q1–Q4 quarterly estimated payments for self-employed individuals or those with insufficient withholding</div>
-        </div>
-        <span class="te-stub-pill">Phase 2</span>
-      </div>
       <div class="te-stub-blk te-stub-blk-lg">
         <div>
           <span class="te-stub-title">Other Payments &amp; Credits <span class="te-cite">IRC §36B, §6402</span></span>
           <div class="te-stub-desc">Prior year overpayment applied, excess Social Security withheld, net premium tax credit</div>
         </div>
-        <span class="te-stub-pill">Phase 2</span>
+        <span class="te-stub-pill">Track 5</span>
       </div>
     </div>`;
 }
@@ -1687,30 +1871,54 @@ function teRecalculate() {
   let calc = {};
 
   // ── Step 1: Gross Income — IRC §61 ──────────────────────────────────
-  // Phase 1: W-2 wages only (IRC §61(a)(1))
-  calc.w2Wages     = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.wages)||0), 0));
-  calc.grossIncome = calc.w2Wages;
+  // W-2 wages (IRC §61(a)(1)) + Schedule C net profit (IRC §61(a)(2))
+  let sc            = teCurrentReturn.scheduleC || {};
+  calc.w2Wages      = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.wages)||0), 0));
+  calc.netSEIncome  = teRound(Math.max(0, parseFloat(sc.netProfit) || 0));
+  calc.grossIncome  = teRound(calc.w2Wages + calc.netSEIncome);
 
-  // ── Step 2: Above-the-Line Adjustments — IRC §62 ────────────────────
+  // ── Step 2a: SE Tax — computed BEFORE above-the-line deductions ─────
+  // SE tax does not depend on AGI (it depends only on net SE income), so
+  // it can be computed here — enabling §164(f) deduction to reduce MAGI
+  // for SLI and IRA phase-outs without circularity.
+  // IRC §1401 rates; IRC §1402(a) net earnings factor.
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section1401
+  let SE = K.selfEmployment;
+  calc.seTaxBase      = teRound(calc.netSEIncome * SE.netEarningsRate);     // × 92.35%
+  // SS applies only up to wage base, reduced by W-2 wages already subject to SS
+  // IRC §1402(b): SS component of SE tax limited to excess of wage base over wages
+  let ssRemaining     = Math.max(0, SE.ssTaxWageBase - calc.w2Wages);
+  calc.seSSBase       = teRound(Math.min(calc.seTaxBase, ssRemaining));
+  calc.seSSTax        = teRound(calc.seSSBase       * SE.ssTaxRate);        // 12.4%
+  calc.seMedicareTax  = teRound(calc.seTaxBase      * SE.medicareTaxRate);  // 2.9%
+  calc.seTax          = teRound(calc.seSSTax + calc.seMedicareTax);         // → Step 7b
+  // §164(f): 50% of SE tax deductible above-the-line
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section164
+  calc.seTaxDeduction = teRound(calc.seTax * 0.50);
+
+  // ── Step 2b: Above-the-Line Adjustments — IRC §62 ───────────────────
   let adj = teCurrentReturn.agiAdjustments || {};
 
-  // §223 HSA: no MAGI phase-out, compute first — Rev. Proc. 2024-25; IRS Pub. 969
+  // §223 HSA: no MAGI phase-out — compute first
   calc.hsaDeduction = teCalcHSA(adj, K);
 
-  // §221 Student Loan Interest: MAGI = grossIncome − HSA (§221 excluded from own MAGI)
-  // IRC §221(b)(2)(C): MAGI computed without the §221 deduction itself
-  let magiForSLI    = calc.grossIncome - calc.hsaDeduction;
+  // §221 Student Loan Interest
+  // MAGI = grossIncome − HSA − seTaxDeduction (§221 excluded from own MAGI)
+  // IRC §221(b)(2)(C); Note: seTaxDeduction now correctly included per audit flag
+  let magiForSLI    = teRound(calc.grossIncome - calc.hsaDeduction - calc.seTaxDeduction);
   calc.sliDeduction = teCalcSLI(adj, magiForSLI, K, fs);
 
-  // §219 Traditional IRA: MAGI = grossIncome − HSA − SLI (§219 excluded from own MAGI)
-  // IRC §219(g)(3): MAGI computed without the §219 deduction itself
-  let magiForIRA    = calc.grossIncome - calc.hsaDeduction - calc.sliDeduction;
+  // §219 Traditional IRA
+  // MAGI = grossIncome − HSA − SLI − seTaxDeduction (§219 excluded from own MAGI)
+  let magiForIRA    = teRound(calc.grossIncome - calc.hsaDeduction - calc.sliDeduction - calc.seTaxDeduction);
   calc.iraDeduction = teCalcIRA(adj, magiForIRA, K, fs);
 
-  // §164(f) SE Tax Deduction — Track 3 dependency (50% of SE tax under §1401)
-  calc.seTaxDeduction = 0;  // IRC §164(f) — Phase 2, Track 3
+  // §215 Alimony Paid (pre-2019 divorce agreements only)
+  // TCJA §11051: agreements executed after Dec 31, 2018 → NOT deductible
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section215
+  calc.alimonyDeduction = teCalcAlimony(teCurrentReturn.alimony || {});
 
-  calc.adjustments = teRound(calc.hsaDeduction + calc.sliDeduction + calc.iraDeduction + calc.seTaxDeduction);
+  calc.adjustments = teRound(calc.hsaDeduction + calc.sliDeduction + calc.iraDeduction + calc.seTaxDeduction + calc.alimonyDeduction);
 
   // ── Step 3: Adjusted Gross Income — IRC §62 ─────────────────────────
   calc.agi = teRound(calc.grossIncome - calc.adjustments);
@@ -1760,7 +1968,9 @@ function teRecalculate() {
 
   // ── Step 8: Child Tax Credit — IRC §24 ──────────────────────────────
   // CTC applied against taxBeforeCredits (regular tax + AMT), NOT against SE tax or NIIT.
-  let ctc = teCalcCTC(teCurrentReturn, calc.agi, calc.taxBeforeCredits, calc.w2Wages, fs, K);
+  // Earned income for ACTC = W-2 wages + net SE income — IRC §24(d)(1)(B)
+  let earnedIncome = teRound(calc.w2Wages + calc.netSEIncome);
+  let ctc = teCalcCTC(teCurrentReturn, calc.agi, calc.taxBeforeCredits, earnedIncome, fs, K);
   calc.ctcGross          = ctc.gross;
   calc.ctcAfterPhaseout  = ctc.afterPhaseout;
   calc.ctcNonRefundable  = ctc.nonRefundable;
@@ -1780,18 +1990,21 @@ function teRecalculate() {
   calc.taxAfterNRCredits   = teRound(Math.max(0, calc.taxBeforeCredits - calc.totalNonRefundable));
 
   // ── Step 7b: Post-credit taxes (Schedule 2, Part II) ────────────────
-  // SE Tax, NIIT, and Additional Medicare Tax are added AFTER non-refundable credits.
-  // Non-refundable credits (CTC, AOC, LLC) CANNOT offset these taxes.
-  // Source: Form 1040 Schedule 2, Part II; IRC §1401, §1411, §3103
-  calc.seTax           = 0;  // IRC §1401   — Track 3
+  // SE Tax (calc.seTax) already computed in Step 2a — it is NOT offset by non-refundable credits.
+  // NIIT and Additional Medicare Tax: Track 4
   calc.addlMedicareTax = 0;  // IRC §3103   — Track 4 (0.9% above $200K/$250K)
   calc.niit            = 0;  // IRC §1411   — Track 4 (3.8% net investment income)
   calc.taxAfterCredits = teRound(calc.taxAfterNRCredits + calc.seTax + calc.addlMedicareTax + calc.niit);
   calc.totalTax        = calc.taxAfterCredits;  // alias — used by meter and flags
 
-  // ── Step 11: Payments — IRC §3402 ───────────────────────────────────
+  // ── Step 11: Payments — IRC §3402, §6654 ────────────────────────────
   calc.w2Withholding = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.federalWithheld)||0), 0));
-  calc.estPayments   = 0; // Phase 2: IRC §6654
+  let ep = teCurrentReturn.estimatedPayments || {};
+  calc.estQ1         = teRound(parseFloat(ep.q1) || 0);
+  calc.estQ2         = teRound(parseFloat(ep.q2) || 0);
+  calc.estQ3         = teRound(parseFloat(ep.q3) || 0);
+  calc.estQ4         = teRound(parseFloat(ep.q4) || 0);
+  calc.estPayments   = teRound(calc.estQ1 + calc.estQ2 + calc.estQ3 + calc.estQ4);
   calc.totalPayments = teRound(calc.w2Withholding + calc.estPayments);
 
   // ── Step 12: Refund / Balance Due ───────────────────────────────────
@@ -1807,11 +2020,36 @@ function teRecalculate() {
 
   // Refresh live displays on active sections
   if (teActiveSection === 'credits') { teRenderCTCDetail(); teRenderEduList(); }
+  if (teActiveSection === 'income') {
+    let scEl = document.getElementById('te-sc-netprofit');
+    if (!scEl) { teRenderW2List(); }  // full re-render only if SC input gone
+    let scCalcEl = document.querySelector('#tab-returns .te-subsec .te-ded-note');
+    // Live-update the SE tax breakdown in the Schedule C info note
+    let scNote = document.querySelector('[id="te-sc-netprofit"]');
+    if (scNote) {
+      // Update the sibling info note if income changed
+      let parent = scNote.closest('.te-frow');
+      if (parent && parent.nextElementSibling) {
+        // refresh the inline SE tax breakdown
+        let infoDiv = parent.querySelector('.te-ded-note');
+        if (infoDiv && calc.netSEIncome > 0) {
+          infoDiv.innerHTML = 'SE Tax Base: ' + teFmt(calc.seTaxBase) + ' &nbsp;|&nbsp; SE Tax: ' + teFmt(calc.seTax) + ' (SS: ' + teFmt(calc.seSSTax) + ' + Medicare: ' + teFmt(calc.seMedicareTax) + ') &nbsp;|&nbsp; §164(f) Deduction: ' + teFmt(calc.seTaxDeduction);
+        }
+      }
+    }
+  }
+  if (teActiveSection === 'payments') {
+    teM('te-ep-total', teFmt(calc.estPayments));
+    let epTotal = document.querySelector('.te-total-val');
+    if (epTotal) epTotal.textContent = teFmt(calc.estPayments);
+  }
   if (teActiveSection === 'deductions') {
     teM('te-ded-std-amt',      teFmt(calc.stdDed));
     teM('te-ded-sli-calc',     teFmt(calc.sliDeduction));
     teM('te-ded-hsa-calc',     teFmt(calc.hsaDeduction));
     teM('te-ded-ira-calc',     teFmt(calc.iraDeduction));
+    teM('te-ded-se-calc',      teFmt(calc.seTaxDeduction));
+    teM('te-ded-al-calc',      teFmt(calc.alimonyDeduction));
     teM('te-sa-salt-calc',     teFmt(calc.saltDeduction));
     teM('te-sa-mi-calc',       teFmt(calc.mortgageDeduction));
     teM('te-sa-char-calc',     teFmt(calc.charitableDeduction));
@@ -1976,12 +2214,25 @@ function teCalcEduCredits(r, agi, taxAfterCTC, fs, K) {
 
 function teUpdateMeter(calc, K, fs) {
   teM('te-m-wages',    teFmt(calc.w2Wages));
+
+  // SE income row
+  let seIncRow = document.getElementById('te-m-se-inc-row');
+  if (seIncRow) { seIncRow.style.display = calc.netSEIncome > 0 ? 'flex' : 'none'; teM('te-m-se-inc', teFmt(calc.netSEIncome)); }
+
   let sliRow = document.getElementById('te-m-sli-row');
   if (sliRow) { sliRow.style.display = calc.sliDeduction > 0 ? 'flex' : 'none'; teM('te-m-sli', '(' + teFmt(calc.sliDeduction) + ')'); }
   let hsaRow = document.getElementById('te-m-hsa-row');
   if (hsaRow) { hsaRow.style.display = calc.hsaDeduction > 0 ? 'flex' : 'none'; teM('te-m-hsa', '(' + teFmt(calc.hsaDeduction) + ')'); }
   let iraRow = document.getElementById('te-m-ira-row');
   if (iraRow) { iraRow.style.display = calc.iraDeduction > 0 ? 'flex' : 'none'; teM('te-m-ira', '(' + teFmt(calc.iraDeduction) + ')'); }
+
+  // SE tax deduction row
+  let seRow = document.getElementById('te-m-se-row');
+  if (seRow) { seRow.style.display = calc.seTaxDeduction > 0 ? 'flex' : 'none'; teM('te-m-se', '(' + teFmt(calc.seTaxDeduction) + ')'); }
+
+  // Alimony row
+  let alRow = document.getElementById('te-m-al-row');
+  if (alRow) { alRow.style.display = calc.alimonyDeduction > 0 ? 'flex' : 'none'; teM('te-m-al', '(' + teFmt(calc.alimonyDeduction) + ')'); }
   teM('te-m-agi',      teFmt(calc.agi));
   // Deduction row: show standard OR itemized label/amount depending on which is applied
   let stdMRow  = document.getElementById('te-m-std-row');
@@ -1995,8 +2246,17 @@ function teUpdateMeter(calc, K, fs) {
   teM('te-m-regtax',   teFmt(calc.regularTax));
   teM('te-m-ctc',     calc.ctcNonRefundable > 0 ? '(' + teFmt(calc.ctcNonRefundable) + ')' : '$0');
   teM('te-m-edu',     calc.totalEduNonRefundable > 0 ? '(' + teFmt(calc.totalEduNonRefundable) + ')' : '$0');
-  teM('te-m-taxaft',   teFmt(calc.taxAfterCredits));
+  teM('te-m-taxaft',   teFmt(calc.taxAfterNRCredits || 0));
+
+  // SE tax row in meter (post-credit)
+  let seTaxMRow = document.getElementById('te-m-setax-row');
+  if (seTaxMRow) { seTaxMRow.style.display = calc.seTax > 0 ? 'flex' : 'none'; teM('te-m-setax', teFmt(calc.seTax)); }
+
   teM('te-m-wh',      '(' + teFmt(calc.w2Withholding) + ')');
+
+  // Estimated payments row
+  let epRow = document.getElementById('te-m-ep-row');
+  if (epRow) { epRow.style.display = calc.estPayments > 0 ? 'flex' : 'none'; teM('te-m-ep', '(' + teFmt(calc.estPayments) + ')'); }
 
   let actcRow = document.getElementById('te-m-actc-row');
   if (actcRow) {
@@ -2117,6 +2377,32 @@ function teRunFlags(calc, K, fs) {
         flags.push({ type: 'warning', text: 'Traditional IRA deduction partially reduced. MAGI (' + teFmt(magiIRA) + ') is within the ' + teFmt(po.floor) + '–' + teFmt(po.ceiling) + ' phase-out range. Deductible: ' + teFmt(calc.iraDeduction) + '.' });
       }
     }
+  }
+
+  // SE tax: no estimated payments flagged
+  if (calc.seTax > 0 && calc.estPayments === 0 && calc.w2Withholding < calc.taxAfterCredits) {
+    flags.push({ type: 'warning', text: 'Self-employment income detected but no estimated tax payments entered. SE clients typically owe quarterly payments to avoid IRC §6654 underpayment penalties. Consider entering Q1–Q4 estimated payments in the Payments section.' });
+  }
+
+  // SS wage base saturation — informational
+  if (calc.netSEIncome > 0 && calc.seSSBase < calc.seTaxBase) {
+    let saved = teRound((calc.seTaxBase - calc.seSSBase) * 0.124);
+    flags.push({ type: 'info', text: 'Social Security wage base (' + teFmt(K.selfEmployment.ssTaxWageBase) + ') partially or fully exhausted by W-2 wages (' + teFmt(calc.w2Wages) + '). SS portion of SE tax reduced by ' + teFmt(saved) + '. <span class="te-cite">IRC §1402(b)</span>' });
+  }
+
+  // Additional Medicare Tax approaching — warn when SE + W-2 nears $200K/$250K
+  let addlMedicareThreshold = (fs === 'mfj' || fs === 'qss') ? 250000 : 200000;
+  if (calc.grossIncome > addlMedicareThreshold * 0.85 && calc.grossIncome <= addlMedicareThreshold) {
+    flags.push({ type: 'warning', text: 'Gross income is within ' + teFmt(addlMedicareThreshold - calc.grossIncome) + ' of the Additional Medicare Tax threshold (' + teFmt(addlMedicareThreshold) + '). The 0.9% surtax on wages and SE income will apply above this level. <span class="te-cite">IRC §3103</span>' });
+  }
+  if (calc.grossIncome > addlMedicareThreshold) {
+    flags.push({ type: 'info', text: 'Gross income exceeds ' + teFmt(addlMedicareThreshold) + '. Additional Medicare Tax (0.9%) on wages and SE income will be calculated in Track 4. <span class="te-cite">IRC §3103</span>' });
+  }
+
+  // Alimony: post-2018 agreement entered but marked as non-deductible
+  let al = teCurrentReturn.alimony || {};
+  if (parseFloat(al.paid) > 0 && !al.preAgreement) {
+    flags.push({ type: 'warning', text: 'Alimony paid (' + teFmt(parseFloat(al.paid)) + ') entered but the agreement is dated Jan 1, 2019 or later — not deductible under TCJA. Verify the original divorce or separation instrument date. <span class="te-cite">IRC §215(b)(2); TCJA §11051</span>' });
   }
 
   // Home equity personal use flag — IRC §163(h)(3)(C)
@@ -2242,6 +2528,9 @@ function teSerialize(r) {
     spouse:            r.spouse            || {},
     dependents:        r.dependents        || [],
     w2:                r.w2                || [],
+    scheduleC:         r.scheduleC         || { netProfit: '' },
+    alimony:           r.alimony           || { paid: '', preAgreement: false },
+    estimatedPayments: r.estimatedPayments || { q1: '', q2: '', q3: '', q4: '' },
     deductionType:     r.deductionType     || 'standard',
     educationStudents: r.educationStudents || [],
     agiAdjustments:    r.agiAdjustments    || { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false },
@@ -2253,13 +2542,16 @@ function teSerialize(r) {
 
 function teDeserialize(data) {
   let r = { ...data };
-  if (!r.taxpayer)          r.taxpayer          = {};
-  if (!r.spouse)            r.spouse            = {};
-  if (!r.dependents)        r.dependents        = [];
-  if (!r.w2)                r.w2                = [];
-  if (!r.educationStudents) r.educationStudents = [];
-  if (!r.agiAdjustments)   r.agiAdjustments    = { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false };
-  if (!r.scheduleA)        r.scheduleA         = { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', mortgagePurpose: 'acquisition', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '', mfsSpouseItemizes: false };
+  if (!r.taxpayer)            r.taxpayer            = {};
+  if (!r.spouse)              r.spouse              = {};
+  if (!r.dependents)          r.dependents          = [];
+  if (!r.w2)                  r.w2                  = [];
+  if (!r.scheduleC)           r.scheduleC           = { netProfit: '' };
+  if (!r.alimony)             r.alimony             = { paid: '', preAgreement: false };
+  if (!r.estimatedPayments)   r.estimatedPayments   = { q1: '', q2: '', q3: '', q4: '' };
+  if (!r.educationStudents)   r.educationStudents   = [];
+  if (!r.agiAdjustments)      r.agiAdjustments      = { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false };
+  if (!r.scheduleA)           r.scheduleA           = { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', mortgagePurpose: 'acquisition', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '', mfsSpouseItemizes: false };
   // Backfill new fields on existing saved returns that predate this update
   if (!r.scheduleA.mortgagePurpose)   r.scheduleA.mortgagePurpose   = 'acquisition';
   if (r.scheduleA.mfsSpouseItemizes === undefined) r.scheduleA.mfsSpouseItemizes = false;
