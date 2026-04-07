@@ -402,6 +402,7 @@ let teActiveYear     = 2026;
 let teCurrentReturn  = null;
 let teActiveSection  = 'personal';
 let teNotesPanelOpen = false;
+let teDirty          = false;  // true when return has unsaved changes
 
 function teEmptyReturn(clientId, clientName, taxYear) {
   return {
@@ -452,10 +453,35 @@ function teEmptyReturn(clientId, clientName, taxYear) {
 //  INIT / RETURN CENTER
 // ──────────────────────────────────────────────────────────────────────
 
+// ── Dirty-state helpers ──────────────────────────────────────────────
+// teMarkDirty(): called on every field change. Sets flag and updates Save button.
+function teMarkDirty() {
+  if (teDirty) return;
+  teDirty = true;
+  let btn = document.getElementById('te-save-btn');
+  if (btn) { btn.textContent = 'Save ●'; }
+}
+
+// teClearDirty(): called on successful save or confirmed discard.
+function teClearDirty() {
+  teDirty = false;
+  let btn = document.getElementById('te-save-btn');
+  if (btn) { btn.textContent = 'Save'; }
+}
+
+
 function initTaxEngine() {
   teShowReturnCenter();
   tePopulateYearSelect();
   teLoadReturnCenter();
+
+  // Browser tab / window close guard — IRC-grade data protection
+  window.addEventListener('beforeunload', function(e) {
+    if (teDirty && teCurrentReturn) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
 }
 
 function teShowReturnCenter() {
@@ -626,6 +652,7 @@ function teOpenReturn(returnId) {
     if (!doc.exists) { toast('Return not found.', 'error'); return; }
     let data = doc.data(); data.id = doc.id;
     teCurrentReturn = teDeserialize(data);
+    teClearDirty();  // fresh load = clean baseline
     teShowEngine();
     teUpdateBreadcrumb();
     teSwitchSection('personal');
@@ -634,6 +661,22 @@ function teOpenReturn(returnId) {
 }
 
 function teBackToCenter() {
+  if (teDirty) {
+    showModal({
+      title: 'Unsaved Changes',
+      message: 'You have unsaved changes on this return. Save before going back?',
+      confirmText: 'Save',
+      cancelText: 'Discard',
+      type: 'warning',
+      onConfirm: () => { teSaveReturn(); teClearDirty(); teDoBackToCenter(); },
+      onCancel:  () => { teClearDirty(); teDoBackToCenter(); }
+    });
+    return;
+  }
+  teDoBackToCenter();
+}
+
+function teDoBackToCenter() {
   if (teNotesPanelOpen) teToggleNotesPanel();
   teCurrentReturn = null;
   teShowReturnCenter();
@@ -765,6 +808,7 @@ function teRenderPersonal() {
 
 function teOnFSChange(fs) {
   if (!teCurrentReturn) return;
+  teMarkDirty();
   teCurrentReturn.filingStatus = fs;
   let sec = document.getElementById('te-spouse-sec');
   if (sec) sec.style.display = (fs === 'mfj' || fs === 'mfs') ? 'block' : 'none';
@@ -773,6 +817,7 @@ function teOnFSChange(fs) {
 
 function teOnField() {
   if (!teCurrentReturn) return;
+  teMarkDirty();
   let g = id => { let el = document.getElementById(id); return el ? el.value : ''; };
   let fs = document.getElementById('te-fs');
   if (fs) teCurrentReturn.filingStatus = fs.value;
@@ -825,6 +870,7 @@ function teRenderDepsList() {
 }
 
 function teAddDep() {
+  teMarkDirty();
   teCurrentReturn.dependents.push({ firstName: '', lastName: '', dob: '', relationship: 'child', isQualifyingChild: true });
   teRenderDepsList();
   teRecalculate();
@@ -832,12 +878,14 @@ function teAddDep() {
 
 function teUpdDep(i, field, val) {
   if (!teCurrentReturn.dependents[i]) return;
+  teMarkDirty();
   teCurrentReturn.dependents[i][field] = val;
   if (field === 'dob') teRenderDepsList();
   teRecalculate();
 }
 
 function teRmDep(i) {
+  teMarkDirty();
   teCurrentReturn.dependents.splice(i, 1);
   teRenderDepsList();
   teRecalculate();
@@ -908,6 +956,7 @@ function teRenderW2List() {
 }
 
 function teAddW2() {
+  teMarkDirty();
   teCurrentReturn.w2.push({ employer: '', wages: '', federalWithheld: '' });
   teRenderW2List();
   teRecalculate();
@@ -915,6 +964,7 @@ function teAddW2() {
 
 function teUpdW2(i, field, val) {
   if (!teCurrentReturn.w2[i]) return;
+  teMarkDirty();
   teCurrentReturn.w2[i][field] = val;
   if (field === 'wages') {
     let tot = teCurrentReturn.w2.reduce((s, w) => s + (parseFloat(w.wages)||0), 0);
@@ -925,6 +975,7 @@ function teUpdW2(i, field, val) {
 }
 
 function teRmW2(i) {
+  teMarkDirty();
   teCurrentReturn.w2.splice(i, 1);
   teRenderW2List();
   teRecalculate();
@@ -1244,6 +1295,8 @@ function teRenderDeductions() {
 // ──────────────────────────────────────────────────────────────────────
 
 function teRenderCredits() {
+  let fs    = teCurrentReturn ? (teCurrentReturn.filingStatus || 'single') : 'single';
+  let isMFS = (fs === 'mfs');
   return `
     <div class="te-sec-hdr"><h2>Tax Credits</h2>
     <p class="te-sec-sub">Dollar-for-dollar reduction of tax liability &mdash; <span class="te-cite">IRC §24, §25A</span></p></div>
@@ -1259,9 +1312,11 @@ function teRenderCredits() {
           <div class="te-subsec-lbl">Education Credits <span class="te-cite">IRC §25A</span></div>
           <div class="te-subsec-desc">American Opportunity Credit (AOC) or Lifetime Learning Credit (LLC) &mdash; one credit per student per tax year.</div>
         </div>
-        <button class="ghost-btn te-sm-btn" onclick="teAddStudent()">+ Add Student</button>
+        ${isMFS ? '' : '<button class="ghost-btn te-sm-btn" onclick="teAddStudent()">+ Add Student</button>'}
       </div>
-      <div id="te-edu-list"></div>
+      ${isMFS
+        ? '<div class="te-ded-note" style="margin-top:6px;">Not available for Married Filing Separately. <span class="te-cite">IRC §25A(g)(6)</span></div>'
+        : '<div id="te-edu-list"></div>'}
     </div>
 
     <div class="te-stub-sec" style="margin-top:16px;">
@@ -1362,6 +1417,7 @@ function teRenderEduList() {
 }
 
 function teAddStudent() {
+  teMarkDirty();
   teCurrentReturn.educationStudents.push({ name: '', creditType: 'aoc', expenses: '', yearOfSchool: 1 });
   teRenderEduList();
   teRecalculate();
@@ -1369,12 +1425,14 @@ function teAddStudent() {
 
 function teUpdStudent(i, field, val) {
   if (!teCurrentReturn.educationStudents[i]) return;
+  teMarkDirty();
   teCurrentReturn.educationStudents[i][field] = val;
   teRenderEduList();
   teRecalculate();
 }
 
 function teRmStudent(i) {
+  teMarkDirty();
   teCurrentReturn.educationStudents.splice(i, 1);
   teRenderEduList();
   teRecalculate();
@@ -1387,6 +1445,7 @@ function teRmStudent(i) {
 
 function teOnAgiAdj() {
   if (!teCurrentReturn) return;
+  teMarkDirty();
   if (!teCurrentReturn.agiAdjustments) teCurrentReturn.agiAdjustments = {};
   let a  = teCurrentReturn.agiAdjustments;
   let g  = id => { let el = document.getElementById(id); return el ? el.value  : ''; };
@@ -1549,6 +1608,7 @@ function teCalcMedical(schedA, agi, K) {
 // Handler for Schedule A field changes
 function teOnScheduleA() {
   if (!teCurrentReturn) return;
+  teMarkDirty();
   if (!teCurrentReturn.scheduleA) teCurrentReturn.scheduleA = {};
   let s  = teCurrentReturn.scheduleA;
   let g  = id => { let el = document.getElementById(id); return el ? el.value : ''; };
@@ -1628,7 +1688,7 @@ function teRecalculate() {
 
   // ── Step 1: Gross Income — IRC §61 ──────────────────────────────────
   // Phase 1: W-2 wages only (IRC §61(a)(1))
-  calc.w2Wages     = (teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.wages)||0), 0);
+  calc.w2Wages     = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.wages)||0), 0));
   calc.grossIncome = calc.w2Wages;
 
   // ── Step 2: Above-the-Line Adjustments — IRC §62 ────────────────────
@@ -1650,10 +1710,10 @@ function teRecalculate() {
   // §164(f) SE Tax Deduction — Track 3 dependency (50% of SE tax under §1401)
   calc.seTaxDeduction = 0;  // IRC §164(f) — Phase 2, Track 3
 
-  calc.adjustments = calc.hsaDeduction + calc.sliDeduction + calc.iraDeduction + calc.seTaxDeduction;
+  calc.adjustments = teRound(calc.hsaDeduction + calc.sliDeduction + calc.iraDeduction + calc.seTaxDeduction);
 
   // ── Step 3: Adjusted Gross Income — IRC §62 ─────────────────────────
-  calc.agi = calc.grossIncome - calc.adjustments;
+  calc.agi = teRound(calc.grossIncome - calc.adjustments);
 
   // ── Step 4: Deductions — IRC §63 ────────────────────────────────────
   calc.stdDed = K.standardDeduction[fs] || K.standardDeduction.single;  // Source: OBBBA P.L. 119-21
@@ -1664,7 +1724,7 @@ function teRecalculate() {
   calc.mortgageDeduction   = teCalcMortgageInterest(schedA, K);
   calc.charitableDeduction = teCalcCharitable(schedA, calc.agi, K);
   calc.medicalDeduction    = teCalcMedical(schedA, calc.agi, K);
-  calc.itemizedTotal       = calc.saltDeduction + calc.mortgageDeduction + calc.charitableDeduction + calc.medicalDeduction;
+  calc.itemizedTotal       = teRound(calc.saltDeduction + calc.mortgageDeduction + calc.charitableDeduction + calc.medicalDeduction);
 
   // Engine picks whichever is higher — IRC §63(b)
   // No taxpayer toggle: the engine always applies the more beneficial deduction
@@ -1684,48 +1744,60 @@ function teRecalculate() {
   teCurrentReturn.deductionType = calc.deductionType;
 
   // ── Step 5: Taxable Income — IRC §63(a) ─────────────────────────────
-  calc.taxableIncome = Math.max(0, calc.agi - calc.deductionUsed);
+  calc.taxableIncome = teRound(Math.max(0, calc.agi - calc.deductionUsed));
 
   // ── Step 6: Regular Income Tax — IRC §1 ─────────────────────────────
   // QSS uses MFJ brackets per IRC §2(a)
   let bKey = (fs === 'qss') ? 'mfj' : fs;
   calc.regularTax = teBracketTax(calc.taxableIncome, K.brackets[bKey] || K.brackets.single);
 
-  // ── Step 7: Other Taxes (Phase 2) ───────────────────────────────────
-  calc.seTax           = 0;  // IRC §1401   — Phase 2
-  calc.addlMedicareTax = 0;  // IRC §3103   — Phase 2 (0.9% above $200K/$250K)
-  calc.niit            = 0;  // IRC §1411   — Phase 2 (3.8% net investment income)
-  calc.amt             = 0;  // IRC §55     — Phase 2
-  calc.totalTax        = calc.regularTax + calc.seTax + calc.addlMedicareTax + calc.niit + calc.amt;
+  // ── Step 7a: Pre-credit taxes (Schedule 2, Part I) ──────────────────
+  // AMT is added here — before credits — because non-refundable credits
+  // (CTC, AOC, LLC) CAN offset regular income tax + AMT combined.
+  // Source: Form 1040 Schedule 2, Part I; IRC §55
+  calc.amt             = 0;  // IRC §55     — Phase 2 (Track 6)
+  calc.taxBeforeCredits = teRound(calc.regularTax + calc.amt);
 
   // ── Step 8: Child Tax Credit — IRC §24 ──────────────────────────────
-  let ctc = teCalcCTC(teCurrentReturn, calc.agi, calc.totalTax, calc.w2Wages, fs, K);
+  // CTC applied against taxBeforeCredits (regular tax + AMT), NOT against SE tax or NIIT.
+  let ctc = teCalcCTC(teCurrentReturn, calc.agi, calc.taxBeforeCredits, calc.w2Wages, fs, K);
   calc.ctcGross          = ctc.gross;
   calc.ctcAfterPhaseout  = ctc.afterPhaseout;
   calc.ctcNonRefundable  = ctc.nonRefundable;
   calc.actcRefundable    = ctc.actcRefundable;
 
   // ── Step 9: Education Credits — IRC §25A ────────────────────────────
-  let taxAfterCTC = Math.max(0, calc.totalTax - calc.ctcNonRefundable);
+  // Education credits applied against remaining tax after CTC, still against taxBeforeCredits base.
+  let taxAfterCTC = teRound(Math.max(0, calc.taxBeforeCredits - calc.ctcNonRefundable));
   let edu = teCalcEduCredits(teCurrentReturn, calc.agi, taxAfterCTC, fs, K);
   calc.aocNonRefundable      = edu.aocNonRefundable;
   calc.aocRefundable         = edu.aocRefundable;
   calc.llcCredit             = edu.llcCredit;
   calc.totalEduNonRefundable = edu.aocNonRefundable + edu.llcCredit;
 
-  // ── Step 10: Total Non-Refundable Credits ───────────────────────────
-  calc.totalNonRefundable = calc.ctcNonRefundable + calc.totalEduNonRefundable;
-  calc.taxAfterCredits    = Math.max(0, calc.totalTax - calc.totalNonRefundable);
+  // ── Step 10: Non-refundable credits applied — floor at $0 ───────────
+  calc.totalNonRefundable  = teRound(calc.ctcNonRefundable + calc.totalEduNonRefundable);
+  calc.taxAfterNRCredits   = teRound(Math.max(0, calc.taxBeforeCredits - calc.totalNonRefundable));
+
+  // ── Step 7b: Post-credit taxes (Schedule 2, Part II) ────────────────
+  // SE Tax, NIIT, and Additional Medicare Tax are added AFTER non-refundable credits.
+  // Non-refundable credits (CTC, AOC, LLC) CANNOT offset these taxes.
+  // Source: Form 1040 Schedule 2, Part II; IRC §1401, §1411, §3103
+  calc.seTax           = 0;  // IRC §1401   — Track 3
+  calc.addlMedicareTax = 0;  // IRC §3103   — Track 4 (0.9% above $200K/$250K)
+  calc.niit            = 0;  // IRC §1411   — Track 4 (3.8% net investment income)
+  calc.taxAfterCredits = teRound(calc.taxAfterNRCredits + calc.seTax + calc.addlMedicareTax + calc.niit);
+  calc.totalTax        = calc.taxAfterCredits;  // alias — used by meter and flags
 
   // ── Step 11: Payments — IRC §3402 ───────────────────────────────────
-  calc.w2Withholding = (teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.federalWithheld)||0), 0);
+  calc.w2Withholding = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.federalWithheld)||0), 0));
   calc.estPayments   = 0; // Phase 2: IRC §6654
-  calc.totalPayments = calc.w2Withholding + calc.estPayments;
+  calc.totalPayments = teRound(calc.w2Withholding + calc.estPayments);
 
   // ── Step 12: Refund / Balance Due ───────────────────────────────────
   // Positive = refund; negative = balance due
-  calc.totalRefundableCredits = calc.actcRefundable + calc.aocRefundable;
-  calc.refundOrDue = calc.totalPayments + calc.totalRefundableCredits - calc.taxAfterCredits;
+  calc.totalRefundableCredits = teRound(calc.actcRefundable + calc.aocRefundable);
+  calc.refundOrDue = teRound(calc.totalPayments + calc.totalRefundableCredits - calc.taxAfterCredits);
 
   teCurrentReturn._calc = calc;
 
@@ -1867,6 +1939,10 @@ function teCalcLLC(expenses, agi, fg, K) {
 // IRC §25A — Education credits (CTC applied first; then AOC NR, then LLC vs remaining tax)
 function teCalcEduCredits(r, agi, taxAfterCTC, fs, K) {
   if (!K) return { aocNonRefundable: 0, aocRefundable: 0, llcCredit: 0 };
+  // IRC §25A(g)(6): No credit allowed to a married taxpayer who does not file a joint return.
+  // MFS filers are categorically ineligible for both AOC and LLC.
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section25A
+  if (fs === 'mfs') return { aocNonRefundable: 0, aocRefundable: 0, llcCredit: 0 };
   let fg  = (fs === 'mfj' || fs === 'qss') ? 'mfj' : 'single';
   let students = r.educationStudents || [];
   let aocNR = 0, aocRef = 0, llc = 0;
@@ -2146,6 +2222,7 @@ function teSaveReturn() {
   db.collection('taxReturns').doc(teCurrentReturn.id).set(data)
     .then(() => {
       teCurrentReturn.status = data.status;
+      teClearDirty();  // successful save — clear unsaved changes flag
       toast('Return saved.', 'success');
       let idx = teReturns.findIndex(r => r.id === teCurrentReturn.id);
       if (idx >= 0) teReturns[idx] = { ...data, id: teCurrentReturn.id };
@@ -2199,3 +2276,32 @@ function teFmt(n) {
   if (n === null || n === undefined || isNaN(n)) return '$0';
   return '$' + Math.round(n).toLocaleString('en-US');
 }
+
+// ── Cent-precision rounding for intermediate calc values ──────────────
+function teRound(n) { return Math.round(n * 100) / 100; }
+
+
+// ──────────────────────────────────────────────────────────────────────
+//  UNSAVED CHANGES — SIDEBAR NAVIGATION GUARD
+//  Wraps switchDashTab so any navigation away from an open return
+//  with unsaved changes triggers a Save / Discard modal first.
+//  Runs once at script load after dashboard.js has defined switchDashTab.
+// ──────────────────────────────────────────────────────────────────────
+(function() {
+  let _orig = window.switchDashTab;
+  window.switchDashTab = function(tabName) {
+    if (teDirty && teCurrentReturn) {
+      showModal({
+        title: 'Unsaved Changes',
+        message: 'You have unsaved changes on this return. Save before leaving?',
+        confirmText: 'Save',
+        cancelText: 'Discard',
+        type: 'warning',
+        onConfirm: () => { teSaveReturn(); teClearDirty(); _orig(tabName); },
+        onCancel:  () => { teClearDirty(); _orig(tabName); }
+      });
+      return;
+    }
+    _orig(tabName);
+  };
+})();
