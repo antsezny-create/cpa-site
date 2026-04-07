@@ -3576,7 +3576,7 @@ select.cal-input { cursor: pointer; }
   position: sticky;
   top: 16px;
 }
-.te-nav-btn {
+.te-sec-btn {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3591,9 +3591,9 @@ select.cal-input { cursor: pointer; }
   transition: background 0.15s, color 0.15s;
   width: 100%;
 }
-.te-nav-btn:hover { background: var(--bg-hover); color: var(--text); }
-.te-nav-btn.active { background: var(--accent-light); color: var(--accent); }
-.te-nav-btn svg { flex-shrink: 0; }
+.te-sec-btn:hover { background: var(--bg-hover); color: var(--text); }
+.te-sec-btn.active { background: var(--accent-light); color: var(--accent); }
+.te-sec-btn svg { flex-shrink: 0; }
 .te-nav-divider { height: 1px; background: var(--border); margin: 6px 4px; }
 .te-nav-section-label {
   font-size: 10px;
@@ -3810,7 +3810,8 @@ select.cal-input { cursor: pointer; }
   font-family: 'JetBrains Mono', monospace;
   line-height: 1.1;
 }
-.te-meter-result.due { color: var(--red); }
+.te-meter-result.te-res-refund { color: var(--green); }
+.te-meter-result.te-res-due { color: var(--red); }
 .te-meter-label { font-size: 11px; color: var(--text-dim); margin-top: 2px; margin-bottom: 12px; }
 .te-meter-divider { height: 1px; background: var(--border); margin: 10px 0; }
 .te-meter-line {
