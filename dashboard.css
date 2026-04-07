@@ -4051,6 +4051,75 @@ input[type="number"].te-input {
   border-top: 1px solid rgba(16,185,129,0.1);
 }
 
+/* ── Schedule A: Standard vs. Itemized Comparison Bar ───────────────── */
+.te-sa-comparison {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px 10px;
+  margin-bottom: 6px;
+}
+.te-sa-comp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.te-sa-comp-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.12);
+  gap: 3px;
+}
+.te-sa-comp-winner {
+  border-color: rgba(16,185,129,0.4);
+  background: rgba(16,185,129,0.06);
+}
+.te-sa-comp-lbl {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.te-sa-comp-val {
+  font-size: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.te-sa-comp-winner .te-sa-comp-val { color: var(--green); }
+.te-sa-comp-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--green);
+  background: rgba(16,185,129,0.12);
+  border: 1px solid rgba(16,185,129,0.3);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-top: 2px;
+}
+.te-sa-comp-vs {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.te-sa-comp-note {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.4;
+}
+.te-sa-comp-note strong { color: var(--text); }
+
 /* ── Phase 2 Stub Sections ── */
 .te-stub-sec { display: flex; flex-direction: column; gap: 5px; }
 .te-stub-blk {

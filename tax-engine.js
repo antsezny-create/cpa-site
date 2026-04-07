@@ -17,6 +17,14 @@
 //  TAX CONSTANTS
 //  Primary source: IRS Rev. Proc. 2024-40
 //  Amended by: One Big Beautiful Bill Act, P.L. 119-21 (July 4, 2025)
+//
+//  CONSTANTS AUDIT
+//  Last verified: 2026-04-06
+//  2025: Fully confirmed — Rev. Proc. 2024-40; OBBBA P.L. 119-21
+//  2026: Mostly confirmed — Rev. Proc. 2025-32; IRS newsroom announcements
+//  2026 PENDING: SLI MFJ phase-out range (IRS Pub. 970 not yet updated for 2026);
+//    HOH brackets (Rev. Proc. 2025-32 could not be directly parsed);
+//    SS wage base (SSA returned 403); Business mileage rate (IRS notice inaccessible)
 // ──────────────────────────────────────────────────────────────────────
 
 const TAX_CONSTANTS = {
@@ -184,9 +192,204 @@ const TAX_CONSTANTS = {
         mfjSpouseActive: { floor: 236000, ceiling: 246000 }   // MFJ non-participant — irs.gov newsroom
         // Neither active: no phase-out — fully deductible up to contribution limit
       }
+    },
+
+    // ── TRACK 2: Schedule A Itemized Deductions (2025) ───────────────────
+
+    // IRC §164(a)(3),(b)(6) — SALT (State and Local Taxes)
+    // Source: irs.gov/newsroom/one-big-beautiful-bill-provisions-individuals-and-workers
+    // OBBBA P.L. 119-21: cap raised from $10,000 to $40,000 for tax years 2025–2029.
+    // Phase-down: effective cap reduced by 30% of MAGI exceeding $500,000; floor $10,000.
+    // MFS: cap is $20,000, phase-out threshold is $250,000 — IRC §164(b)(6)(B)
+    scheduleA: {
+      salt: {
+        cap:                  40000,   // MFJ/Single/HOH/QSS — OBBBA P.L. 119-21
+        mfsCap:               20000,   // MFS — IRC §164(b)(6)(B): half the joint cap
+        phaseoutThreshold:   500000,   // MAGI threshold — OBBBA P.L. 119-21
+        mfsPhaseoutThreshold: 250000,  // MFS: half of joint threshold
+        phaseoutRate:           0.30,  // 30% reduction of excess MAGI — OBBBA P.L. 119-21
+        floor:                10000    // Absolute floor — OBBBA P.L. 119-21
+      },
+
+      // IRC §163(h)(3) — Qualified Residence Interest (Mortgage Interest Deduction)
+      // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section163
+      // TCJA §11043: acquisition debt cap $750,000 for post-12/15/2017 loans (permanent per OBBBA).
+      // Pre-2018 acquisition debt grandfathered at $1,000,000 — IRC §163(h)(3)(B)(ii).
+      mortgage: {
+        post2017Limit: 750000,   // IRC §163(h)(3)(F)(i)(II) — TCJA, made permanent by OBBBA
+        pre2018Limit:  1000000   // IRC §163(h)(3)(B)(ii) — grandfathered pre-TCJA loans
+      },
+
+      // IRC §170(b)(1)(A),(G) — Charitable Contributions
+      // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section170
+      // 60% AGI limit for cash donations to public charities — IRC §170(b)(1)(G) (TCJA, permanent)
+      // 50% AGI limit for non-cash property to public charities — IRC §170(b)(1)(A)
+      // OBBBA P.L. 119-21 did not modify §170 AGI percentage limits.
+      charitable: {
+        cashAgiLimit:    0.60,  // IRC §170(b)(1)(G) — statutory
+        nonCashAgiLimit: 0.50   // IRC §170(b)(1)(A) — statutory
+      },
+
+      // IRC §213(a) — Medical and Dental Expenses
+      // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section213
+      // Permanently set at 7.5% of AGI by ARP Act P.L. 117-2 §9222 (Mar. 2021).
+      // OBBBA P.L. 119-21 did not modify §213(a).
+      medical: {
+        agiFloor: 0.075  // IRC §213(a) — statutory 7.5% floor
+      }
+    }
+  },
+
+  // ────────────────────────────────────────────────────────────────────
+  //  2026 TAX CONSTANTS
+  //  Primary source: Rev. Proc. 2025-32
+  //  IRS newsroom: irs-releases-tax-inflation-adjustments-for-tax-year-2026
+  //  IRA/401k: 401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500
+  //  HSA: Rev. Proc. 2025-19; IRS Pub. 969
+  // ────────────────────────────────────────────────────────────────────
+  2026: {
+
+    // IRC §63(c)(2)(A) — Standard Deduction
+    // Source: IRS newsroom irs-releases-tax-inflation-adjustments-for-tax-year-2026
+    standardDeduction: {
+      single: 16100,
+      mfj:    32200,
+      mfs:    16100,
+      hoh:    24150,
+      qss:    32200   // QSS uses MFJ standard deduction per IRC §2(a)
+    },
+
+    // IRC §1 — Income Tax Rate Schedules
+    // Source: IRS newsroom irs-releases-tax-inflation-adjustments-for-tax-year-2026
+    brackets: {
+      single: [
+        [12400,    0.10],
+        [50400,    0.12],
+        [105700,   0.22],
+        [201775,   0.24],
+        [256225,   0.32],
+        [640600,   0.35],
+        [Infinity, 0.37]
+      ],
+      mfj: [
+        [24800,    0.10],
+        [100800,   0.12],
+        [211400,   0.22],
+        [403550,   0.24],
+        [512450,   0.32],
+        [768700,   0.35],
+        [Infinity, 0.37]
+      ],
+      mfs: [
+        [12400,    0.10],
+        [50400,    0.12],
+        [105700,   0.22],
+        [201775,   0.24],
+        [256225,   0.32],
+        [384350,   0.35],
+        [Infinity, 0.37]
+      ],
+      // TODO: VERIFY — HOH brackets from IRS newsroom summary; Rev. Proc. 2025-32 PDF not parsed
+      hoh: [
+        [17700,    0.10],
+        [67450,    0.12],
+        [105700,   0.22],
+        [201750,   0.24],
+        [256200,   0.32],
+        [640600,   0.35],
+        [Infinity, 0.37]
+      ],
+      qss: null  // QSS uses MFJ brackets per IRC §2(a)
+    },
+
+    // IRC §24 — Child Tax Credit
+    // Source: IRS CTC page (confirmed Mar 2026); OBBBA P.L. 119-21
+    ctc: {
+      amountPerChild:  2200,   // OBBBA P.L. 119-21 — CTC indexed after 2025; 2026 = $2,200 confirmed
+      phaseoutThreshold: {
+        single: 200000, mfj: 400000, mfs: 200000, hoh: 200000, qss: 400000
+      },
+      actcStatutoryBase: 1400,
+      // TODO: VERIFY — ACTC $1,700 max carried from 2025; Rev. Proc. 2025-32 not parsed
+      actcMax:           1700,
+      earnedIncomeMin:   2500,
+      earnedIncomeRate:  0.15
+    },
+
+    // IRC §25A(d) — Education Credits (STATUTORY — not inflation-adjusted per §25A(d))
+    aoc: {
+      creditOnFirst2k: 1.00, creditOnNext2k: 0.25,
+      maxCredit: 2500, refundablePct: 0.40, maxRefundable: 1000, maxYears: 4,
+      phaseoutLower: { single: 80000,  mfj: 160000 },
+      phaseoutUpper: { single: 90000,  mfj: 180000 }
+    },
+    llc: {
+      creditRate: 0.20, maxExpenses: 10000, maxCredit: 2000, refundable: false,
+      phaseoutLower: { single: 80000,  mfj: 160000 },
+      phaseoutUpper: { single: 90000,  mfj: 180000 }
+    },
+
+    // IRC §221 — Student Loan Interest Deduction (2026)
+    studentLoanInterest: {
+      maxDeduction: 2500,  // IRC §221(b)(1) — statutory
+      phaseout: {
+        // TODO: PENDING — IRS Pub. 970 not yet updated for 2026. Carrying 2025 values.
+        single: { floor: 85000,  ceiling: 100000 },
+        mfj:    { floor: 170000, ceiling: 200000 }
+      }
+    },
+
+    // IRC §223 — Health Savings Account (HSA) Deduction (2026)
+    // Source: Rev. Proc. 2025-19; irs.gov/publications/p969
+    hsa: {
+      limitSelf:   4400,   // Rev. Proc. 2025-19
+      limitFamily: 8750,   // Rev. Proc. 2025-19
+      catchUp:     1000,   // IRC §223(b)(3)(B) — statutory
+      hdhpMinDeductibleSelf:   1700,
+      hdhpMinDeductibleFamily: 3400,
+      hdhpMaxOopSelf:   8500,
+      hdhpMaxOopFamily: 17000
+    },
+
+    // IRC §219 — Traditional IRA Deduction (2026)
+    // Source: IRS newsroom 401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500
+    ira: {
+      limit:   7500,  // 2026 — confirmed IRS newsroom
+      catchUp: 1100,  // SECURE 2.0 CPI-indexed catch-up — confirmed IRS newsroom
+      phaseout: {
+        singleActive:    { floor: 81000,  ceiling: 91000  },
+        mfjActive:       { floor: 129000, ceiling: 149000 },
+        mfsActive:       { floor: 0,      ceiling: 10000  },  // IRC §219(g)(2)(D) — statutory
+        mfjSpouseActive: { floor: 242000, ceiling: 252000 }
+      }
+    },
+
+    // ── TRACK 2: Schedule A Itemized Deductions (2026) ───────────────────
+
+    // IRC §164(a)(3),(b)(6) — SALT
+    // Source: IRS newsroom irs-releases-tax-inflation-adjustments-for-tax-year-2026
+    scheduleA: {
+      salt: {
+        cap:                  40400,   // 2026 inflation-adjusted — confirmed IRS newsroom
+        mfsCap:               20200,   // MFS: half of joint cap — IRC §164(b)(6)(B)
+        phaseoutThreshold:   505000,   // 2026 inflation-adjusted — confirmed IRS newsroom
+        mfsPhaseoutThreshold: 252500,  // MFS: half of joint threshold
+        phaseoutRate:           0.30,  // Statutory — OBBBA P.L. 119-21
+        floor:                10000    // Statutory — OBBBA P.L. 119-21
+      },
+      mortgage: {
+        post2017Limit: 750000,   // IRC §163(h)(3)(F)(i)(II) — not CPI-adjusted
+        pre2018Limit:  1000000   // IRC §163(h)(3)(B)(ii) — grandfathered
+      },
+      charitable: {
+        cashAgiLimit:    0.60,   // IRC §170(b)(1)(G) — statutory
+        nonCashAgiLimit: 0.50    // IRC §170(b)(1)(A) — statutory
+      },
+      medical: {
+        agiFloor: 0.075          // IRC §213(a) — statutory
+      }
     }
   }
-  // 2026: {} — Add when IRS issues Rev. Proc. for 2026 inflation adjustments
 };
 
 
@@ -195,7 +398,7 @@ const TAX_CONSTANTS = {
 // ──────────────────────────────────────────────────────────────────────
 
 let teReturns        = [];
-let teActiveYear     = 2025;
+let teActiveYear     = 2026;
 let teCurrentReturn  = null;
 let teActiveSection  = 'personal';
 let teNotesPanelOpen = false;
@@ -224,6 +427,18 @@ function teEmptyReturn(clientId, clientName, taxYear) {
       iraAge50Plus:         false,
       iraActiveParticipant: false,
       iraSpouseActive:      false
+    },
+    scheduleA: {
+      stateIncomeTax:      '',
+      localIncomeTax:      '',
+      realEstateTax:       '',
+      personalPropertyTax: '',
+      mortgageInterest:    '',
+      mortgageBalance:     '',
+      mortgageLoanDate:    'post2017',
+      cashCharitable:      '',
+      nonCashCharitable:   '',
+      medicalExpenses:     ''
     },
     annotations:  [],
     completedSections: []
@@ -736,6 +951,7 @@ function teRenderDeductions() {
   let stdAmt = K.standardDeduction[fs] || K.standardDeduction.single;
   let fsl    = { single: 'Single', mfj: 'Married Filing Jointly', mfs: 'Married Filing Separately', hoh: 'Head of Household', qss: 'Qualifying Surviving Spouse' }[fs] || fs;
   let a      = r.agiAdjustments || {};
+  let sa     = r.scheduleA      || {};
   let calc   = r._calc || {};
   let sliAmt = calc.sliDeduction || 0;
   let hsaAmt = calc.hsaDeduction || 0;
@@ -744,6 +960,21 @@ function teRenderDeductions() {
   let isMFS  = (fs === 'mfs');
   let isMFJ  = (fs === 'mfj');
   let iraLimit = teFmt(K.ira.limit + (a.iraAge50Plus ? K.ira.catchUp : 0));
+
+  // Schedule A: accordion default open states
+  let saltOpen  = (parseFloat(sa.stateIncomeTax)||0) + (parseFloat(sa.localIncomeTax)||0) + (parseFloat(sa.realEstateTax)||0) + (parseFloat(sa.personalPropertyTax)||0) > 0;
+  let miOpen    = parseFloat(sa.mortgageInterest) > 0;
+  let charOpen  = (parseFloat(sa.cashCharitable)||0) + (parseFloat(sa.nonCashCharitable)||0) > 0;
+  let medOpen   = parseFloat(sa.medicalExpenses) > 0;
+  let saltCap   = (fs === 'mfs') ? K.scheduleA.salt.mfsCap : K.scheduleA.salt.cap;
+  let saltThres = (fs === 'mfs') ? K.scheduleA.salt.mfsPhaseoutThreshold : K.scheduleA.salt.phaseoutThreshold;
+  let saltAmt   = calc.saltDeduction       || 0;
+  let miAmt     = calc.mortgageDeduction   || 0;
+  let charAmt   = calc.charitableDeduction || 0;
+  let medAmt    = calc.medicalDeduction    || 0;
+  let itemTotal = calc.itemizedTotal       || 0;
+  let useItemized = calc.deductionType === 'itemized';
+  let dedUsed   = calc.deductionUsed       || calc.stdDed;
 
   // Default open: expand rows that already have a value
   let sliOpen = parseFloat(a.studentLoanInterest) > 0;
@@ -848,29 +1079,126 @@ function teRenderDeductions() {
 
     <div class="te-subsec-lbl" style="margin-bottom:10px;">Below-the-Line Deductions <span class="te-cite">IRC §63</span></div>
 
-    <div class="te-ded-card te-ded-active" style="margin-bottom:10px;">
-      <div class="te-ded-card-hdr">
-        <div>
-          <div class="te-ded-title">Standard Deduction — Auto Applied</div>
-          <div class="te-ded-cite">IRC §63(c)(2)(A) &mdash; OBBBA P.L. 119-21 &mdash; Source: irs.gov</div>
+    <div class="te-sa-comparison" id="te-sa-comparison-bar">
+      <div class="te-sa-comp-row">
+        <div class="te-sa-comp-side ${!useItemized ? 'te-sa-comp-winner' : ''}">
+          <span class="te-sa-comp-lbl">Standard Deduction</span>
+          <span class="te-sa-comp-val" id="te-ded-std-amt">${teFmt(stdAmt)}</span>
+          ${!useItemized ? '<span class="te-sa-comp-badge">Applied</span>' : ''}
         </div>
-        <div class="te-ded-amt" id="te-ded-std-amt">${teFmt(stdAmt)}</div>
+        <div class="te-sa-comp-vs">vs</div>
+        <div class="te-sa-comp-side ${useItemized ? 'te-sa-comp-winner' : ''}">
+          <span class="te-sa-comp-lbl">Itemized Deductions</span>
+          <span class="te-sa-comp-val" id="te-sa-itemized-total">${teFmt(itemTotal)}</span>
+          ${useItemized ? '<span class="te-sa-comp-badge">Applied</span>' : ''}
+        </div>
       </div>
-      <div class="te-ded-body">
-        <div class="te-ded-row"><span>Filing Status</span><span>${esc(fsl)}</span></div>
-        <div class="te-ded-row"><span>Standard Deduction (${yr})</span><span>${teFmt(stdAmt)}</span></div>
-        <div class="te-ded-note">Automatically applied. If Schedule A itemized deductions exceed ${teFmt(stdAmt)}, itemizing may be beneficial (Track 2).</div>
+      <div class="te-sa-comp-note">
+        ${useItemized
+          ? `Itemizing saves <strong>${teFmt(itemTotal - stdAmt)}</strong> more than the standard deduction. <span class="te-cite">IRC §63(b)</span>`
+          : `Standard deduction is <strong>${teFmt(stdAmt - itemTotal)}</strong> higher than current itemized total. Enter Schedule A expenses below to compare.`}
       </div>
     </div>
 
-    <div class="te-stub-sec">
-      <div class="te-stub-blk te-stub-blk-lg">
-        <div>
-          <span class="te-stub-title">Itemized Deductions (Schedule A) <span class="te-cite">IRC §63(d)</span></span>
-          <div class="te-stub-desc">Mortgage interest (§163), SALT up to $40,000 under OBBBA P.L. 119-21 (§164), charitable contributions (§170), medical expenses &gt; 7.5% AGI (§213)</div>
+    <div class="te-subsec-lbl" style="margin-bottom:8px;margin-top:18px;">Schedule A — Itemized Deductions <span class="te-cite">IRC §63(d)</span></div>
+
+    <div class="te-adj-list" style="margin-bottom:10px;">
+
+      <div class="te-adj-row${saltOpen ? ' te-adj-open' : ''}" id="te-adj-row-salt">
+        <div class="te-adj-row-hdr" onclick="teToggleAdj('salt')">
+          <span class="te-adj-row-label">State &amp; Local Taxes (SALT) <span class="te-cite">IRC §164</span></span>
+          <span class="te-adj-row-val" id="te-sa-salt-calc">${teFmt(saltAmt)}</span>
+          <span class="te-adj-chevron">&#8250;</span>
         </div>
-        <span class="te-stub-pill">Phase 2</span>
+        <div class="te-adj-body" id="te-adj-body-salt" style="display:${saltOpen ? 'block' : 'none'};">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div class="te-field-group" style="max-width:175px;">
+              <label class="te-lbl">State Income Tax Paid</label>
+              <input type="number" id="te-sa-sit" class="te-input te-mono" value="${esc(String(sa.stateIncomeTax||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-field-group" style="max-width:175px;">
+              <label class="te-lbl">Local Income Tax Paid</label>
+              <input type="number" id="te-sa-lit" class="te-input te-mono" value="${esc(String(sa.localIncomeTax||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-field-group" style="max-width:175px;">
+              <label class="te-lbl">Real Estate Tax</label>
+              <input type="number" id="te-sa-ret" class="te-input te-mono" value="${esc(String(sa.realEstateTax||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-field-group" style="max-width:175px;">
+              <label class="te-lbl">Personal Property Tax</label>
+              <input type="number" id="te-sa-ppt" class="te-input te-mono" value="${esc(String(sa.personalPropertyTax||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+          </div>
+          <div class="te-ded-note">Cap: ${teFmt(saltCap)} (${yr}). Phase-down: 30% of MAGI over ${teFmt(saltThres)}; floor $10,000. <span class="te-cite">OBBBA P.L. 119-21</span></div>
+        </div>
       </div>
+
+      <div class="te-adj-row${miOpen ? ' te-adj-open' : ''}" id="te-adj-row-mi">
+        <div class="te-adj-row-hdr" onclick="teToggleAdj('mi')">
+          <span class="te-adj-row-label">Mortgage Interest <span class="te-cite">IRC §163(h)</span></span>
+          <span class="te-adj-row-val" id="te-sa-mi-calc">${teFmt(miAmt)}</span>
+          <span class="te-adj-chevron">&#8250;</span>
+        </div>
+        <div class="te-adj-body" id="te-adj-body-mi" style="display:${miOpen ? 'block' : 'none'};">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div class="te-field-group" style="max-width:185px;">
+              <label class="te-lbl">Interest Paid (Form 1098)</label>
+              <input type="number" id="te-sa-mi" class="te-input te-mono" value="${esc(String(sa.mortgageInterest||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-field-group" style="max-width:185px;">
+              <label class="te-lbl">Outstanding Balance</label>
+              <input type="number" id="te-sa-mb" class="te-input te-mono" value="${esc(String(sa.mortgageBalance||''))}" placeholder="0.00" step="1" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-field-group" style="max-width:165px;">
+              <label class="te-lbl">Loan Date</label>
+              <select id="te-sa-mld" class="te-select" onchange="teOnScheduleA()">
+                <option value="post2017" ${sa.mortgageLoanDate!=='pre2018'?'selected':''}>Post-12/15/2017 ($750K limit)</option>
+                <option value="pre2018"  ${sa.mortgageLoanDate==='pre2018'?'selected':''}>Pre-12/16/2017 ($1M limit)</option>
+              </select>
+            </div>
+          </div>
+          <div class="te-ded-note">If balance exceeds debt limit, deductible interest is prorated: interest × (limit ÷ balance). <span class="te-cite">IRC §163(h)(3)(F)</span></div>
+        </div>
+      </div>
+
+      <div class="te-adj-row${charOpen ? ' te-adj-open' : ''}" id="te-adj-row-char">
+        <div class="te-adj-row-hdr" onclick="teToggleAdj('char')">
+          <span class="te-adj-row-label">Charitable Contributions <span class="te-cite">IRC §170</span></span>
+          <span class="te-adj-row-val" id="te-sa-char-calc">${teFmt(charAmt)}</span>
+          <span class="te-adj-chevron">&#8250;</span>
+        </div>
+        <div class="te-adj-body" id="te-adj-body-char" style="display:${charOpen ? 'block' : 'none'};">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div class="te-field-group" style="max-width:200px;">
+              <label class="te-lbl">Cash Contributions</label>
+              <input type="number" id="te-sa-cc" class="te-input te-mono" value="${esc(String(sa.cashCharitable||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-field-group" style="max-width:200px;">
+              <label class="te-lbl">Non-Cash Contributions</label>
+              <input type="number" id="te-sa-nc" class="te-input te-mono" value="${esc(String(sa.nonCashCharitable||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+          </div>
+          <div class="te-ded-note">Cash: limited to 60% of AGI. Non-cash: 50% of AGI. Combined cannot exceed 60% of AGI. <span class="te-cite">IRC §170(b)(1)(G),(A)</span></div>
+        </div>
+      </div>
+
+      <div class="te-adj-row${medOpen ? ' te-adj-open' : ''}" id="te-adj-row-med">
+        <div class="te-adj-row-hdr" onclick="teToggleAdj('med')">
+          <span class="te-adj-row-label">Medical &amp; Dental Expenses <span class="te-cite">IRC §213</span></span>
+          <span class="te-adj-row-val" id="te-sa-med-calc">${teFmt(medAmt)}</span>
+          <span class="te-adj-chevron">&#8250;</span>
+        </div>
+        <div class="te-adj-body" id="te-adj-body-med" style="display:${medOpen ? 'block' : 'none'};">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;">
+            <div class="te-field-group" style="max-width:200px;">
+              <label class="te-lbl">Total Medical Expenses</label>
+              <input type="number" id="te-sa-med" class="te-input te-mono" value="${esc(String(sa.medicalExpenses||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-ded-note" style="flex:1;padding-bottom:0;">Deductible amount = expenses exceeding 7.5% of AGI. Current floor: ${teFmt(Math.round((calc.agi || 0) * 0.075))}. <span class="te-cite">IRC §213(a)</span></div>
+          </div>
+        </div>
+      </div>
+
     </div>`;
 }
 
@@ -1114,6 +1442,90 @@ function teCalcIRA(adj, magi, K, fs) {
 
 
 // ──────────────────────────────────────────────────────────────────────
+//  SCHEDULE A — TRACK 2 CALC FUNCTIONS
+// ──────────────────────────────────────────────────────────────────────
+
+// IRC §164(a)(3),(b)(6) — SALT Deduction
+// Source: irs.gov/newsroom/one-big-beautiful-bill-provisions-individuals-and-workers
+// Effective cap = SALT cap reduced by 30% of MAGI over threshold; floor $10,000.
+// MAGI for SALT phase-down = AGI (no additional modifications for Phase 1 W-2 returns).
+function teCalcSALT(schedA, agi, K, fs) {
+  let Ks = K.scheduleA.salt;
+  let paid = (parseFloat(schedA.stateIncomeTax)      || 0)
+           + (parseFloat(schedA.localIncomeTax)       || 0)
+           + (parseFloat(schedA.realEstateTax)        || 0)
+           + (parseFloat(schedA.personalPropertyTax)  || 0);
+  if (paid <= 0) return 0;
+  // Determine cap and phase-out threshold by filing status
+  let cap       = (fs === 'mfs') ? Ks.mfsCap               : Ks.cap;
+  let threshold = (fs === 'mfs') ? Ks.mfsPhaseoutThreshold : Ks.phaseoutThreshold;
+  // Compute effective cap after phase-down
+  let excess       = Math.max(0, agi - threshold);
+  let effectiveCap = cap - (Ks.phaseoutRate * excess);
+  effectiveCap     = Math.max(Ks.floor, effectiveCap);
+  return Math.min(paid, effectiveCap);
+}
+
+// IRC §163(h)(3) — Qualified Residence Interest (Mortgage Interest Deduction)
+// Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section163
+// If outstanding balance exceeds qualified debt limit: deductible portion is
+//   interest × (limit / balance) — IRC §163(h)(3)(F)(i)
+function teCalcMortgageInterest(schedA, K) {
+  let interest = parseFloat(schedA.mortgageInterest) || 0;
+  if (interest <= 0) return 0;
+  let balance = parseFloat(schedA.mortgageBalance) || 0;
+  let limit   = (schedA.mortgageLoanDate === 'pre2018')
+    ? K.scheduleA.mortgage.pre2018Limit
+    : K.scheduleA.mortgage.post2017Limit;
+  // If balance not entered or within limit: all interest deductible
+  if (balance <= 0 || balance <= limit) return interest;
+  // Balance exceeds limit: prorate — IRC §163(h)(3)(F)(i)
+  return Math.round(interest * (limit / balance) * 100) / 100;
+}
+
+// IRC §170(b)(1) — Charitable Contribution Deduction
+// Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section170
+// Cash: capped at 60% of AGI; Non-cash: capped at 50% of AGI.
+// Combined total: capped at 60% of AGI (higher-tier cash limit governs).
+function teCalcCharitable(schedA, agi, K) {
+  if (agi <= 0) return 0;
+  let cash    = Math.min(parseFloat(schedA.cashCharitable)    || 0, agi * K.scheduleA.charitable.cashAgiLimit);
+  let nonCash = Math.min(parseFloat(schedA.nonCashCharitable) || 0, agi * K.scheduleA.charitable.nonCashAgiLimit);
+  // Combined cannot exceed the 60% AGI limit — IRC §170(b)(1)
+  return Math.min(cash + nonCash, agi * K.scheduleA.charitable.cashAgiLimit);
+}
+
+// IRC §213(a) — Medical Expense Deduction
+// Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section213
+// Deductible amount = medical expenses exceeding 7.5% of AGI.
+function teCalcMedical(schedA, agi, K) {
+  let expenses = parseFloat(schedA.medicalExpenses) || 0;
+  if (expenses <= 0 || agi <= 0) return 0;
+  let floor = agi * K.scheduleA.medical.agiFloor;  // 7.5% of AGI
+  return Math.max(0, Math.round((expenses - floor) * 100) / 100);
+}
+
+// Handler for Schedule A field changes
+function teOnScheduleA() {
+  if (!teCurrentReturn) return;
+  if (!teCurrentReturn.scheduleA) teCurrentReturn.scheduleA = {};
+  let s  = teCurrentReturn.scheduleA;
+  let g  = id => { let el = document.getElementById(id); return el ? el.value : ''; };
+  s.stateIncomeTax      = g('te-sa-sit');
+  s.localIncomeTax      = g('te-sa-lit');
+  s.realEstateTax       = g('te-sa-ret');
+  s.personalPropertyTax = g('te-sa-ppt');
+  s.mortgageInterest    = g('te-sa-mi');
+  s.mortgageBalance     = g('te-sa-mb');
+  s.mortgageLoanDate    = g('te-sa-mld') || 'post2017';
+  s.cashCharitable      = g('te-sa-cc');
+  s.nonCashCharitable   = g('te-sa-nc');
+  s.medicalExpenses     = g('te-sa-med');
+  teRecalculate();
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
 //  PAYMENTS SECTION
 // ──────────────────────────────────────────────────────────────────────
 
@@ -1199,10 +1611,22 @@ function teRecalculate() {
   // ── Step 3: Adjusted Gross Income — IRC §62 ─────────────────────────
   calc.agi = calc.grossIncome - calc.adjustments;
 
-  // ── Step 4: Standard Deduction — IRC §63(c) ─────────────────────────
-  // Source: OBBBA P.L. 119-21
-  calc.stdDed       = K.standardDeduction[fs] || K.standardDeduction.single;
-  calc.deductionUsed = calc.stdDed; // Phase 2: max(standard, itemized)
+  // ── Step 4: Deductions — IRC §63 ────────────────────────────────────
+  calc.stdDed = K.standardDeduction[fs] || K.standardDeduction.single;  // Source: OBBBA P.L. 119-21
+
+  // Track 2: Schedule A itemized deductions — automatically compared to standard
+  let schedA = teCurrentReturn.scheduleA || {};
+  calc.saltDeduction       = teCalcSALT(schedA, calc.agi, K, fs);
+  calc.mortgageDeduction   = teCalcMortgageInterest(schedA, K);
+  calc.charitableDeduction = teCalcCharitable(schedA, calc.agi, K);
+  calc.medicalDeduction    = teCalcMedical(schedA, calc.agi, K);
+  calc.itemizedTotal       = calc.saltDeduction + calc.mortgageDeduction + calc.charitableDeduction + calc.medicalDeduction;
+
+  // Engine picks whichever is higher — IRC §63(b)
+  // No taxpayer toggle: the engine always applies the more beneficial deduction
+  calc.deductionType  = calc.itemizedTotal > calc.stdDed ? 'itemized' : 'standard';
+  calc.deductionUsed  = calc.itemizedTotal > calc.stdDed ? calc.itemizedTotal : calc.stdDed;
+  teCurrentReturn.deductionType = calc.deductionType;
 
   // ── Step 5: Taxable Income — IRC §63(a) ─────────────────────────────
   calc.taxableIncome = Math.max(0, calc.agi - calc.deductionUsed);
@@ -1257,10 +1681,40 @@ function teRecalculate() {
   // Refresh live displays on active sections
   if (teActiveSection === 'credits') { teRenderCTCDetail(); teRenderEduList(); }
   if (teActiveSection === 'deductions') {
-    teM('te-ded-std-amt',  teFmt(calc.stdDed));
-    teM('te-ded-sli-calc', teFmt(calc.sliDeduction));
-    teM('te-ded-hsa-calc', teFmt(calc.hsaDeduction));
-    teM('te-ded-ira-calc', teFmt(calc.iraDeduction));
+    teM('te-ded-std-amt',      teFmt(calc.stdDed));
+    teM('te-ded-sli-calc',     teFmt(calc.sliDeduction));
+    teM('te-ded-hsa-calc',     teFmt(calc.hsaDeduction));
+    teM('te-ded-ira-calc',     teFmt(calc.iraDeduction));
+    teM('te-sa-salt-calc',     teFmt(calc.saltDeduction));
+    teM('te-sa-mi-calc',       teFmt(calc.mortgageDeduction));
+    teM('te-sa-char-calc',     teFmt(calc.charitableDeduction));
+    teM('te-sa-med-calc',      teFmt(calc.medicalDeduction));
+    teM('te-sa-itemized-total',teFmt(calc.itemizedTotal));
+    // Rebuild comparison bar to update labels/badges and note text
+    let cmpBar = document.getElementById('te-sa-comparison-bar');
+    if (cmpBar) {
+      let useIt = calc.deductionType === 'itemized';
+      let stdSide  = cmpBar.querySelector('.te-sa-comp-side:first-child');
+      let itSide   = cmpBar.querySelector('.te-sa-comp-side:last-child');
+      let note     = cmpBar.querySelector('.te-sa-comp-note');
+      if (stdSide) {
+        stdSide.className = 'te-sa-comp-side' + (useIt ? '' : ' te-sa-comp-winner');
+        let badge = stdSide.querySelector('.te-sa-comp-badge');
+        if (!badge && !useIt) { let b = document.createElement('span'); b.className = 'te-sa-comp-badge'; b.textContent = 'Applied'; stdSide.appendChild(b); }
+        if ( badge &&  useIt) badge.remove();
+      }
+      if (itSide) {
+        itSide.className  = 'te-sa-comp-side' + (useIt ? ' te-sa-comp-winner' : '');
+        let badge = itSide.querySelector('.te-sa-comp-badge');
+        if (!badge &&  useIt) { let b = document.createElement('span'); b.className = 'te-sa-comp-badge'; b.textContent = 'Applied'; itSide.appendChild(b); }
+        if ( badge && !useIt) badge.remove();
+      }
+      if (note) {
+        note.innerHTML = useIt
+          ? 'Itemizing saves <strong>' + teFmt(calc.itemizedTotal - calc.stdDed) + '</strong> more than the standard deduction. <span class="te-cite">IRC §63(b)</span>'
+          : 'Standard deduction is <strong>' + teFmt(calc.stdDed - calc.itemizedTotal) + '</strong> higher than current itemized total. Enter Schedule A expenses below to compare.';
+      }
+    }
   }
 }
 
@@ -1394,7 +1848,14 @@ function teUpdateMeter(calc, K, fs) {
   let iraRow = document.getElementById('te-m-ira-row');
   if (iraRow) { iraRow.style.display = calc.iraDeduction > 0 ? 'flex' : 'none'; teM('te-m-ira', '(' + teFmt(calc.iraDeduction) + ')'); }
   teM('te-m-agi',      teFmt(calc.agi));
-  teM('te-m-std',     '(' + teFmt(calc.stdDed) + ')');
+  // Deduction row: show standard OR itemized label/amount depending on which is applied
+  let stdMRow  = document.getElementById('te-m-std-row');
+  let itMRow   = document.getElementById('te-m-itemized-row');
+  let useIt    = calc.deductionType === 'itemized';
+  if (stdMRow)  stdMRow.style.display  = useIt ? 'none'  : 'flex';
+  if (itMRow)   itMRow.style.display   = useIt ? 'flex'  : 'none';
+  teM('te-m-std',       '(' + teFmt(calc.stdDed)       + ')');
+  teM('te-m-itemized',  '(' + teFmt(calc.itemizedTotal) + ')');
   teM('te-m-taxable',  teFmt(calc.taxableIncome));
   teM('te-m-regtax',   teFmt(calc.regularTax));
   teM('te-m-ctc',     calc.ctcNonRefundable > 0 ? '(' + teFmt(calc.ctcNonRefundable) + ')' : '$0');
@@ -1523,8 +1984,14 @@ function teRunFlags(calc, K, fs) {
     }
   }
 
-  // Standard deduction note
-  flags.push({ type: 'info', text: 'Standard deduction of ' + teFmt(calc.stdDed) + ' applied. Itemized comparison available in Phase 2.' });
+  // Deduction comparison note
+  if (calc.deductionType === 'itemized') {
+    flags.push({ type: 'info', text: 'Itemized deductions (' + teFmt(calc.itemizedTotal) + ') applied — exceeds standard deduction (' + teFmt(calc.stdDed) + ') by ' + teFmt(calc.itemizedTotal - calc.stdDed) + '.' });
+  } else if (calc.itemizedTotal > 0) {
+    flags.push({ type: 'warning', text: 'Standard deduction (' + teFmt(calc.stdDed) + ') applied. Itemized total (' + teFmt(calc.itemizedTotal) + ') is ' + teFmt(calc.stdDed - calc.itemizedTotal) + ' below the standard deduction.' });
+  } else {
+    flags.push({ type: 'info', text: 'Standard deduction of ' + teFmt(calc.stdDed) + ' applied. Enter Schedule A expenses in the Deductions section to compare.' });
+  }
 
   let panel = document.getElementById('te-flags-panel');
   let list  = document.getElementById('te-flags-list');
@@ -1629,6 +2096,7 @@ function teSerialize(r) {
     deductionType:     r.deductionType     || 'standard',
     educationStudents: r.educationStudents || [],
     agiAdjustments:    r.agiAdjustments    || { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false },
+    scheduleA:         r.scheduleA         || { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '' },
     annotations:       r.annotations       || [],
     completedSections: r.completedSections || []
   };
@@ -1642,6 +2110,7 @@ function teDeserialize(data) {
   if (!r.w2)                r.w2                = [];
   if (!r.educationStudents) r.educationStudents = [];
   if (!r.agiAdjustments)   r.agiAdjustments    = { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false };
+  if (!r.scheduleA)        r.scheduleA         = { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '' };
   if (!r.annotations)       r.annotations       = [];
   return r;
 }
