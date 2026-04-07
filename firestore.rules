@@ -281,5 +281,16 @@ service cloud.firestore {
     match /settings/{docId} {
       allow read, write: if isAdmin();
     }
+
+
+    // ─────────────────────────────────────────────
+    //  TAX RETURNS (Tax Engine — admin only)
+    //  - Clients NEVER see raw engine data.
+    //  - All tax return preparation data is admin-only.
+    //  - Doc ID format: {clientId}_{year}_{returnType}
+    // ─────────────────────────────────────────────
+    match /taxReturns/{returnId} {
+      allow read, write: if isAdmin();
+    }
   }
 }
