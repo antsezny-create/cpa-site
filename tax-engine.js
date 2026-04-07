@@ -436,9 +436,11 @@ function teEmptyReturn(clientId, clientName, taxYear) {
       mortgageInterest:    '',
       mortgageBalance:     '',
       mortgageLoanDate:    'post2017',
+      mortgagePurpose:     'acquisition',  // IRC §163(h)(3)(C): 'acquisition' or 'home_equity_personal'
       cashCharitable:      '',
       nonCashCharitable:   '',
-      medicalExpenses:     ''
+      medicalExpenses:     '',
+      mfsSpouseItemizes:   false           // IRC §63(e): if true, standard deduction overridden to $0
     },
     annotations:  [],
     completedSections: []
@@ -975,6 +977,9 @@ function teRenderDeductions() {
   let itemTotal = calc.itemizedTotal       || 0;
   let useItemized = calc.deductionType === 'itemized';
   let dedUsed   = calc.deductionUsed       || calc.stdDed;
+  let mfsItemizedRequired = calc.mfsItemizedRequired || false;
+  // IRC §63(e): when MFS spouse-itemizes override is active, display $0 standard deduction
+  if (mfsItemizedRequired) stdAmt = 0;
 
   // Default open: expand rows that already have a value
   let sliOpen = parseFloat(a.studentLoanInterest) > 0;
@@ -1094,13 +1099,24 @@ function teRenderDeductions() {
         </div>
       </div>
       <div class="te-sa-comp-note">
-        ${useItemized
-          ? `Itemizing saves <strong>${teFmt(itemTotal - stdAmt)}</strong> more than the standard deduction. <span class="te-cite">IRC §63(b)</span>`
-          : `Standard deduction is <strong>${teFmt(stdAmt - itemTotal)}</strong> higher than current itemized total. Enter Schedule A expenses below to compare.`}
+        ${mfsItemizedRequired
+          ? `MFS — spouse is itemizing on their separate return. Standard deduction is disallowed on this return. <span class="te-cite">IRC §63(e)</span>`
+          : useItemized
+            ? `Itemizing saves <strong>${teFmt(itemTotal - stdAmt)}</strong> more than the standard deduction. <span class="te-cite">IRC §63(b)</span>`
+            : `Standard deduction is <strong>${teFmt(stdAmt - itemTotal)}</strong> higher than current itemized total. Enter Schedule A expenses below to compare.`}
       </div>
     </div>
 
     <div class="te-subsec-lbl" style="margin-bottom:8px;margin-top:18px;">Schedule A — Itemized Deductions <span class="te-cite">IRC §63(d)</span></div>
+
+    ${isMFS ? `
+    <div class="te-ded-note" style="margin-bottom:10px;padding:8px 10px;border-left:3px solid var(--te-warn,#f59e0b);">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="te-sa-mfsi" ${sa.mfsSpouseItemizes ? 'checked' : ''} onchange="teOnScheduleA()" style="width:14px;height:14px;cursor:pointer;">
+        <span>Spouse is itemizing deductions on their separate return</span>
+      </label>
+      ${sa.mfsSpouseItemizes ? '<div style="margin-top:5px;font-size:0.78rem;color:var(--te-warn,#f59e0b);">Standard deduction overridden to $0 — you must itemize per IRC §63(e). <span class="te-cite">IRC §63(e)</span></div>' : '<div style="margin-top:5px;font-size:0.78rem;">If checked, your standard deduction is disallowed and you must itemize. <span class="te-cite">IRC §63(e)</span></div>'}
+    </div>` : ''}
 
     <div class="te-adj-list" style="margin-bottom:10px;">
 
@@ -1125,11 +1141,12 @@ function teRenderDeductions() {
               <input type="number" id="te-sa-ret" class="te-input te-mono" value="${esc(String(sa.realEstateTax||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
             </div>
             <div class="te-field-group" style="max-width:175px;">
-              <label class="te-lbl">Personal Property Tax</label>
+              <label class="te-lbl">Personal Property Tax (ad valorem only)</label>
               <input type="number" id="te-sa-ppt" class="te-input te-mono" value="${esc(String(sa.personalPropertyTax||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
             </div>
           </div>
           <div class="te-ded-note">Cap: ${teFmt(saltCap)} (${yr}). Phase-down: 30% of MAGI over ${teFmt(saltThres)}; floor $10,000. <span class="te-cite">OBBBA P.L. 119-21</span></div>
+          <div class="te-ded-note" style="margin-top:4px;">Personal property tax: enter the ad valorem (value-based) portion only. Flat vehicle registration fees or per-unit charges do not qualify. <span class="te-cite">IRC §164(a)(2)</span></div>
         </div>
       </div>
 
@@ -1156,8 +1173,17 @@ function teRenderDeductions() {
                 <option value="pre2018"  ${sa.mortgageLoanDate==='pre2018'?'selected':''}>Pre-12/16/2017 ($1M limit)</option>
               </select>
             </div>
+            <div class="te-field-group" style="max-width:230px;">
+              <label class="te-lbl">Debt Purpose <span class="te-cite">IRC §163(h)(3)(C)</span></label>
+              <select id="te-sa-mp" class="te-select" onchange="teOnScheduleA()">
+                <option value="acquisition"          ${sa.mortgagePurpose!=='home_equity_personal'?'selected':''}>Acquisition / Improvement</option>
+                <option value="home_equity_personal" ${sa.mortgagePurpose==='home_equity_personal'?'selected':''}>Home Equity — Personal Use</option>
+              </select>
+            </div>
           </div>
-          <div class="te-ded-note">If balance exceeds debt limit, deductible interest is prorated: interest × (limit ÷ balance). <span class="te-cite">IRC §163(h)(3)(F)</span></div>
+          ${sa.mortgagePurpose === 'home_equity_personal'
+            ? '<div class="te-ded-note" style="margin-top:4px;color:var(--te-warn,#f59e0b);">Home equity interest used for personal purposes is not deductible under TCJA. <span class="te-cite">IRC §163(h)(3)(C)</span></div>'
+            : '<div class="te-ded-note">If balance exceeds debt limit, deductible interest is prorated: interest × (limit ÷ balance). <span class="te-cite">IRC §163(h)(3)(F)</span></div>'}
         </div>
       </div>
 
@@ -1184,18 +1210,19 @@ function teRenderDeductions() {
 
       <div class="te-adj-row${medOpen ? ' te-adj-open' : ''}" id="te-adj-row-med">
         <div class="te-adj-row-hdr" onclick="teToggleAdj('med')">
-          <span class="te-adj-row-label">Medical &amp; Dental Expenses <span class="te-cite">IRC §213</span></span>
+          <span class="te-adj-row-label">Unreimbursed Medical &amp; Dental Expenses <span class="te-cite">IRC §213</span></span>
           <span class="te-adj-row-val" id="te-sa-med-calc">${teFmt(medAmt)}</span>
           <span class="te-adj-chevron">&#8250;</span>
         </div>
         <div class="te-adj-body" id="te-adj-body-med" style="display:${medOpen ? 'block' : 'none'};">
           <div class="te-frow" style="align-items:flex-end;gap:12px;">
             <div class="te-field-group" style="max-width:200px;">
-              <label class="te-lbl">Total Medical Expenses</label>
+              <label class="te-lbl">Unreimbursed Medical Expenses</label>
               <input type="number" id="te-sa-med" class="te-input te-mono" value="${esc(String(sa.medicalExpenses||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
             </div>
             <div class="te-ded-note" style="flex:1;padding-bottom:0;">Deductible amount = expenses exceeding 7.5% of AGI. Current floor: ${teFmt(Math.round((calc.agi || 0) * 0.075))}. <span class="te-cite">IRC §213(a)</span></div>
           </div>
+          <div class="te-ded-note" style="margin-top:4px;">Enter unreimbursed amounts only. Do not include expenses covered by insurance, HSA distributions, employer HRA, or any other third-party reimbursement. <span class="te-cite">IRC §213(a)</span></div>
         </div>
       </div>
 
@@ -1205,6 +1232,15 @@ function teRenderDeductions() {
 
 // ──────────────────────────────────────────────────────────────────────
 //  CREDITS SECTION
+//
+//  TODO (Track 5): Education Credit / Scholarship Coordination — IRC §25A
+//  The American Opportunity Credit and Lifetime Learning Credit cannot be
+//  claimed on tuition amounts covered by tax-free scholarships, Pell grants,
+//  or employer tuition assistance (IRC §127).
+//  Required fields: qualifiedTuitionPaid, taxFreeAssistanceReceived.
+//  Eligible expense basis = qualifiedTuitionPaid − taxFreeAssistanceReceived.
+//  Credits are computed on the net eligible amount only.
+//  Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section25A
 // ──────────────────────────────────────────────────────────────────────
 
 function teRenderCredits() {
@@ -1473,6 +1509,11 @@ function teCalcSALT(schedA, agi, K, fs) {
 function teCalcMortgageInterest(schedA, K) {
   let interest = parseFloat(schedA.mortgageInterest) || 0;
   if (interest <= 0) return 0;
+  // IRC §163(h)(3)(C): Home equity interest is deductible ONLY if the debt was used to
+  // acquire, build, or substantially improve the qualified residence. Interest on home
+  // equity debt used for personal purposes (car, vacation, debt consolidation, etc.)
+  // is not deductible under TCJA. Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section163
+  if (schedA.mortgagePurpose === 'home_equity_personal') return 0;
   let balance = parseFloat(schedA.mortgageBalance) || 0;
   let limit   = (schedA.mortgageLoanDate === 'pre2018')
     ? K.scheduleA.mortgage.pre2018Limit
@@ -1518,9 +1559,12 @@ function teOnScheduleA() {
   s.mortgageInterest    = g('te-sa-mi');
   s.mortgageBalance     = g('te-sa-mb');
   s.mortgageLoanDate    = g('te-sa-mld') || 'post2017';
+  s.mortgagePurpose     = g('te-sa-mp')  || 'acquisition';
   s.cashCharitable      = g('te-sa-cc');
   s.nonCashCharitable   = g('te-sa-nc');
   s.medicalExpenses     = g('te-sa-med');
+  let mfsiEl = document.getElementById('te-sa-mfsi');
+  s.mfsSpouseItemizes   = mfsiEl ? mfsiEl.checked : false;
   teRecalculate();
 }
 
@@ -1626,6 +1670,17 @@ function teRecalculate() {
   // No taxpayer toggle: the engine always applies the more beneficial deduction
   calc.deductionType  = calc.itemizedTotal > calc.stdDed ? 'itemized' : 'standard';
   calc.deductionUsed  = calc.itemizedTotal > calc.stdDed ? calc.itemizedTotal : calc.stdDed;
+  calc.mfsItemizedRequired = false;
+
+  // IRC §63(e): If one MFS spouse itemizes, the other MUST also itemize.
+  // The standard deduction is disallowed — treated as $0 regardless of itemized total.
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section63
+  if (fs === 'mfs' && schedA.mfsSpouseItemizes === true) {
+    calc.stdDed              = 0;
+    calc.deductionType       = 'itemized';
+    calc.deductionUsed       = calc.itemizedTotal;
+    calc.mfsItemizedRequired = true;
+  }
   teCurrentReturn.deductionType = calc.deductionType;
 
   // ── Step 5: Taxable Income — IRC §63(a) ─────────────────────────────
@@ -1710,9 +1765,13 @@ function teRecalculate() {
         if ( badge && !useIt) badge.remove();
       }
       if (note) {
-        note.innerHTML = useIt
-          ? 'Itemizing saves <strong>' + teFmt(calc.itemizedTotal - calc.stdDed) + '</strong> more than the standard deduction. <span class="te-cite">IRC §63(b)</span>'
-          : 'Standard deduction is <strong>' + teFmt(calc.stdDed - calc.itemizedTotal) + '</strong> higher than current itemized total. Enter Schedule A expenses below to compare.';
+        if (calc.mfsItemizedRequired) {
+          note.innerHTML = 'MFS — spouse is itemizing on their separate return. Standard deduction is disallowed on this return. <span class="te-cite">IRC §63(e)</span>';
+        } else if (useIt) {
+          note.innerHTML = 'Itemizing saves <strong>' + teFmt(calc.itemizedTotal - calc.stdDed) + '</strong> more than the standard deduction. <span class="te-cite">IRC §63(b)</span>';
+        } else {
+          note.innerHTML = 'Standard deduction is <strong>' + teFmt(calc.stdDed - calc.itemizedTotal) + '</strong> higher than current itemized total. Enter Schedule A expenses below to compare.';
+        }
       }
     }
   }
@@ -1984,8 +2043,21 @@ function teRunFlags(calc, K, fs) {
     }
   }
 
+  // Home equity personal use flag — IRC §163(h)(3)(C)
+  let schedAFlags = teCurrentReturn.scheduleA || {};
+  if (schedAFlags.mortgagePurpose === 'home_equity_personal' && parseFloat(schedAFlags.mortgageInterest) > 0) {
+    flags.push({ type: 'warning', text: 'Mortgage interest excluded: home equity debt used for personal purposes is not deductible under TCJA. If proceeds were used to buy, build, or improve the home, change Debt Purpose to Acquisition / Improvement. IRC §163(h)(3)(C).' });
+  }
+
+  // MFS spouse-itemizes override flag — IRC §63(e)
+  if (calc.mfsItemizedRequired) {
+    flags.push({ type: 'warning', text: 'MFS: Spouse is itemizing — standard deduction ($' + (TAX_CONSTANTS[r.taxYear] ? TAX_CONSTANTS[r.taxYear].standardDeduction.mfs.toLocaleString() : '0') + ') is disallowed on this return. Deduction used: itemized total of ' + teFmt(calc.itemizedTotal) + '. IRC §63(e).' });
+  }
+
   // Deduction comparison note
-  if (calc.deductionType === 'itemized') {
+  if (calc.mfsItemizedRequired) {
+    // already flagged above; skip redundant comparison note
+  } else if (calc.deductionType === 'itemized') {
     flags.push({ type: 'info', text: 'Itemized deductions (' + teFmt(calc.itemizedTotal) + ') applied — exceeds standard deduction (' + teFmt(calc.stdDed) + ') by ' + teFmt(calc.itemizedTotal - calc.stdDed) + '.' });
   } else if (calc.itemizedTotal > 0) {
     flags.push({ type: 'warning', text: 'Standard deduction (' + teFmt(calc.stdDed) + ') applied. Itemized total (' + teFmt(calc.itemizedTotal) + ') is ' + teFmt(calc.stdDed - calc.itemizedTotal) + ' below the standard deduction.' });
@@ -2096,7 +2168,7 @@ function teSerialize(r) {
     deductionType:     r.deductionType     || 'standard',
     educationStudents: r.educationStudents || [],
     agiAdjustments:    r.agiAdjustments    || { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false },
-    scheduleA:         r.scheduleA         || { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '' },
+    scheduleA:         r.scheduleA         || { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', mortgagePurpose: 'acquisition', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '', mfsSpouseItemizes: false },
     annotations:       r.annotations       || [],
     completedSections: r.completedSections || []
   };
@@ -2110,7 +2182,10 @@ function teDeserialize(data) {
   if (!r.w2)                r.w2                = [];
   if (!r.educationStudents) r.educationStudents = [];
   if (!r.agiAdjustments)   r.agiAdjustments    = { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false };
-  if (!r.scheduleA)        r.scheduleA         = { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '' };
+  if (!r.scheduleA)        r.scheduleA         = { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', mortgagePurpose: 'acquisition', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '', mfsSpouseItemizes: false };
+  // Backfill new fields on existing saved returns that predate this update
+  if (!r.scheduleA.mortgagePurpose)   r.scheduleA.mortgagePurpose   = 'acquisition';
+  if (r.scheduleA.mfsSpouseItemizes === undefined) r.scheduleA.mfsSpouseItemizes = false;
   if (!r.annotations)       r.annotations       = [];
   return r;
 }
