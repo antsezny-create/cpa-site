@@ -427,12 +427,12 @@
         <div class="dash-card" style="padding:0;overflow:hidden;">
           <div class="te-table-header">
             <span>Client</span>
-            <span>Year</span>
-            <span>Type</span>
+            <span>Form</span>
+            <span>Filing Status</span>
             <span>Status</span>
             <span>Refund / Due</span>
             <span>Last Updated</span>
-            <span>Actions</span>
+            <span></span>
           </div>
           <div id="te-returns-list"></div>
         </div>
@@ -494,63 +494,81 @@
 
           <!-- Right: Refund Meter -->
           <div class="te-meter-panel">
-            <div class="te-meter-header">Refund Meter</div>
-            <div class="te-meter-result" id="te-meter-result"><span id="te-m-result-val">—</span></div>
-            <div class="te-meter-label" id="te-m-result-lbl">Enter data to calculate</div>
 
-            <div class="te-meter-divider"></div>
-
-            <div class="te-meter-line">
-              <span class="te-meter-key">W-2 Wages <span class="te-irc-cite">§61</span></span>
-              <span class="te-meter-val" id="te-m-wages">—</span>
-            </div>
-            <div class="te-meter-line">
-              <span class="te-meter-key">AGI <span class="te-irc-cite">§62</span></span>
-              <span class="te-meter-val" id="te-m-agi">—</span>
-            </div>
-            <div class="te-meter-line">
-              <span class="te-meter-key">Std Deduction <span class="te-irc-cite">§63</span></span>
-              <span class="te-meter-val te-meter-sub" id="te-m-std">—</span>
-            </div>
-            <div class="te-meter-line te-meter-line-total">
-              <span class="te-meter-key">Taxable Income</span>
-              <span class="te-meter-val" id="te-m-taxable">—</span>
-            </div>
-            <div class="te-meter-line">
-              <span class="te-meter-key">Regular Tax <span class="te-irc-cite">§1</span></span>
-              <span class="te-meter-val" id="te-m-regtax">—</span>
-            </div>
-            <div class="te-meter-line">
-              <span class="te-meter-key">CTC <span class="te-irc-cite">§24</span></span>
-              <span class="te-meter-val te-meter-sub" id="te-m-ctc">—</span>
-            </div>
-            <div class="te-meter-line">
-              <span class="te-meter-key">Edu Credits <span class="te-irc-cite">§25A</span></span>
-              <span class="te-meter-val te-meter-sub" id="te-m-edu">—</span>
-            </div>
-            <div class="te-meter-line te-meter-line-total">
-              <span class="te-meter-key">Tax After Credits</span>
-              <span class="te-meter-val" id="te-m-taxaft">—</span>
-            </div>
-            <div class="te-meter-line">
-              <span class="te-meter-key">Withholding <span class="te-irc-cite">§3402</span></span>
-              <span class="te-meter-val te-meter-sub" id="te-m-wh">—</span>
-            </div>
-            <div class="te-meter-line" id="te-m-actc-row" style="display:none;">
-              <span class="te-meter-key">ACTC <span class="te-irc-cite">§24(d)</span></span>
-              <span class="te-meter-val te-meter-sub" id="te-m-actc">—</span>
-            </div>
-            <div class="te-meter-line" id="te-m-aoc-ref-row" style="display:none;">
-              <span class="te-meter-key">AOC Refundable <span class="te-irc-cite">§25A(i)</span></span>
-              <span class="te-meter-val te-meter-sub" id="te-m-aoc-ref">—</span>
+            <!-- Result Block -->
+            <div class="te-meter-top">
+              <div class="te-meter-header">Refund Meter</div>
+              <div class="te-meter-result" id="te-meter-result"><span id="te-m-result-val">—</span></div>
+              <div class="te-meter-label" id="te-m-result-lbl">Enter data to calculate</div>
             </div>
 
-            <div class="te-meter-divider"></div>
+            <!-- Calculation Chain -->
+            <div class="te-meter-body">
+              <div class="te-meter-section-lbl">Income</div>
+              <div class="te-meter-line">
+                <span class="te-meter-key">W-2 Wages</span>
+                <span class="te-meter-val" id="te-m-wages">—</span>
+              </div>
+              <div class="te-meter-line te-meter-line-total">
+                <span class="te-meter-key">AGI</span>
+                <span class="te-meter-val" id="te-m-agi">—</span>
+              </div>
 
-            <div id="te-flags-panel" style="display:none;">
+              <div class="te-meter-divider"></div>
+              <div class="te-meter-section-lbl">Deductions</div>
+              <div class="te-meter-line">
+                <span class="te-meter-key">Std. Deduction</span>
+                <span class="te-meter-val te-meter-sub" id="te-m-std">—</span>
+              </div>
+              <div class="te-meter-line te-meter-line-total">
+                <span class="te-meter-key">Taxable Income</span>
+                <span class="te-meter-val" id="te-m-taxable">—</span>
+              </div>
+
+              <div class="te-meter-divider"></div>
+              <div class="te-meter-section-lbl">Tax Liability</div>
+              <div class="te-meter-line te-meter-line-total">
+                <span class="te-meter-key">Regular Tax</span>
+                <span class="te-meter-val" id="te-m-regtax">—</span>
+              </div>
+
+              <div class="te-meter-divider"></div>
+              <div class="te-meter-section-lbl">Credits Applied</div>
+              <div class="te-meter-line">
+                <span class="te-meter-key">Child Tax Credit</span>
+                <span class="te-meter-val te-meter-sub" id="te-m-ctc">—</span>
+              </div>
+              <div class="te-meter-line">
+                <span class="te-meter-key">Edu Credits</span>
+                <span class="te-meter-val te-meter-sub" id="te-m-edu">—</span>
+              </div>
+              <div class="te-meter-line te-meter-line-total">
+                <span class="te-meter-key">Tax After Credits</span>
+                <span class="te-meter-val" id="te-m-taxaft">—</span>
+              </div>
+
+              <div class="te-meter-divider"></div>
+              <div class="te-meter-section-lbl">Payments &amp; Refundable</div>
+              <div class="te-meter-line">
+                <span class="te-meter-key">W-2 Withholding</span>
+                <span class="te-meter-val te-meter-sub" id="te-m-wh">—</span>
+              </div>
+              <div class="te-meter-line" id="te-m-actc-row" style="display:none;">
+                <span class="te-meter-key">ACTC</span>
+                <span class="te-meter-val te-meter-sub" id="te-m-actc">—</span>
+              </div>
+              <div class="te-meter-line" id="te-m-aoc-ref-row" style="display:none;">
+                <span class="te-meter-key">AOC Refundable</span>
+                <span class="te-meter-val te-meter-sub" id="te-m-aoc-ref">—</span>
+              </div>
+            </div>
+
+            <!-- Optimization Flags -->
+            <div id="te-flags-panel" class="te-flags-wrap" style="display:none;">
               <div class="te-flags-header">Optimization Flags</div>
               <div id="te-flags-list"></div>
             </div>
+
           </div>
 
         </div><!-- /.te-engine-layout -->
