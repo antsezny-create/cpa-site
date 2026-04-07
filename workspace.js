@@ -82,7 +82,7 @@ let wsDocuments   = [];    // client's uploaded documents
 //  TAB LOAD
 // ══════════════════════════════════════
 
-function loadReturnsTab() {
+function loadWorkspaceLegacyTab() {
   let el = document.getElementById("tab-returns");
   if (!el) return;
 
