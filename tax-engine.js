@@ -135,6 +135,55 @@ const TAX_CONSTANTS = {
       // IRC §25A(d) — Same thresholds as AOC (STATUTORY)
       phaseoutLower: { single: 80000,  mfj: 160000 },
       phaseoutUpper: { single: 90000,  mfj: 180000 }
+    },
+
+    // ── TRACK 1: Above-the-Line Adjustments ──────────────────────────────
+
+    // IRC §221 — Student Loan Interest Deduction (2025)
+    // Source: IRS Publication 970 (irs.gov/publications/p970)
+    // Maximum deduction: $2,500 — IRC §221(b)(1) (statutory, not inflation-adjusted)
+    // MFS filers ineligible — IRC §221(b)(2)(B)
+    // Phase-out thresholds for 2025 — Source: IRS Publication 970 (irs.gov/publications/p970)
+    studentLoanInterest: {
+      maxDeduction: 2500,   // IRC §221(b)(1) — statutory
+      phaseout: {
+        single: { floor: 85000,  ceiling: 100000 },  // Single/HOH/QSS — IRS Pub. 970 (2025)
+        mfj:    { floor: 170000, ceiling: 200000 }   // MFJ — IRS Pub. 970 (2025)
+        // MFS: not eligible — IRC §221(b)(2)(B)
+      }
+    },
+
+    // IRC §223 — Health Savings Account (HSA) Deduction (2025)
+    // Source: IRS Publication 969 (irs.gov/publications/p969); Rev. Proc. 2024-25
+    // No income phase-out. Contribution limit depends on HDHP coverage type.
+    hsa: {
+      limitSelf:    4300,   // Self-only HDHP — Rev. Proc. 2024-25
+      limitFamily:  8550,   // Family HDHP — Rev. Proc. 2024-25
+      catchUp:      1000,   // Age 55+ additional — IRC §223(b)(3)(B) (statutory)
+      // HDHP minimum deductibles — Rev. Proc. 2024-25 (for eligibility reference)
+      hdhpMinDeductibleSelf:   1650,
+      hdhpMinDeductibleFamily: 3300,
+      hdhpMaxOopSelf:   8300,
+      hdhpMaxOopFamily: 16600
+    },
+
+    // IRC §219 — Traditional IRA Deduction (2025)
+    // Source: IRS.gov newsroom — irs.gov/newsroom/401k-limit-increases-to-23500-for-2025-ira-limit-remains-7000
+    // Contribution limit: $7,000 — unchanged from 2024
+    // Catch-up (age 50+): $1,000 — IRC §219(b)(5)(B) (statutory)
+    // Phase-out ranges for active participants (covered by employer plan) — IRC §219(g)
+    ira: {
+      limit:   7000,  // IRC §219(b)(1) — 2025 (irs.gov newsroom)
+      catchUp: 1000,  // IRC §219(b)(5)(B) — statutory, not inflation-adjusted
+      phaseout: {
+        // Taxpayer is active participant — IRC §219(g)(2)
+        singleActive:    { floor: 79000,  ceiling: 89000  },  // Single/HOH active — irs.gov newsroom
+        mfjActive:       { floor: 126000, ceiling: 146000 },  // MFJ, taxpayer active — irs.gov newsroom
+        mfsActive:       { floor: 0,      ceiling: 10000  },  // MFS active — IRC §219(g)(2)(D) (statutory)
+        // Taxpayer NOT active, spouse IS active — IRC §219(g)(7)
+        mfjSpouseActive: { floor: 236000, ceiling: 246000 }   // MFJ non-participant — irs.gov newsroom
+        // Neither active: no phase-out — fully deductible up to contribution limit
+      }
     }
   }
   // 2026: {} — Add when IRS issues Rev. Proc. for 2026 inflation adjustments
@@ -166,6 +215,16 @@ function teEmptyReturn(clientId, clientName, taxYear) {
     w2:           [],
     deductionType: 'standard',
     educationStudents: [],
+    agiAdjustments: {
+      studentLoanInterest: '',
+      hsaCoverageType:      'self',
+      hsaContributions:     '',
+      hsaTaxpayerAge55:     false,
+      iraContributions:     '',
+      iraAge50Plus:         false,
+      iraActiveParticipant: false,
+      iraSpouseActive:      false
+    },
     annotations:  [],
     completedSections: []
   };
@@ -660,43 +719,134 @@ function teRmW2(i) {
 // ──────────────────────────────────────────────────────────────────────
 
 function teRenderDeductions() {
-  let fs  = teCurrentReturn.filingStatus || 'single';
-  let yr  = teCurrentReturn.taxYear      || teActiveYear;
-  let K   = TAX_CONSTANTS[yr];
-  let amt = K ? (K.standardDeduction[fs] || K.standardDeduction.single) : 0;
-  let fsl = { single: 'Single', mfj: 'Married Filing Jointly', mfs: 'Married Filing Separately', hoh: 'Head of Household', qss: 'Qualifying Surviving Spouse' }[fs] || fs;
+  let r      = teCurrentReturn;
+  let fs     = r.filingStatus || 'single';
+  let yr     = r.taxYear      || teActiveYear;
+  let K      = TAX_CONSTANTS[yr];
+  if (!K) return '<div class="te-empty">Tax constants not available for ' + yr + '.</div>';
+  let stdAmt = K.standardDeduction[fs] || K.standardDeduction.single;
+  let fsl    = { single: 'Single', mfj: 'Married Filing Jointly', mfs: 'Married Filing Separately', hoh: 'Head of Household', qss: 'Qualifying Surviving Spouse' }[fs] || fs;
+  let a      = r.agiAdjustments || {};
+  let calc   = r._calc || {};
+  let sliAmt = calc.sliDeduction || 0;
+  let hsaAmt = calc.hsaDeduction || 0;
+  let iraAmt = calc.iraDeduction || 0;
+  let sliPo  = (fs === 'mfj') ? K.studentLoanInterest.phaseout.mfj : K.studentLoanInterest.phaseout.single;
+  let isMFS  = (fs === 'mfs');
+  let isMFJ  = (fs === 'mfj');
+  let iraLimit = teFmt(K.ira.limit + (a.iraAge50Plus ? K.ira.catchUp : 0));
 
   return `
     <div class="te-sec-hdr"><h2>Deductions</h2>
-    <p class="te-sec-sub">Reduces AGI to arrive at taxable income &mdash; <span class="te-cite">IRC §63</span></p></div>
+    <p class="te-sec-sub">Reduces gross income to AGI and taxable income &mdash; <span class="te-cite">IRC §62, §63</span></p></div>
 
-    <div class="te-ded-card te-ded-active">
+    <div class="te-subsec-lbl" style="margin-bottom:12px;">Above-the-Line Adjustments <span class="te-cite">IRC §62</span></div>
+
+    <div class="te-ded-card te-ded-active" style="margin-bottom:10px;">
+      <div class="te-ded-card-hdr">
+        <div><div class="te-ded-title">Student Loan Interest <span class="te-cite">IRC §221</span></div></div>
+        <div class="te-ded-amt" id="te-ded-sli-calc">${teFmt(sliAmt)}</div>
+      </div>
+      <div class="te-ded-body">
+        ${isMFS
+          ? '<div class="te-ded-note">Not available for Married Filing Separately. <span class="te-cite">IRC §221(b)(2)(B)</span></div>'
+          : `<div class="te-frow" style="align-items:flex-end;gap:12px;">
+               <div class="te-field-group" style="max-width:180px;">
+                 <label class="te-lbl">Interest Paid in ${yr}</label>
+                 <input type="number" id="te-adj-sli" class="te-input te-mono" value="${esc(String(a.studentLoanInterest||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
+               </div>
+               <div class="te-ded-note" style="flex:1;padding-bottom:4px;">Maximum $2,500. Phase-out: ${teFmt(sliPo.floor)}–${teFmt(sliPo.ceiling)} MAGI. <span class="te-cite">IRC §221(b)(1),(b)(2)</span></div>
+             </div>`}
+      </div>
+    </div>
+
+    <div class="te-ded-card te-ded-active" style="margin-bottom:10px;">
+      <div class="te-ded-card-hdr">
+        <div><div class="te-ded-title">HSA Deduction <span class="te-cite">IRC §223</span></div></div>
+        <div class="te-ded-amt" id="te-ded-hsa-calc">${teFmt(hsaAmt)}</div>
+      </div>
+      <div class="te-ded-body">
+        <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+          <div class="te-field-group" style="max-width:165px;">
+            <label class="te-lbl">Coverage Type</label>
+            <select id="te-adj-hsa-type" class="te-select" onchange="teOnAgiAdj()">
+              <option value="self"   ${a.hsaCoverageType!=='family'?'selected':''}>Self-Only (${teFmt(K.hsa.limitSelf)} limit)</option>
+              <option value="family" ${a.hsaCoverageType==='family'?'selected':''}>Family (${teFmt(K.hsa.limitFamily)} limit)</option>
+            </select>
+          </div>
+          <div class="te-field-group" style="max-width:165px;">
+            <label class="te-lbl">Contributions Made</label>
+            <input type="number" id="te-adj-hsa-contrib" class="te-input te-mono" value="${esc(String(a.hsaContributions||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
+          </div>
+          <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding-bottom:6px;">
+            <input type="checkbox" id="te-adj-hsa-55" ${a.hsaTaxpayerAge55?'checked':''} onchange="teOnAgiAdj()">
+            Age 55+ catch-up (+$1,000) <span class="te-cite">IRC §223(b)(3)(B)</span>
+          </label>
+        </div>
+        <div class="te-ded-note">No income phase-out. Requires qualifying HDHP coverage. Taxpayer certifies eligibility. <span class="te-cite">IRC §223(b)(1)</span></div>
+      </div>
+    </div>
+
+    <div class="te-ded-card te-ded-active" style="margin-bottom:10px;">
+      <div class="te-ded-card-hdr">
+        <div><div class="te-ded-title">Traditional IRA Deduction <span class="te-cite">IRC §219</span></div></div>
+        <div class="te-ded-amt" id="te-ded-ira-calc">${teFmt(iraAmt)}</div>
+      </div>
+      <div class="te-ded-body">
+        <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+          <div class="te-field-group" style="max-width:180px;">
+            <label class="te-lbl">IRA Contributions</label>
+            <input type="number" id="te-adj-ira-contrib" class="te-input te-mono" value="${esc(String(a.iraContributions||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
+          </div>
+          <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding-bottom:6px;">
+            <input type="checkbox" id="te-adj-ira-50" ${a.iraAge50Plus?'checked':''} onchange="teOnAgiAdj()">
+            Age 50+ catch-up (+$1,000) <span class="te-cite">IRC §219(b)(5)(B)</span>
+          </label>
+        </div>
+        <div class="te-frow" style="gap:12px;margin-top:8px;flex-wrap:wrap;">
+          <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="te-adj-ira-active" ${a.iraActiveParticipant?'checked':''} onchange="teOnAgiAdj()">
+            Covered by employer retirement plan <span class="te-cite">IRC §219(g)(2)</span>
+          </label>
+          ${isMFJ ? `
+          <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="te-adj-ira-spouse-active" ${a.iraSpouseActive?'checked':''} onchange="teOnAgiAdj()">
+            Spouse covered by employer plan <span class="te-cite">IRC §219(g)(7)</span>
+          </label>` : ''}
+        </div>
+        <div class="te-ded-note">Limit: ${iraLimit}. Deductibility phases out when covered by an employer plan. <span class="te-cite">IRC §219(g)</span></div>
+      </div>
+    </div>
+
+    <div class="te-stub-sec" style="margin-bottom:20px;">
+      <div class="te-stub-blk">
+        <span class="te-stub-title">SE Tax Deduction <span class="te-cite">IRC §164(f)</span></span>
+        <span class="te-stub-pill">Track 3</span>
+      </div>
+    </div>
+
+    <div class="te-subsec-lbl" style="margin-bottom:12px;">Below-the-Line Deductions <span class="te-cite">IRC §63</span></div>
+
+    <div class="te-ded-card te-ded-active" style="margin-bottom:10px;">
       <div class="te-ded-card-hdr">
         <div>
           <div class="te-ded-title">Standard Deduction — Auto Applied</div>
           <div class="te-ded-cite">IRC §63(c)(2)(A) &mdash; OBBBA P.L. 119-21 &mdash; Source: irs.gov</div>
         </div>
-        <div class="te-ded-amt">${teFmt(amt)}</div>
+        <div class="te-ded-amt" id="te-ded-std-amt">${teFmt(stdAmt)}</div>
       </div>
       <div class="te-ded-body">
         <div class="te-ded-row"><span>Filing Status</span><span>${esc(fsl)}</span></div>
-        <div class="te-ded-row"><span>Standard Deduction (${yr})</span><span>${teFmt(amt)}</span></div>
-        <div class="te-ded-note">The standard deduction is automatically applied. If your Schedule A itemized deductions exceed ${teFmt(amt)}, you may benefit from itemizing (Phase 2).</div>
+        <div class="te-ded-row"><span>Standard Deduction (${yr})</span><span>${teFmt(stdAmt)}</span></div>
+        <div class="te-ded-note">Automatically applied. If Schedule A itemized deductions exceed ${teFmt(stdAmt)}, itemizing may be beneficial (Phase 2, Track 2).</div>
       </div>
     </div>
 
-    <div class="te-stub-sec" style="margin-top:16px;">
+    <div class="te-stub-sec">
       <div class="te-stub-blk te-stub-blk-lg">
         <div>
           <span class="te-stub-title">Itemized Deductions (Schedule A) <span class="te-cite">IRC §63(d)</span></span>
           <div class="te-stub-desc">Mortgage interest (§163), SALT up to $40,000 under OBBBA P.L. 119-21 (§164), charitable contributions (§170), medical expenses &gt; 7.5% AGI (§213)</div>
-        </div>
-        <span class="te-stub-pill">Phase 2</span>
-      </div>
-      <div class="te-stub-blk te-stub-blk-lg">
-        <div>
-          <span class="te-stub-title">Above-the-Line Adjustments <span class="te-cite">IRC §62</span></span>
-          <div class="te-stub-desc">Student loan interest (§221), HSA deduction (§223), IRA deduction (§219), SE tax deduction (§164(f)), alimony (pre-2019 agreements)</div>
         </div>
         <span class="te-stub-pill">Phase 2</span>
       </div>
@@ -847,6 +997,102 @@ function teRmStudent(i) {
 
 
 // ──────────────────────────────────────────────────────────────────────
+//  AGI ADJUSTMENTS — TRACK 1 HANDLERS
+// ──────────────────────────────────────────────────────────────────────
+
+function teOnAgiAdj() {
+  if (!teCurrentReturn) return;
+  if (!teCurrentReturn.agiAdjustments) teCurrentReturn.agiAdjustments = {};
+  let a  = teCurrentReturn.agiAdjustments;
+  let g  = id => { let el = document.getElementById(id); return el ? el.value  : ''; };
+  let gb = id => { let el = document.getElementById(id); return el ? el.checked : false; };
+  a.studentLoanInterest = g('te-adj-sli');
+  a.hsaCoverageType     = g('te-adj-hsa-type') || 'self';
+  a.hsaContributions    = g('te-adj-hsa-contrib');
+  a.hsaTaxpayerAge55    = gb('te-adj-hsa-55');
+  a.iraContributions    = g('te-adj-ira-contrib');
+  a.iraAge50Plus        = gb('te-adj-ira-50');
+  a.iraActiveParticipant = gb('te-adj-ira-active');
+  a.iraSpouseActive     = gb('te-adj-ira-spouse-active');
+  teRecalculate();
+}
+
+// IRC §221 — Student Loan Interest Deduction
+// Source: IRS Publication 970 (irs.gov/publications/p970)
+// MAGI for §221 = gross income minus all OTHER above-the-line adjustments, excluding §221 itself
+// IRC §221(b)(2)(C): MAGI computed without the §221 deduction
+function teCalcSLI(adj, magi, K, fs) {
+  let interest = parseFloat(adj.studentLoanInterest) || 0;
+  if (interest <= 0) return 0;
+  // IRC §221(b)(2)(B): MFS filers are not eligible
+  if (fs === 'mfs') return 0;
+  // IRC §221(b)(1): deduct the lesser of $2,500 or actual interest paid
+  let maxDed = Math.min(interest, K.studentLoanInterest.maxDeduction);
+  // Determine phase-out range by filing status
+  let po = (fs === 'mfj') ? K.studentLoanInterest.phaseout.mfj : K.studentLoanInterest.phaseout.single;
+  if (magi >= po.ceiling) return 0;
+  if (magi <= po.floor)   return maxDed;
+  // IRC §221(b)(2)(A): proportional phase-out reduction
+  let ratio = (magi - po.floor) / (po.ceiling - po.floor);
+  return Math.max(0, Math.round(maxDed * (1 - ratio) * 100) / 100);
+}
+
+// IRC §223 — Health Savings Account (HSA) Deduction
+// Source: IRS Publication 969 (irs.gov/publications/p969); Rev. Proc. 2024-25
+// No income phase-out. Deduction = contributions made, capped at coverage-tier limit.
+function teCalcHSA(adj, K) {
+  let contributions = parseFloat(adj.hsaContributions) || 0;
+  if (contributions <= 0) return 0;
+  let limit = (adj.hsaCoverageType === 'family') ? K.hsa.limitFamily : K.hsa.limitSelf;
+  // IRC §223(b)(3)(B): age 55+ catch-up — statutory $1,000
+  if (adj.hsaTaxpayerAge55) limit += K.hsa.catchUp;
+  return Math.min(contributions, limit);
+}
+
+// IRC §219 — Traditional IRA Deduction
+// Source: IRS.gov newsroom — irs.gov/newsroom/401k-limit-increases-to-23500-for-2025-ira-limit-remains-7000
+// MAGI for §219 = gross income minus all OTHER above-the-line adjustments, excluding §219 itself
+// IRC §219(g)(3): MAGI computed without the §219 deduction
+function teCalcIRA(adj, magi, K, fs) {
+  let contributions = parseFloat(adj.iraContributions) || 0;
+  if (contributions <= 0) return 0;
+  // IRC §219(b)(1): contribution limit (before catch-up)
+  // IRC §219(b)(5)(B): age 50+ catch-up — statutory $1,000
+  let maxContrib = K.ira.limit + (adj.iraAge50Plus ? K.ira.catchUp : 0);
+  let capped     = Math.min(contributions, maxContrib);
+
+  // Determine phase-out range — IRC §219(g)
+  let po = null;
+  if (adj.iraActiveParticipant) {
+    // Taxpayer covered by employer plan — IRC §219(g)(2)
+    if (fs === 'single' || fs === 'hoh' || fs === 'qss') {
+      po = K.ira.phaseout.singleActive;
+    } else if (fs === 'mfj') {
+      po = K.ira.phaseout.mfjActive;
+    } else if (fs === 'mfs') {
+      po = K.ira.phaseout.mfsActive;    // IRC §219(g)(2)(D) — statutory $0–$10,000
+    }
+  } else if (fs === 'mfj' && adj.iraSpouseActive) {
+    // Taxpayer NOT active, spouse IS active — IRC §219(g)(7)
+    po = K.ira.phaseout.mfjSpouseActive;
+  }
+  // Neither active participant: no phase-out — fully deductible
+  if (!po) return capped;
+
+  if (magi >= po.ceiling) return 0;
+  if (magi <= po.floor)   return capped;
+
+  // IRC §219(g)(2)(A): proportional phase-out reduction
+  let ratio   = (magi - po.floor) / (po.ceiling - po.floor);
+  let phased  = capped * (1 - ratio);
+  // IRC §219(g)(2)(C): round UP to nearest $10; minimum $200 if nonzero
+  let rounded = Math.ceil(phased / 10) * 10;
+  if (rounded > 0 && rounded < 200) rounded = 200;
+  return Math.min(rounded, capped);
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
 //  PAYMENTS SECTION
 // ──────────────────────────────────────────────────────────────────────
 
@@ -909,8 +1155,25 @@ function teRecalculate() {
   calc.grossIncome = calc.w2Wages;
 
   // ── Step 2: Above-the-Line Adjustments — IRC §62 ────────────────────
-  // Phase 2: §221 student loan, §223 HSA, §219 IRA, §164(f) SE deduction
-  calc.adjustments = 0;
+  let adj = teCurrentReturn.agiAdjustments || {};
+
+  // §223 HSA: no MAGI phase-out, compute first — Rev. Proc. 2024-25; IRS Pub. 969
+  calc.hsaDeduction = teCalcHSA(adj, K);
+
+  // §221 Student Loan Interest: MAGI = grossIncome − HSA (§221 excluded from own MAGI)
+  // IRC §221(b)(2)(C): MAGI computed without the §221 deduction itself
+  let magiForSLI    = calc.grossIncome - calc.hsaDeduction;
+  calc.sliDeduction = teCalcSLI(adj, magiForSLI, K, fs);
+
+  // §219 Traditional IRA: MAGI = grossIncome − HSA − SLI (§219 excluded from own MAGI)
+  // IRC §219(g)(3): MAGI computed without the §219 deduction itself
+  let magiForIRA    = calc.grossIncome - calc.hsaDeduction - calc.sliDeduction;
+  calc.iraDeduction = teCalcIRA(adj, magiForIRA, K, fs);
+
+  // §164(f) SE Tax Deduction — Track 3 dependency (50% of SE tax under §1401)
+  calc.seTaxDeduction = 0;  // IRC §164(f) — Phase 2, Track 3
+
+  calc.adjustments = calc.hsaDeduction + calc.sliDeduction + calc.iraDeduction + calc.seTaxDeduction;
 
   // ── Step 3: Adjusted Gross Income — IRC §62 ─────────────────────────
   calc.agi = calc.grossIncome - calc.adjustments;
@@ -973,8 +1236,10 @@ function teRecalculate() {
   // Refresh live displays on active sections
   if (teActiveSection === 'credits') { teRenderCTCDetail(); teRenderEduList(); }
   if (teActiveSection === 'deductions') {
-    let da = document.querySelector('.te-ded-amt');
-    if (da) da.textContent = teFmt(calc.stdDed);
+    teM('te-ded-std-amt',  teFmt(calc.stdDed));
+    teM('te-ded-sli-calc', teFmt(calc.sliDeduction));
+    teM('te-ded-hsa-calc', teFmt(calc.hsaDeduction));
+    teM('te-ded-ira-calc', teFmt(calc.iraDeduction));
   }
 }
 
@@ -1101,6 +1366,12 @@ function teCalcEduCredits(r, agi, taxAfterCTC, fs, K) {
 
 function teUpdateMeter(calc, K, fs) {
   teM('te-m-wages',    teFmt(calc.w2Wages));
+  let sliRow = document.getElementById('te-m-sli-row');
+  if (sliRow) { sliRow.style.display = calc.sliDeduction > 0 ? 'flex' : 'none'; teM('te-m-sli', '(' + teFmt(calc.sliDeduction) + ')'); }
+  let hsaRow = document.getElementById('te-m-hsa-row');
+  if (hsaRow) { hsaRow.style.display = calc.hsaDeduction > 0 ? 'flex' : 'none'; teM('te-m-hsa', '(' + teFmt(calc.hsaDeduction) + ')'); }
+  let iraRow = document.getElementById('te-m-ira-row');
+  if (iraRow) { iraRow.style.display = calc.iraDeduction > 0 ? 'flex' : 'none'; teM('te-m-ira', '(' + teFmt(calc.iraDeduction) + ')'); }
   teM('te-m-agi',      teFmt(calc.agi));
   teM('te-m-std',     '(' + teFmt(calc.stdDed) + ')');
   teM('te-m-taxable',  teFmt(calc.taxableIncome));
@@ -1197,6 +1468,38 @@ function teRunFlags(calc, K, fs) {
       flags.push({ type: 'warning', text: 'AGI is within the AOC phase-out range (' + teFmt(lo) + ' – ' + teFmt(hi) + '). Education credit is being reduced.' });
     if (calc.agi > hi)
       flags.push({ type: 'info', text: 'AGI exceeds AOC/LLC phase-out ceiling (' + teFmt(hi) + '). Education credits fully phased out.' });
+  }
+
+  // Student loan interest phase-out
+  let adj = r.agiAdjustments || {};
+  if (parseFloat(adj.studentLoanInterest) > 0 && fs !== 'mfs') {
+    let sliPo  = (fs === 'mfj') ? K.studentLoanInterest.phaseout.mfj : K.studentLoanInterest.phaseout.single;
+    let magiSLI = calc.grossIncome - calc.hsaDeduction;
+    if (magiSLI >= sliPo.ceiling) {
+      flags.push({ type: 'info', text: 'Student loan interest deduction fully phased out. MAGI (' + teFmt(magiSLI) + ') exceeds ' + teFmt(sliPo.ceiling) + ' ceiling.' });
+    } else if (magiSLI > sliPo.floor) {
+      flags.push({ type: 'warning', text: 'Student loan interest deduction is being reduced. MAGI (' + teFmt(magiSLI) + ') is within the ' + teFmt(sliPo.floor) + '–' + teFmt(sliPo.ceiling) + ' phase-out range.' });
+    }
+  }
+
+  // IRA deduction phase-out
+  if (parseFloat(adj.iraContributions) > 0 && (adj.iraActiveParticipant || (fs === 'mfj' && adj.iraSpouseActive))) {
+    let magiIRA = calc.grossIncome - calc.hsaDeduction - calc.sliDeduction;
+    let po      = null;
+    if (adj.iraActiveParticipant) {
+      if (fs === 'single' || fs === 'hoh' || fs === 'qss') po = K.ira.phaseout.singleActive;
+      else if (fs === 'mfj') po = K.ira.phaseout.mfjActive;
+      else if (fs === 'mfs') po = K.ira.phaseout.mfsActive;
+    } else if (fs === 'mfj' && adj.iraSpouseActive) {
+      po = K.ira.phaseout.mfjSpouseActive;
+    }
+    if (po) {
+      if (magiIRA >= po.ceiling) {
+        flags.push({ type: 'info', text: 'Traditional IRA deduction fully phased out. MAGI (' + teFmt(magiIRA) + ') exceeds ' + teFmt(po.ceiling) + ' limit. Consider Roth IRA if eligible.' });
+      } else if (magiIRA > po.floor) {
+        flags.push({ type: 'warning', text: 'Traditional IRA deduction partially reduced. MAGI (' + teFmt(magiIRA) + ') is within the ' + teFmt(po.floor) + '–' + teFmt(po.ceiling) + ' phase-out range. Deductible: ' + teFmt(calc.iraDeduction) + '.' });
+      }
+    }
   }
 
   // Standard deduction note
@@ -1304,6 +1607,7 @@ function teSerialize(r) {
     w2:                r.w2                || [],
     deductionType:     r.deductionType     || 'standard',
     educationStudents: r.educationStudents || [],
+    agiAdjustments:    r.agiAdjustments    || { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false },
     annotations:       r.annotations       || [],
     completedSections: r.completedSections || []
   };
@@ -1316,6 +1620,7 @@ function teDeserialize(data) {
   if (!r.dependents)        r.dependents        = [];
   if (!r.w2)                r.w2                = [];
   if (!r.educationStudents) r.educationStudents = [];
+  if (!r.agiAdjustments)   r.agiAdjustments    = { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false };
   if (!r.annotations)       r.annotations       = [];
   return r;
 }

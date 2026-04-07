@@ -509,10 +509,22 @@
 
             <!-- Calculation Chain -->
             <div class="te-meter-body">
-              <div class="te-meter-section-lbl">Income</div>
+              <div class="te-meter-section-lbl">Income &amp; Adjustments</div>
               <div class="te-meter-line">
                 <span class="te-meter-key">W-2 Wages</span>
                 <span class="te-meter-val" id="te-m-wages">—</span>
+              </div>
+              <div class="te-meter-line" id="te-m-sli-row" style="display:none;">
+                <span class="te-meter-key">Student Loan Int.</span>
+                <span class="te-meter-val te-meter-sub" id="te-m-sli">—</span>
+              </div>
+              <div class="te-meter-line" id="te-m-hsa-row" style="display:none;">
+                <span class="te-meter-key">HSA Deduction</span>
+                <span class="te-meter-val te-meter-sub" id="te-m-hsa">—</span>
+              </div>
+              <div class="te-meter-line" id="te-m-ira-row" style="display:none;">
+                <span class="te-meter-key">IRA Deduction</span>
+                <span class="te-meter-val te-meter-sub" id="te-m-ira">—</span>
               </div>
               <div class="te-meter-line te-meter-line-total">
                 <span class="te-meter-key">AGI</span>
