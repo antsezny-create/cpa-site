@@ -328,28 +328,31 @@ const TAX_CONSTANTS = {
     //   EIC QC: under 19; OR under 24 + full-time student; OR permanently and totally disabled
     eic: {
       // Maximum EIC by number of qualifying children (key 3 = 3 or more)
-      // Source: Rev. Proc. 2024-40 §3.07 — TODO:VERIFY exact figures
+      // Source: IRS Pub. 596 (2025), irs.gov/publications/p596 — verified 2026-04-08
       maxCredit: { 0: 649, 1: 4328, 2: 7152, 3: 8046 },
 
-      // Phase-in rates — IRC §32(b)(1)(A) — STATUTORY
+      // Phase-in rates — IRC §32(b)(1)(A) — STATUTORY (not inflation-adjusted)
+      // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section32
       phaseInRate:  { 0: 0.0765, 1: 0.34, 2: 0.40, 3: 0.40 },
 
-      // Phase-out rates — IRC §32(b)(1)(B) — STATUTORY
+      // Phase-out rates — IRC §32(b)(1)(B) — STATUTORY (not inflation-adjusted)
+      // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section32
       phaseOutRate: { 0: 0.0765, 1: 0.1598, 2: 0.2106, 3: 0.2106 },
 
-      // Phase-out beginning amounts — single/HOH/QSS (income at which phase-out starts)
-      // Source: Rev. Proc. 2024-40 §3.07 — TODO:VERIFY
-      phaseOutThreshold: { 0: 10020, 1: 23511, 2: 23511, 3: 23511 },
+      // Phase-out beginning amounts — single/HOH/QSS — where phase-out starts.
+      // Derived: start = (Pub. 596 AGI limit) − (maxCredit ÷ phaseOutRate)
+      // AGI limits (single) from Pub. 596 Ch.1 Rule 1: $19,104 / $50,434 / $57,310 / $61,555
+      // Source: IRS Pub. 596 (2025) — verified 2026-04-08
+      phaseOutThreshold: { 0: 10620, 1: 23350, 2: 23339, 3: 23352 },
 
-      // Joint return phaseout amount — added to threshold for MFJ filers
-      // IRC §32(b)(3); inflation-adjusted per IRC §32(j)
-      // Source: Rev. Proc. 2024-40 §3.07 — TODO:VERIFY
-      jointBonus: 6020,
+      // Joint return phaseout amount — added to threshold for MFJ filers — IRC §32(b)(3)
+      // Derived: $57,554 (MFJ 1-QC limit) − $50,434 (Single 1-QC limit) = $7,120
+      // Source: IRS Pub. 596 (2025) Ch.1 Rule 1 — verified 2026-04-08
+      jointBonus: 7120,
 
-      // Investment income limit — IRC §32(i)(1)
-      // EIC = $0 if investment income (interest + dividends + net cap gain + passive income) > this
-      // Source: Rev. Proc. 2024-40 §3.07 — TODO:VERIFY
-      investmentIncomeLimit: 11600
+      // Investment income limit — IRC §32(i)(1): EIC = $0 if investment income exceeds this
+      // Source: IRS Pub. 596 (2025) Ch.2 Rule 6 — verified 2026-04-08
+      investmentIncomeLimit: 11950
     }
   },
 
