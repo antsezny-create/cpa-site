@@ -19,12 +19,12 @@
 //  Amended by: One Big Beautiful Bill Act, P.L. 119-21 (July 4, 2025)
 //
 //  CONSTANTS AUDIT
-//  Last verified: 2026-04-06
+//  Last verified: 2026-04-07
 //  2025: Fully confirmed — Rev. Proc. 2024-40; OBBBA P.L. 119-21
 //  2026: Mostly confirmed — Rev. Proc. 2025-32; IRS newsroom announcements
-//  2026 PENDING: SLI MFJ phase-out range (IRS Pub. 970 not yet updated for 2026);
-//    HOH brackets (Rev. Proc. 2025-32 could not be directly parsed);
-//    SS wage base (SSA returned 403); Business mileage rate (IRS notice inaccessible)
+//  2026 PENDING: SS wage base (SSA returned 403); Business mileage rate (IRS notice inaccessible)
+//  2026 RESOLVED (2026-04-07): HOH brackets confirmed vs. Rev. Proc. 2025-32 (IRB 2025-45) — values were correct.
+//    SLI MFJ phase-out — Rev. Proc. 2025-32 §4.29: updated to $175,000–$205,000.
 // ──────────────────────────────────────────────────────────────────────
 
 const TAX_CONSTANTS = {
@@ -305,7 +305,8 @@ const TAX_CONSTANTS = {
         [384350,   0.35],
         [Infinity, 0.37]
       ],
-      // TODO: VERIFY — HOH brackets from IRS newsroom summary; Rev. Proc. 2025-32 PDF not parsed
+      // HOH brackets — Source: Rev. Proc. 2025-32 §4 Table 2, via IRB 2025-45 (irs.gov/irb/2025-45_IRB)
+      // Verified 2026-04-07. HOH has distinct brackets — NOT equal to MFJ.
       hoh: [
         [17700,    0.10],
         [67450,    0.12],
@@ -349,9 +350,9 @@ const TAX_CONSTANTS = {
     studentLoanInterest: {
       maxDeduction: 2500,  // IRC §221(b)(1) — statutory
       phaseout: {
-        // TODO: PENDING — IRS Pub. 970 not yet updated for 2026. Carrying 2025 values.
-        single: { floor: 85000,  ceiling: 100000 },
-        mfj:    { floor: 170000, ceiling: 200000 }
+        // Source: Rev. Proc. 2025-32 §4.29 (IRB 2025-45) — verified 2026-04-07
+        single: { floor: 85000,  ceiling: 100000 },  // Unchanged from 2025
+        mfj:    { floor: 175000, ceiling: 205000 }   // Updated from 2025 ($170K–$200K)
       }
     },
 
