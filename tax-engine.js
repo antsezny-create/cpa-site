@@ -1126,7 +1126,7 @@ function teRenderPersonal() {
       </div>
       <div class="te-field-group">
         <label class="te-lbl">Date of Birth</label>
-        <input type="date" id="te-tp-dob" class="te-input" value="${esc(tp.dob||'')}" onchange="teOnField()">
+        <input type="text" id="te-tp-dob" class="te-input" value="${esc(tp.dob||'')}" placeholder="YYYY-MM-DD" oninput="teOnField()">
       </div>
     </div>
 
@@ -1147,7 +1147,7 @@ function teRenderPersonal() {
         </div>
         <div class="te-field-group">
           <label class="te-lbl">Date of Birth</label>
-          <input type="date" id="te-sp-dob" class="te-input" value="${esc(sp.dob||'')}" onchange="teOnField()">
+          <input type="text" id="te-sp-dob" class="te-input" value="${esc(sp.dob||'')}" placeholder="YYYY-MM-DD" oninput="teOnField()">
         </div>
       </div>
     </div>
@@ -1210,7 +1210,7 @@ function teRenderDepsList() {
         <div class="te-dep-row">
           <input type="text" class="te-input te-dep-in" value="${esc(d.firstName||'')}" placeholder="First" oninput="teUpdDep(${i},'firstName',this.value)">
           <input type="text" class="te-input te-dep-in" value="${esc(d.lastName||'')}"  placeholder="Last"  oninput="teUpdDep(${i},'lastName',this.value)">
-          <input type="date" class="te-input te-dep-in" value="${esc(d.dob||'')}" onchange="teUpdDep(${i},'dob',this.value)">
+          <input type="text" class="te-input te-dep-in" value="${esc(d.dob||'')}" placeholder="YYYY-MM-DD" oninput="teUpdDep(${i},'dob',this.value)">
           <select class="te-select te-dep-in" onchange="teUpdDep(${i},'relationship',this.value)">
             <option value="child"     ${d.relationship==='child'    ?'selected':''}>Child</option>
             <option value="stepchild" ${d.relationship==='stepchild'?'selected':''}>Stepchild</option>
@@ -2841,7 +2841,7 @@ function teRecalculate() {
   teRunFlags(calc, K, fs);
 
   // Refresh live displays on active sections
-  if (teActiveSection === 'credits') { teRenderCTCDetail(); teRenderEduList(); teRenderEICSection(); teRenderCDCCSection(); teRenderSaversSection(); teRenderEnergySection(); }
+  if (teActiveSection === 'credits') { teRenderCTCDetail(); teFocusSafe(teRenderEduList); teRenderEICSection(); teFocusSafe(teRenderCDCCSection); teFocusSafe(teRenderSaversSection); teFocusSafe(teRenderEnergySection); }
   if (teActiveSection === 'income') {
     let scEl = document.getElementById('te-sc-netprofit');
     if (!scEl) { teRenderW2List(); }  // full re-render only if SC input gone
@@ -3837,6 +3837,31 @@ function teUpdateMeter(calc, K, fs) {
 }
 
 function teM(id, val) { let e = document.getElementById(id); if (e) e.textContent = val; }
+
+// Preserves keyboard focus and cursor position across a full innerHTML re-render.
+// Saves the active element's oninput/onchange attribute before calling renderFn(),
+// then after rendering finds the matching element by that attribute and restores focus.
+function teFocusSafe(renderFn) {
+  let ae       = document.activeElement;
+  let oninput  = ae ? (ae.getAttribute('oninput') || ae.getAttribute('onchange')) : null;
+  let isText   = ae && (ae.type === 'text' || ae.type === 'number');
+  let selStart = null, selEnd = null;
+  if (isText && oninput) {
+    try { selStart = ae.selectionStart; selEnd = ae.selectionEnd; } catch(e) {}
+  }
+
+  renderFn();
+
+  if (oninput) {
+    let sel      = '[oninput="' + oninput.replace(/"/g, '\\"') + '"]';
+    let restored = document.querySelector(sel)
+                || document.querySelector('[onchange="' + oninput.replace(/"/g, '\\"') + '"]');
+    if (restored) {
+      restored.focus();
+      if (selStart !== null) try { restored.setSelectionRange(selStart, selEnd); } catch(e) {}
+    }
+  }
+}
 
 
 // ──────────────────────────────────────────────────────────────────────
