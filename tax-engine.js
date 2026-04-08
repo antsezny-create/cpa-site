@@ -2178,6 +2178,90 @@ function teRenderEstimatedPayments() {
     </div>`;
 }
 
+function teRenderAddlTaxes() {
+  let r    = teCurrentReturn;
+  let calc = (r && r._calc) || {};
+  let fs   = (r && r.filingStatus) || 'single';
+  let yr   = r ? (r.taxYear || teActiveYear) : teActiveYear;
+  let K    = TAX_CONSTANTS[yr];
+  if (!K || !K.addlMedicare) return '<div class="te-empty">Enter income data to calculate.</div>';
+
+  let amThr   = K.addlMedicare.threshold[fs]  || K.addlMedicare.threshold.single;
+  let niitThr = K.niit.threshold[fs]           || K.niit.threshold.single;
+  let earned  = teRound((calc.w2Wages || 0) + (calc.netSEIncome || 0));
+  let amExcess = teRound(Math.max(0, earned - amThr));
+  let niitExcess = teRound(Math.max(0, (calc.agi || 0) - niitThr));
+  let nii     = calc.netInvestmentIncome || 0;
+  let niitBase = teRound(Math.min(nii, niitExcess));
+
+  let row = (label, val, cls='') =>
+    `<div class="te-ctc-row${cls ? ' ' + cls : ''}"><span>${label}</span><span>${val}</span></div>`;
+
+  // Additional Medicare Tax table
+  let amTriggered = amExcess > 0;
+  let amHtml = `
+    <div class="te-ctc-tbl" style="margin-top:8px;">
+      ${row('W-2 Wages', teFmt(calc.w2Wages || 0))}
+      ${(calc.netSEIncome || 0) > 0 ? row('+ SE Income (Sch. C)', teFmt(calc.netSEIncome)) : ''}
+      ${row('= Total Earned Income', teFmt(earned), 'te-ctc-sub')}
+      ${row('− Threshold (' + ({single:'Single',mfj:'MFJ',mfs:'MFS',hoh:'HOH',qss:'QSS'}[fs]||fs) + ')', '(' + teFmt(amThr) + ')', 'te-ctc-sub')}
+      ${amTriggered
+        ? row('= Taxable Excess', teFmt(amExcess), 'te-ctc-sub')
+          + row('× Rate', '0.9%', 'te-ctc-sub')
+          + row('Additional Medicare Tax', teFmt(calc.addlMedicareTax || 0), 'te-ctc-tot')
+        : row('= Taxable Excess', '$0 — below threshold', 'te-ctc-ok')
+          + row('Additional Medicare Tax', '$0', 'te-ctc-tot')}
+    </div>
+    <div class="te-ded-note" style="margin-top:4px;">Applies to wages and SE income only — investment income is covered by NIIT. Threshold is statutory (not inflation-adjusted). <span class="te-cite">IRC §3101(b)(2); IRC §3102(f)</span></div>`;
+
+  // NIIT table
+  let nonQD = teRound((calc.ordinaryDividends || 0) - (calc.qualifiedDividends || 0));
+  let niitTriggered = niitBase > 0;
+  let niitHtml = `
+    <div class="te-ctc-tbl" style="margin-top:8px;">
+      ${(calc.interestIncome || 0) > 0     ? row('Interest Income', teFmt(calc.interestIncome)) : row('Interest Income', '$0')}
+      ${(calc.ordinaryDividends || 0) > 0
+        ? row('+ Dividends (' + teFmt(calc.qualifiedDividends||0) + ' qualified / ' + teFmt(nonQD) + ' ordinary)', teFmt(calc.ordinaryDividends || 0))
+        : row('+ Dividends', '$0')}
+      ${(calc.scheduleDNet || 0) > 0      ? row('+ Net Capital Gain (Sch. D)', teFmt(calc.scheduleDNet)) : ''}
+      ${(calc.scheduleEPassive || 0) > 0  ? row('+ Passive K-1 Income (Sch. E)', teFmt(calc.scheduleEPassive)) : ''}
+      ${(calc.investmentInterestAllowed || 0) > 0 ? row('− Investment Interest §163(d)', '(' + teFmt(calc.investmentInterestAllowed) + ')') : ''}
+      ${row('= Net Investment Income (NII)', teFmt(nii), 'te-ctc-sub')}
+      <div class="te-ctc-row" style="margin-top:6px;"></div>
+      ${row('MAGI', teFmt(calc.agi || 0))}
+      ${row('− Threshold (' + ({single:'Single',mfj:'MFJ',mfs:'MFS',hoh:'HOH',qss:'QSS'}[fs]||fs) + ')', '(' + teFmt(niitThr) + ')')}
+      ${niitExcess > 0 ? row('= MAGI Excess', teFmt(niitExcess), 'te-ctc-sub') : row('= MAGI Excess', '$0 — below threshold', 'te-ctc-ok')}
+      ${niitTriggered
+        ? row('Lesser of NII / MAGI Excess', teFmt(niitBase), 'te-ctc-sub')
+          + row('× Rate', '3.8%', 'te-ctc-sub')
+          + row('Net Investment Income Tax', teFmt(calc.niit || 0), 'te-ctc-tot')
+        : row('NIIT', '$0 — ' + (nii === 0 ? 'no net investment income' : 'MAGI below threshold'), 'te-ctc-tot')}
+    </div>
+    <div class="te-ded-note" style="margin-top:4px;">NII excludes SE income and non-passive K-1 income (active trade or business). MAGI = AGI for domestic taxpayers. Threshold is statutory. <span class="te-cite">IRC §1411(c)(1); IRC §1411(b)</span></div>`;
+
+  return `
+    <div class="te-adj-row${amTriggered ? ' te-adj-open' : ''}" id="te-adj-row-am">
+      <div class="te-adj-row-hdr" onclick="teToggleAdj('am')">
+        <span class="te-adj-row-label">Additional Medicare Tax <span class="te-cite">IRC §3101(b)(2)</span></span>
+        <span class="te-adj-row-val ${amTriggered ? '' : 'te-adj-val-zero'}">${teFmt(calc.addlMedicareTax || 0)}</span>
+        <span class="te-adj-chevron">&#8250;</span>
+      </div>
+      <div class="te-adj-body" id="te-adj-body-am" style="display:${amTriggered ? 'block' : 'none'};">
+        ${amHtml}
+      </div>
+    </div>
+    <div class="te-adj-row${niitTriggered ? ' te-adj-open' : ''}" id="te-adj-row-niit">
+      <div class="te-adj-row-hdr" onclick="teToggleAdj('niit')">
+        <span class="te-adj-row-label">Net Investment Income Tax (NIIT) <span class="te-cite">IRC §1411</span></span>
+        <span class="te-adj-row-val ${niitTriggered ? '' : 'te-adj-val-zero'}">${teFmt(calc.niit || 0)}</span>
+        <span class="te-adj-chevron">&#8250;</span>
+      </div>
+      <div class="te-adj-body" id="te-adj-body-niit" style="display:${niitTriggered ? 'block' : 'none'};">
+        ${niitHtml}
+      </div>
+    </div>`;
+}
+
 function teRenderPayments() {
   let w2s   = teCurrentReturn.w2 || [];
   let total = w2s.reduce((s, w) => s + (parseFloat(w.federalWithheld)||0), 0);
@@ -2202,6 +2286,12 @@ function teRenderPayments() {
       <div class="te-subsec-lbl">Estimated Tax Payments (Form 1040-ES) <span class="te-cite">IRC §6654</span></div>
       <div class="te-subsec-desc">Quarterly estimated payments. Self-employed individuals must pay quarterly to avoid underpayment penalties.</div>
       ${teRenderEstimatedPayments()}
+    </div>
+
+    <div class="te-subsec" style="margin-top:20px;">
+      <div class="te-subsec-lbl">Additional Taxes <span class="te-cite">IRC §3101(b)(2), §1411</span></div>
+      <div class="te-subsec-desc">Surtaxes computed automatically from income entries. Expand each to verify the calculation.</div>
+      <div id="te-addl-taxes-panel">${teRenderAddlTaxes()}</div>
     </div>
 
     <div class="te-stub-sec" style="margin-top:16px;">
@@ -2506,6 +2596,8 @@ function teRecalculate() {
     teM('te-ep-total', teFmt(calc.estPayments));
     let epTotal = document.querySelector('.te-total-val');
     if (epTotal) epTotal.textContent = teFmt(calc.estPayments);
+    let addlPanel = document.getElementById('te-addl-taxes-panel');
+    if (addlPanel) addlPanel.innerHTML = teRenderAddlTaxes();
   }
   if (teActiveSection === 'deductions') {
     teM('te-ded-std-amt',      teFmt(calc.stdDed));
