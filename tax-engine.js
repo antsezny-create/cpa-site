@@ -1072,6 +1072,9 @@ function teSwitchSection(section) {
     teRenderCTCDetail();
     teRenderEduList();
     teRenderEICSection();
+    teRenderCDCCSection();
+    teRenderSaversSection();
+    teRenderEnergySection();
   } else if (section === 'payments') {
     body.innerHTML = teRenderPayments();
   }
