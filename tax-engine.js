@@ -1210,7 +1210,7 @@ function teRenderDepsList() {
         <div class="te-dep-row">
           <input type="text" class="te-input te-dep-in" value="${esc(d.firstName||'')}" placeholder="First" oninput="teUpdDep(${i},'firstName',this.value)">
           <input type="text" class="te-input te-dep-in" value="${esc(d.lastName||'')}"  placeholder="Last"  oninput="teUpdDep(${i},'lastName',this.value)">
-          <input type="date" lang="en-GB" class="te-input te-dep-in" value="${esc(d.dob||'')}" onchange="teUpdDep(${i},'dob',this.value)">
+          <input type="date" lang="en-GB" class="te-input te-dep-in" value="${esc(d.dob||'')}" min="1900-01-01" max="${new Date().toISOString().slice(0,10)}" onchange="teUpdDep(${i},'dob',this.value)">
           <select class="te-select te-dep-in" onchange="teUpdDep(${i},'relationship',this.value)">
             <option value="child"     ${d.relationship==='child'    ?'selected':''}>Child</option>
             <option value="stepchild" ${d.relationship==='stepchild'?'selected':''}>Stepchild</option>
@@ -1249,7 +1249,11 @@ function teUpdDep(i, field, val) {
   if (!teCurrentReturn.dependents[i]) return;
   teMarkDirty();
   teCurrentReturn.dependents[i][field] = val;
-  if (field === 'dob' || field === 'isFullTimeStudent' || field === 'isPermanentlyDisabled') teFocusSafe(teRenderDepsList);
+  if (field === 'isFullTimeStudent' || field === 'isPermanentlyDisabled') teFocusSafe(teRenderDepsList);
+  if (field === 'dob') {
+    let lbl = document.querySelector('label[for="te-qc-' + i + '"]');
+    if (lbl) lbl.innerHTML = val ? (teIsUnder17(val, teCurrentReturn.taxYear) ? '<span style="color:var(--green)">✓</span>' : '<span style="color:var(--orange)">17+</span>') : '';
+  }
   teRecalculate();
 }
 
