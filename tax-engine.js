@@ -253,6 +253,60 @@ const TAX_CONSTANTS = {
       // Social Security wage base — applies to combined W-2 wages + SE earnings
       // Source: SSA announcement Oct 2024; confirmed IRS Tax Topic 751
       ssTaxWageBase: 176100     // 2025 — SSA / IRS Tax Topic 751
+    },
+
+    // ── TRACK 4: Investment Income Constants (2025) ───────────────────────
+
+    // IRC §1(h) — Preferential rates for qualified dividends and LTCG
+    // Thresholds are TAXABLE INCOME breakpoints (not AGI)
+    // Source: IRS Topic 409 (irs.gov/taxtopics/tc409); Rev. Proc. 2024-40, §3.03
+    capitalGains: {
+      zeroRateCeiling: {
+        single: 48350,
+        mfj:    96700,
+        mfs:    48350,
+        hoh:    64750,
+        qss:    96700   // QSS uses MFJ threshold — IRC §2(a)
+      },
+      fifteenRateCeiling: {
+        single: 533400,
+        mfj:    600050,
+        mfs:    300000,
+        hoh:    566700,
+        qss:    600050  // QSS uses MFJ threshold — IRC §2(a)
+      },
+      // IRC §1211(b) — Annual net capital loss deduction cap (statutory)
+      netLossDeductionCap: 3000
+    },
+
+    // IRC §1411 — Net Investment Income Tax (NIIT)
+    // Rate: 3.8% statutory — IRC §1411(a)(1)
+    // Thresholds: STATUTORY — IRC §1411(b)(1),(2) — not inflation-adjusted
+    // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section1411
+    niit: {
+      rate: 0.038,
+      threshold: {
+        single: 200000,
+        mfj:    250000,
+        mfs:    125000,
+        hoh:    200000,
+        qss:    250000
+      }
+    },
+
+    // IRC §3101(b)(2) — Additional Medicare Tax (0.9%)
+    // Applies to wages + SE income above threshold — NOT investment income (that is NIIT)
+    // Rate: 0.9% statutory — IRC §3101(b)(2); Thresholds: statutory — IRC §3102(f)
+    // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section3101
+    addlMedicare: {
+      rate: 0.009,
+      threshold: {
+        single: 200000,
+        mfj:    250000,
+        mfs:    125000,
+        hoh:    200000,
+        qss:    250000
+      }
     }
   },
 
@@ -417,6 +471,52 @@ const TAX_CONSTANTS = {
       medicareTaxRate: 0.029,   // IRC §1401(b): 2.9%
       // Social Security wage base 2026 — confirmed IRS Tax Topic 751 (irs.gov/taxtopics/tc751)
       ssTaxWageBase: 184500     // 2026 — IRS Tax Topic 751
+    },
+
+    // ── TRACK 4: Investment Income Constants (2026) ───────────────────────
+
+    // IRC §1(h) — Preferential rates for qualified dividends and LTCG
+    // Source: Rev. Proc. 2025-32 §4.03, via IRB 2025-45 — verified 2026-04-07
+    capitalGains: {
+      zeroRateCeiling: {
+        single: 49450,
+        mfj:    98900,
+        mfs:    49450,
+        hoh:    66200,
+        qss:    98900   // QSS uses MFJ threshold — IRC §2(a)
+      },
+      fifteenRateCeiling: {
+        single: 545500,
+        mfj:    613700,
+        mfs:    306850,
+        hoh:    579600,
+        qss:    613700  // QSS uses MFJ threshold — IRC §2(a)
+      },
+      netLossDeductionCap: 3000  // IRC §1211(b) — statutory
+    },
+
+    // IRC §1411 — NIIT (statutory thresholds — same as 2025)
+    niit: {
+      rate: 0.038,
+      threshold: {
+        single: 200000,
+        mfj:    250000,
+        mfs:    125000,
+        hoh:    200000,
+        qss:    250000
+      }
+    },
+
+    // IRC §3101(b)(2) — Additional Medicare Tax (statutory thresholds — same as 2025)
+    addlMedicare: {
+      rate: 0.009,
+      threshold: {
+        single: 200000,
+        mfj:    250000,
+        mfs:    125000,
+        hoh:    200000,
+        qss:    250000
+      }
     }
   }
 };
@@ -457,6 +557,24 @@ function teEmptyReturn(clientId, clientName, taxYear) {
     },
     estimatedPayments: {
       q1: '', q2: '', q3: '', q4: ''  // Form 1040-ES — IRC §6654
+    },
+    // ── Track 4: Investment Income ─────────────────────────────────────
+    schedule1099: {
+      interestIncome:    '',   // 1099-INT — IRC §61(a)(4)
+      ordinaryDividends: '',   // 1099-DIV Box 1a — IRC §61(a)(7)
+      qualifiedDividends:''    // 1099-DIV Box 1b — IRC §1(h)(11); must be ≤ ordinaryDividends
+    },
+    scheduleD: {
+      netSTCG:              '', // Net short-term capital gain/(loss) — IRC §1222(5),(6)
+      netLTCG:              '', // Net long-term capital gain/(loss) — IRC §1222(7),(8)
+      priorYearCarryforward:''  // Prior year capital loss carryforward — IRC §1212(b)
+    },
+    scheduleE: [],              // Array of pass-through entities — IRC §702, §1366
+                                // Each: { name:'', ein:'', incomeAmount:'', isPassive:true }
+    investmentInterest: {
+      expense:              '',  // Investment interest expense — IRC §163(d)
+      priorYearCarryforward:'', // §163(d)(2) — prior year excess carries forward
+      includeQDinNII:       false // §163(d)(4)(B) election — include QDs in NII cap (rare)
     },
     agiAdjustments: {
       studentLoanInterest: '',
@@ -750,6 +868,7 @@ function teSwitchSection(section) {
   } else if (section === 'income') {
     body.innerHTML = teRenderIncome();
     teRenderW2List();
+    teRenderScheduleEList();
   } else if (section === 'deductions') {
     body.innerHTML = teRenderDeductions();
   } else if (section === 'credits') {
@@ -961,12 +1080,31 @@ function teRenderIncome() {
       ${teRenderScheduleC()}
     </div>
 
+    <div class="te-subsec" style="margin-top:20px;">
+      <div class="te-subsec-lbl">1099-INT &amp; 1099-DIV — Interest &amp; Dividend Income <span class="te-cite">IRC §61(a)(4),(7)</span></div>
+      <div class="te-subsec-desc">Interest income (1099-INT) and dividends (1099-DIV). Qualified dividends receive preferential 0%/15%/20% rates. <span class="te-cite">IRC §1(h)(11)</span></div>
+      ${teRender1099()}
+    </div>
+
+    <div class="te-subsec" style="margin-top:20px;">
+      <div class="te-subsec-lbl">Schedule D — Capital Gains &amp; Losses <span class="te-cite">IRC §1221, §1222</span></div>
+      <div class="te-subsec-desc">Enter net figures by holding period. Long-term gains (held &gt;1 year) taxed at preferential rates. Net losses deductible up to $3,000/year; excess carries forward. <span class="te-cite">IRC §1211(b), §1212(b)</span></div>
+      ${teRenderScheduleD()}
+    </div>
+
+    <div class="te-subsec" style="margin-top:20px;">
+      <div class="te-subsec-row">
+        <div>
+          <div class="te-subsec-lbl">Schedule E — Pass-Through &amp; K-1 Income <span class="te-cite">IRC §702, §1366</span></div>
+          <div class="te-subsec-desc">Partnership, S-Corp, trust, and estate K-1 income/loss. Passive losses are suspended until offset by passive income. <span class="te-cite">IRC §469</span></div>
+        </div>
+        <button class="ghost-btn te-sm-btn" onclick="teAddScheduleE()">+ Add Entity</button>
+      </div>
+      <div id="te-sche-list"></div>
+    </div>
+
     <div class="te-stub-sec" style="margin-top:8px;">
-      <div class="te-stub-blk"><span class="te-stub-title">1099-INT / Interest Income <span class="te-cite">IRC §61(a)(4)</span></span><span class="te-stub-pill">Track 4</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">1099-DIV / Qualified Dividends <span class="te-cite">IRC §61(a)(7), §1(h)</span></span><span class="te-stub-pill">Track 4</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">Schedule D / Capital Gains &amp; Losses <span class="te-cite">IRC §1221, §1222</span></span><span class="te-stub-pill">Track 4</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">Schedule E / Rental &amp; K-1 Income <span class="te-cite">IRC §212, §702</span></span><span class="te-stub-pill">Track 4</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">Other Income (Prizes, Gambling, etc.) <span class="te-cite">IRC §61(a)</span></span><span class="te-stub-pill">Track 4</span></div>
+      <div class="te-stub-blk"><span class="te-stub-title">Other Income (Alimony Received, Prizes, Gambling, etc.) <span class="te-cite">IRC §61(a)</span></span><span class="te-stub-pill">Track 5</span></div>
     </div>`;
 }
 
@@ -1026,6 +1164,117 @@ function teRmW2(i) {
 }
 
 
+function teRender1099() {
+  let r    = teCurrentReturn;
+  let inv  = (r && r.schedule1099) || {};
+  let calc = (r && r._calc)        || {};
+  let hasInt = calc.interestIncome    > 0;
+  let hasDiv = calc.ordinaryDividends > 0;
+  return `
+    <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:8px;">
+      <div class="te-field-group" style="max-width:200px;">
+        <label class="te-lbl">Total Interest Income <span class="te-cite">IRC §61(a)(4)</span></label>
+        <input type="number" id="te-1099-int" class="te-input te-mono"
+          value="${esc(String(inv.interestIncome||''))}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOn1099()">
+      </div>
+      <div class="te-field-group" style="max-width:200px;">
+        <label class="te-lbl">Ordinary Dividends (Box 1a) <span class="te-cite">IRC §61(a)(7)</span></label>
+        <input type="number" id="te-1099-div-ord" class="te-input te-mono"
+          value="${esc(String(inv.ordinaryDividends||''))}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOn1099()">
+      </div>
+      <div class="te-field-group" style="max-width:200px;">
+        <label class="te-lbl">Qualified Dividends (Box 1b) <span class="te-cite">IRC §1(h)(11)</span></label>
+        <input type="number" id="te-1099-div-qual" class="te-input te-mono"
+          value="${esc(String(inv.qualifiedDividends||''))}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOn1099()">
+      </div>
+    </div>
+    ${(hasInt || hasDiv) ? `
+    <div class="te-ded-note" style="margin-top:6px;">
+      ${hasInt ? 'Interest: ' + teFmt(calc.interestIncome) + ' (ordinary rates)' : ''}
+      ${hasInt && hasDiv ? ' &nbsp;|&nbsp; ' : ''}
+      ${hasDiv ? 'Dividends: ' + teFmt(calc.ordinaryDividends) + ' total — '
+        + teFmt(calc.qualifiedDividends) + ' qualified (preferential rate), '
+        + teFmt(calc.ordinaryDividends - calc.qualifiedDividends) + ' non-qualified (ordinary rate)' : ''}
+      ${calc.qdltcg > 0 ? ' &nbsp;|&nbsp; <strong>' + teFmt(calc.qdltcg) + '</strong> total in preferential rate pool' : ''}
+    </div>` : ''}
+    <div class="te-ded-note" style="margin-top:4px;">Qualified dividends must not exceed ordinary dividends (Box 1b ≤ Box 1a). The engine enforces this automatically. <span class="te-cite">IRC §1(h)(11)(B)</span></div>`;
+}
+
+function teRenderScheduleD() {
+  let r    = teCurrentReturn;
+  let sd   = (r && r.scheduleD) || {};
+  let calc = (r && r._calc)     || {};
+  let hasD = calc.scheduleDCombined !== 0 || calc.netSTCG !== 0 || calc.netLTCG !== 0;
+  let isLoss  = calc.scheduleDCombined < 0;
+  let isGain  = calc.scheduleDCombined > 0;
+  return `
+    <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:8px;">
+      <div class="te-field-group" style="max-width:200px;">
+        <label class="te-lbl">Net Short-Term Gain / (Loss) <span class="te-cite">IRC §1222(5),(6)</span></label>
+        <input type="number" id="te-sd-stcg" class="te-input te-mono"
+          value="${esc(String(sd.netSTCG||''))}" placeholder="0.00" step="0.01"
+          oninput="teOnScheduleD()">
+      </div>
+      <div class="te-field-group" style="max-width:200px;">
+        <label class="te-lbl">Net Long-Term Gain / (Loss) <span class="te-cite">IRC §1222(7),(8)</span></label>
+        <input type="number" id="te-sd-ltcg" class="te-input te-mono"
+          value="${esc(String(sd.netLTCG||''))}" placeholder="0.00" step="0.01"
+          oninput="teOnScheduleD()">
+      </div>
+      <div class="te-field-group" style="max-width:200px;">
+        <label class="te-lbl">Prior Year Loss Carryforward <span class="te-cite">IRC §1212(b)</span></label>
+        <input type="number" id="te-sd-cf" class="te-input te-mono"
+          value="${esc(String(sd.priorYearCarryforward||''))}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnScheduleD()">
+      </div>
+    </div>
+    ${hasD ? `
+    <div class="te-ded-note" style="margin-top:6px;">
+      Combined net: <strong>${calc.scheduleDCombined >= 0 ? teFmt(calc.scheduleDCombined) : '(' + teFmt(Math.abs(calc.scheduleDCombined)) + ')'}</strong>
+      ${isGain ? ' — gain flows to gross income; LTCG portion of ' + teFmt(Math.max(0, calc.netLTCG - calc.priorCapLossCF)) + ' taxed at preferential rates.' : ''}
+      ${isLoss ? ' — deductible loss capped at ($3,000); carryforward to next year: ' + teFmt(calc.capLossCarryforward) + '. <span class="te-cite">IRC §1211(b)</span>' : ''}
+    </div>` : ''}
+    <div class="te-ded-note" style="margin-top:4px;">Enter net after netting all transactions by holding period. Enter losses as negative numbers. Short-term = held ≤ 1 year (ordinary rates). Long-term = held &gt; 1 year (preferential rates). <span class="te-cite">IRC §1222</span></div>`;
+}
+
+function teRenderScheduleEList() {
+  let c = document.getElementById('te-sche-list');
+  if (!c) return;
+  let entities = teCurrentReturn.scheduleE || [];
+  let calc     = teCurrentReturn._calc || {};
+  if (entities.length === 0) {
+    c.innerHTML = '<div class="te-empty">No entities added. Click "+ Add Entity" to add K-1 income.</div>';
+    return;
+  }
+  c.innerHTML = `
+    <div class="te-w2-tbl" style="margin-top:8px;">
+      <div class="te-w2-hdr">
+        <span>Entity Name</span><span>EIN (optional)</span><span>Income / (Loss)</span><span>Passive?</span><span></span>
+      </div>
+      ${entities.map((e, i) => `
+        <div class="te-w2-row">
+          <input type="text"   class="te-input" value="${esc(e.name||'')}"        placeholder="Partner / S-Corp name"  oninput="teOnScheduleE(${i},'name',this.value)">
+          <input type="text"   class="te-input" value="${esc(e.ein||'')}"         placeholder="XX-XXXXXXX"             oninput="teOnScheduleE(${i},'ein',this.value)" style="max-width:130px;">
+          <input type="number" class="te-input te-mono" value="${e.incomeAmount||''}" placeholder="0.00" step="0.01"   oninput="teOnScheduleE(${i},'incomeAmount',this.value)">
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap;">
+            <input type="checkbox" ${e.isPassive ? 'checked' : ''} onchange="teOnScheduleE(${i},'isPassive',this.checked)"> Passive <span class="te-cite" style="font-size:10px;">§469</span>
+          </label>
+          <button class="te-rm-btn" onclick="teRmScheduleE(${i})">✕</button>
+        </div>`).join('')}
+    </div>
+    ${calc.passiveLossSuspended > 0 ? `
+    <div class="te-ded-note" style="margin-top:6px;color:#f5a623;">
+      ⚠ Suspended passive loss: ${teFmt(calc.passiveLossSuspended)} — not currently deductible. Passive losses can only offset passive income. <span class="te-cite">IRC §469(a)</span>
+    </div>` : ''}
+    ${(entities.length > 0) ? `
+    <div class="te-ded-note" style="margin-top:4px;">
+      Passive: ${teFmt(calc.scheduleEPassive)} &nbsp;|&nbsp; Non-passive: ${teFmt(calc.scheduleENonPassive)} &nbsp;|&nbsp; Net flowing to gross income: ${teFmt(calc.scheduleENet)}
+    </div>` : ''}`;
+}
+
 function teRenderScheduleC() {
   let r    = teCurrentReturn;
   let sc   = (r && r.scheduleC) || {};
@@ -1065,6 +1314,50 @@ function teToggleAdj(id) {
   let isOpen = body.style.display !== 'none';
   body.style.display = isOpen ? 'none' : 'block';
   row.classList.toggle('te-adj-open', !isOpen);
+}
+
+function teRenderInvestmentInterest() {
+  let r    = teCurrentReturn;
+  let ii   = (r && r.investmentInterest) || {};
+  let calc = (r && r._calc) || {};
+  let hasII = (parseFloat(ii.expense) || 0) > 0 || (parseFloat(ii.priorYearCarryforward) || 0) > 0;
+  let iiOpen = hasII;
+  return `
+      <div class="te-adj-row${iiOpen ? ' te-adj-open' : ''}" id="te-adj-row-ii">
+        <div class="te-adj-row-hdr" onclick="teToggleAdj('ii')">
+          <span class="te-adj-row-label">Investment Interest Expense <span class="te-cite">IRC §163(d)</span></span>
+          <span class="te-adj-row-val" id="te-sa-ii-calc">${teFmt(calc.investmentInterestAllowed || 0)}</span>
+          <span class="te-adj-chevron">&#8250;</span>
+        </div>
+        <div class="te-adj-body" id="te-adj-body-ii" style="display:${iiOpen ? 'block' : 'none'};">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div class="te-field-group" style="max-width:200px;">
+              <label class="te-lbl">Investment Interest Paid</label>
+              <input type="number" id="te-ii-exp" class="te-input te-mono"
+                value="${esc(String(ii.expense||''))}" placeholder="0.00" step="0.01" min="0"
+                oninput="teOnInvestmentInterest()">
+            </div>
+            <div class="te-field-group" style="max-width:200px;">
+              <label class="te-lbl">Prior Year Carryforward</label>
+              <input type="number" id="te-ii-cf" class="te-input te-mono"
+                value="${esc(String(ii.priorYearCarryforward||''))}" placeholder="0.00" step="0.01" min="0"
+                oninput="teOnInvestmentInterest()">
+            </div>
+          </div>
+          <div class="te-frow" style="margin-top:8px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
+              <input type="checkbox" id="te-ii-qd" ${ii.includeQDinNII ? 'checked' : ''} onchange="teOnInvestmentInterest()" style="width:14px;height:14px;">
+              <span>§163(d)(4)(B) Election — include qualified dividends in NII cap (QDs lose preferential rate if elected)</span>
+            </label>
+          </div>
+          ${hasII ? `
+          <div class="te-ded-note" style="margin-top:6px;">
+            Deduction allowed: <strong>${teFmt(calc.investmentInterestAllowed || 0)}</strong> &nbsp;|&nbsp;
+            ${calc.investmentInterestCarryforward > 0 ? 'Carryforward to next year: <strong>' + teFmt(calc.investmentInterestCarryforward) + '</strong> — <span class="te-cite">IRC §163(d)(2)</span>' : 'No carryforward — fully deductible.'}
+          </div>` : ''}
+          <div class="te-ded-note" style="margin-top:4px;">Deductible only to the extent of net investment income (interest + non-qualified dividends). Excess carries forward indefinitely. <span class="te-cite">IRC §163(d)(1),(2)</span></div>
+        </div>
+      </div>`;
 }
 
 function teRenderDeductions() {
@@ -1387,6 +1680,8 @@ function teRenderDeductions() {
         </div>
       </div>
 
+      ${teRenderInvestmentInterest()}
+
     </div>`;
 }
 
@@ -1670,6 +1965,70 @@ function teOnScheduleC() {
   teRecalculate();
 }
 
+// ── Track 4 handlers ─────────────────────────────────────────────────
+
+function teOn1099() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.schedule1099) teCurrentReturn.schedule1099 = {};
+  let g = id => { let el = document.getElementById(id); return el ? el.value : ''; };
+  teCurrentReturn.schedule1099.interestIncome    = g('te-1099-int');
+  teCurrentReturn.schedule1099.ordinaryDividends = g('te-1099-div-ord');
+  teCurrentReturn.schedule1099.qualifiedDividends= g('te-1099-div-qual');
+  teRecalculate();
+}
+
+function teOnScheduleD() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.scheduleD) teCurrentReturn.scheduleD = {};
+  let g = id => { let el = document.getElementById(id); return el ? el.value : ''; };
+  teCurrentReturn.scheduleD.netSTCG               = g('te-sd-stcg');
+  teCurrentReturn.scheduleD.netLTCG               = g('te-sd-ltcg');
+  teCurrentReturn.scheduleD.priorYearCarryforward = g('te-sd-cf');
+  teRecalculate();
+}
+
+function teAddScheduleE() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.scheduleE) teCurrentReturn.scheduleE = [];
+  teCurrentReturn.scheduleE.push({ name: '', ein: '', incomeAmount: '', isPassive: true });
+  teRenderScheduleEList();
+  teRecalculate();
+}
+
+function teRmScheduleE(i) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  teCurrentReturn.scheduleE.splice(i, 1);
+  teRenderScheduleEList();
+  teRecalculate();
+}
+
+function teOnScheduleE(i, field, val) {
+  if (!teCurrentReturn || !teCurrentReturn.scheduleE[i]) return;
+  teMarkDirty();
+  teCurrentReturn.scheduleE[i][field] = val;
+  teRecalculate();
+  // Update passive loss note live without full re-render
+  let calc = teCurrentReturn._calc || {};
+  let c    = document.getElementById('te-sche-list');
+  if (c && calc.passiveLossSuspended > 0) teRenderScheduleEList();
+}
+
+function teOnInvestmentInterest() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.investmentInterest) teCurrentReturn.investmentInterest = {};
+  let g  = id => { let el = document.getElementById(id); return el ? el.value   : ''; };
+  let gc = id => { let el = document.getElementById(id); return el ? el.checked : false; };
+  teCurrentReturn.investmentInterest.expense               = g('te-ii-exp');
+  teCurrentReturn.investmentInterest.priorYearCarryforward = g('te-ii-cf');
+  teCurrentReturn.investmentInterest.includeQDinNII        = gc('te-ii-qd');
+  teRecalculate();
+}
+
 // Handler — Alimony field changes
 function teOnAlimony() {
   if (!teCurrentReturn) return;
@@ -1872,11 +2231,55 @@ function teRecalculate() {
   let calc = {};
 
   // ── Step 1: Gross Income — IRC §61 ──────────────────────────────────
-  // W-2 wages (IRC §61(a)(1)) + Schedule C net profit (IRC §61(a)(2))
   let sc            = teCurrentReturn.scheduleC || {};
   calc.w2Wages      = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.wages)||0), 0));
   calc.netSEIncome  = teRound(Math.max(0, parseFloat(sc.netProfit) || 0));
-  calc.grossIncome  = teRound(calc.w2Wages + calc.netSEIncome);
+
+  // Track 4: Investment income — IRC §61(a)(4),(7); §1221
+  let inv = teCurrentReturn.schedule1099 || {};
+  calc.interestIncome    = teRound(Math.max(0, parseFloat(inv.interestIncome)    || 0));
+  calc.ordinaryDividends = teRound(Math.max(0, parseFloat(inv.ordinaryDividends) || 0));
+  // Qualified dividends must be ≤ ordinary dividends — IRC §1(h)(11)(B)
+  calc.qualifiedDividends = teRound(Math.min(
+    Math.max(0, parseFloat(inv.qualifiedDividends) || 0),
+    calc.ordinaryDividends
+  ));
+
+  // Schedule D — IRC §1221, §1222
+  let sd = teCurrentReturn.scheduleD || {};
+  calc.netSTCG         = teRound(parseFloat(sd.netSTCG)               || 0);
+  calc.netLTCG         = teRound(parseFloat(sd.netLTCG)               || 0);
+  calc.priorCapLossCF  = teRound(Math.max(0, parseFloat(sd.priorYearCarryforward) || 0));
+  // Combined net before loss cap
+  calc.scheduleDCombined = teRound(calc.netSTCG + calc.netLTCG - calc.priorCapLossCF);
+  if (calc.scheduleDCombined >= 0) {
+    calc.scheduleDNet        = calc.scheduleDCombined;
+    calc.capLossCarryforward = 0;
+  } else {
+    // IRC §1211(b): net capital loss deductible up to $3,000; excess carries forward
+    calc.scheduleDNet        = teRound(Math.max(-K.capitalGains.netLossDeductionCap, calc.scheduleDCombined));
+    calc.capLossCarryforward = teRound(Math.abs(calc.scheduleDCombined) - K.capitalGains.netLossDeductionCap);
+    if (calc.capLossCarryforward < 0) calc.capLossCarryforward = 0;
+  }
+
+  // Schedule E — pass-through income/loss — IRC §702 (partnerships), §1366 (S-corps)
+  // IRC §469(a): passive activity losses can only offset passive activity income — excess suspended
+  let seEntities        = teCurrentReturn.scheduleE || [];
+  calc.scheduleEPassive    = teRound(seEntities.filter(e => e.isPassive).reduce((s, e) => s + (parseFloat(e.incomeAmount) || 0), 0));
+  calc.scheduleENonPassive = teRound(seEntities.filter(e => !e.isPassive).reduce((s, e) => s + (parseFloat(e.incomeAmount) || 0), 0));
+  // Only positive passive income flows through; passive losses are suspended (not deductible currently)
+  calc.scheduleEPassiveDeductible = teRound(Math.max(0, calc.scheduleEPassive));
+  calc.passiveLossSuspended       = teRound(calc.scheduleEPassive < 0 ? Math.abs(calc.scheduleEPassive) : 0);
+  // Non-passive losses flow through without restriction (e.g., general partner, material participation)
+  calc.scheduleENet = teRound(calc.scheduleEPassiveDeductible + calc.scheduleENonPassive);
+
+  // Gross income: all sources — IRC §61
+  // Note: ordinaryDividends includes qualifiedDividends (QDs are a subset, not additive)
+  calc.grossIncome = teRound(
+    calc.w2Wages + calc.netSEIncome
+    + calc.interestIncome + calc.ordinaryDividends
+    + calc.scheduleDNet + calc.scheduleENet
+  );
 
   // ── Step 2a: SE Tax — computed BEFORE above-the-line deductions ─────
   // SE tax does not depend on AGI (it depends only on net SE income), so
@@ -1924,6 +2327,26 @@ function teRecalculate() {
   // ── Step 3: Adjusted Gross Income — IRC §62 ─────────────────────────
   calc.agi = teRound(calc.grossIncome - calc.adjustments);
 
+  // ── Step 3b: Investment Interest Expense — IRC §163(d) ───────────────
+  // Deductible as Schedule A itemized deduction limited to net investment income.
+  // NII for §163(d) = interest + non-qualified dividends + (QDs if §163(d)(4)(B) elected)
+  // STCG and LTCG may also be included if taxpayer elects, but excluded here by default.
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section163
+  let ii          = teCurrentReturn.investmentInterest || {};
+  let iiExpense   = teRound(Math.max(0, parseFloat(ii.expense) || 0));
+  let iiCF        = teRound(Math.max(0, parseFloat(ii.priorYearCarryforward) || 0));
+  let includeQDin163d = ii.includeQDinNII === true;
+  // NII for §163(d) cap: standard = interest + non-QD dividends; election adds QDs
+  let niiFor163d  = teRound(
+    calc.interestIncome
+    + (calc.ordinaryDividends - calc.qualifiedDividends)   // non-qualified dividends
+    + (includeQDin163d ? calc.qualifiedDividends : 0)
+    + Math.max(0, calc.netSTCG)   // STCG is ordinary investment income for §163(d) purposes
+  );
+  let totalIIAvail                    = teRound(iiExpense + iiCF);
+  calc.investmentInterestAllowed      = teRound(Math.min(totalIIAvail, Math.max(0, niiFor163d)));
+  calc.investmentInterestCarryforward = teRound(Math.max(0, totalIIAvail - calc.investmentInterestAllowed));
+
   // ── Step 4: Deductions — IRC §63 ────────────────────────────────────
   calc.stdDed = K.standardDeduction[fs] || K.standardDeduction.single;  // Source: OBBBA P.L. 119-21
 
@@ -1933,7 +2356,8 @@ function teRecalculate() {
   calc.mortgageDeduction   = teCalcMortgageInterest(schedA, K);
   calc.charitableDeduction = teCalcCharitable(schedA, calc.agi, K);
   calc.medicalDeduction    = teCalcMedical(schedA, calc.agi, K);
-  calc.itemizedTotal       = teRound(calc.saltDeduction + calc.mortgageDeduction + calc.charitableDeduction + calc.medicalDeduction);
+  // IRC §163(d) investment interest included in Schedule A itemized deductions
+  calc.itemizedTotal       = teRound(calc.saltDeduction + calc.mortgageDeduction + calc.charitableDeduction + calc.medicalDeduction + calc.investmentInterestAllowed);
 
   // Engine picks whichever is higher — IRC §63(b)
   // No taxpayer toggle: the engine always applies the more beneficial deduction
@@ -1958,7 +2382,26 @@ function teRecalculate() {
   // ── Step 6: Regular Income Tax — IRC §1 ─────────────────────────────
   // QSS uses MFJ brackets per IRC §2(a)
   let bKey = (fs === 'qss') ? 'mfj' : fs;
-  calc.regularTax = teBracketTax(calc.taxableIncome, K.brackets[bKey] || K.brackets.single);
+
+  // IRC §1(h) — Qualified Dividends and Capital Gain Tax Worksheet
+  // If the return has QDs or LTCG, the preferential portion is taxed at 0%/15%/20%
+  // rather than ordinary bracket rates. Mirrors the IRS Qualified Dividends and Capital
+  // Gain Tax Worksheet (Form 1040 instructions).
+  // Preferential pool = qualified dividends + net LTCG after STCG netting and CF offset
+  let netCapGainPreferential = teRound(Math.max(0,
+    calc.netLTCG - calc.priorCapLossCF          // LTCG net of carryforward
+    + Math.min(0, calc.netSTCG)                 // negative STCG offsets LTCG (not below 0)
+  ));
+  calc.qdltcg = teRound(calc.qualifiedDividends + netCapGainPreferential);
+
+  if (calc.qdltcg > 0 && calc.taxableIncome > 0) {
+    let ordinaryPortion = teRound(Math.max(0, calc.taxableIncome - calc.qdltcg));
+    let ordinaryTax     = teBracketTax(ordinaryPortion, K.brackets[bKey] || K.brackets.single);
+    let qdltcgTax       = teCalcQDLTCGTax(calc.qdltcg, calc.taxableIncome, ordinaryPortion, K, fs);
+    calc.regularTax     = teRound(ordinaryTax + qdltcgTax);
+  } else {
+    calc.regularTax = teBracketTax(calc.taxableIncome, K.brackets[bKey] || K.brackets.single);
+  }
 
   // ── Step 7a: Pre-credit taxes (Schedule 2, Part I) ──────────────────
   // AMT is added here — before credits — because non-refundable credits
@@ -1992,9 +2435,29 @@ function teRecalculate() {
 
   // ── Step 7b: Post-credit taxes (Schedule 2, Part II) ────────────────
   // SE Tax (calc.seTax) already computed in Step 2a — it is NOT offset by non-refundable credits.
-  // NIIT and Additional Medicare Tax: Track 4
-  calc.addlMedicareTax = 0;  // IRC §3103   — Track 4 (0.9% above $200K/$250K)
-  calc.niit            = 0;  // IRC §1411   — Track 4 (3.8% net investment income)
+
+  // IRC §3101(b)(2) — Additional Medicare Tax (0.9%)
+  // Applies to wages + SE income exceeding threshold — NOT investment income (that is NIIT)
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section3101
+  let amThreshold       = K.addlMedicare.threshold[fs] || K.addlMedicare.threshold.single;
+  calc.addlMedicareTax  = teRound(Math.max(0, (calc.w2Wages + calc.netSEIncome - amThreshold)) * K.addlMedicare.rate);
+
+  // IRC §1411 — Net Investment Income Tax (3.8%)
+  // NII = interest + dividends + net cap gain + passive SE income − §163(d) investment interest
+  // IRC §1411(c)(1): NII excludes income from an active trade or business (SE income, non-passive K-1)
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section1411
+  calc.netInvestmentIncome = teRound(Math.max(0,
+    calc.interestIncome
+    + calc.ordinaryDividends                          // includes QDs
+    + Math.max(0, calc.scheduleDNet)                  // net cap gain only; losses don't add to NII
+    + Math.max(0, calc.scheduleEPassive)              // passive income (positive only per §469 interaction)
+    - calc.investmentInterestAllowed                  // §163(d) reduces NII
+  ));
+  // MAGI for NIIT = AGI for domestic taxpayers (no §911 foreign exclusion in engine)
+  let niitThreshold = K.niit.threshold[fs] || K.niit.threshold.single;
+  let niitExcess    = teRound(Math.max(0, calc.agi - niitThreshold));
+  calc.niit         = teRound(Math.min(calc.netInvestmentIncome, niitExcess) * K.niit.rate);
+
   calc.taxAfterCredits = teRound(calc.taxAfterNRCredits + calc.seTax + calc.addlMedicareTax + calc.niit);
   calc.totalTax        = calc.taxAfterCredits;  // alias — used by meter and flags
 
@@ -2055,6 +2518,7 @@ function teRecalculate() {
     teM('te-sa-mi-calc',       teFmt(calc.mortgageDeduction));
     teM('te-sa-char-calc',     teFmt(calc.charitableDeduction));
     teM('te-sa-med-calc',      teFmt(calc.medicalDeduction));
+    teM('te-sa-ii-calc',       teFmt(calc.investmentInterestAllowed || 0));
     teM('te-sa-itemized-total',teFmt(calc.itemizedTotal));
     // Rebuild comparison bar to update labels/badges and note text
     let cmpBar = document.getElementById('te-sa-comparison-bar');
@@ -2099,6 +2563,29 @@ function teBracketTax(income, brackets) {
     if (ceil === Infinity) break;
   }
   return Math.round(tax * 100) / 100;
+}
+
+// IRC §1(h) — Tax on qualified dividends and LTCG at preferential rates (0% / 15% / 20%)
+// Mirrors the IRS Qualified Dividends and Capital Gain Tax Worksheet (Form 1040 instructions).
+// qdltcg:         total preferentially taxed income (QDs + net cap gain)
+// taxableIncome:  total taxable income (ordinary + qdltcg)
+// ordinaryPortion: taxableIncome - qdltcg (the ordinary income piece)
+function teCalcQDLTCGTax(qdltcg, taxableIncome, ordinaryPortion, K, fs) {
+  let cg       = K.capitalGains;
+  let bKey     = (fs === 'qss') ? 'mfj' : fs;
+  let zeroCeil = cg.zeroRateCeiling[bKey]    || cg.zeroRateCeiling.single;
+  let fifCeil  = cg.fifteenRateCeiling[bKey] || cg.fifteenRateCeiling.single;
+
+  // Amount of QDLTCG eligible for 0% rate (ordinary income + qdltcg ≤ zeroCeil)
+  let inZero    = teRound(Math.max(0, Math.min(qdltcg, Math.max(0, zeroCeil - ordinaryPortion))));
+  let remaining = teRound(qdltcg - inZero);
+
+  // Amount of remaining QDLTCG eligible for 15% rate
+  let startOf15 = Math.max(zeroCeil, ordinaryPortion);
+  let inFifteen = teRound(Math.max(0, Math.min(remaining, Math.max(0, fifCeil - startOf15))));
+  let inTwenty  = teRound(remaining - inFifteen);
+
+  return teRound(inFifteen * 0.15 + inTwenty * 0.20);  // 0% contributes $0
 }
 
 // IRC §24 — Child Tax Credit and ACTC
@@ -2220,6 +2707,26 @@ function teUpdateMeter(calc, K, fs) {
   let seIncRow = document.getElementById('te-m-se-inc-row');
   if (seIncRow) { seIncRow.style.display = calc.netSEIncome > 0 ? 'flex' : 'none'; teM('te-m-se-inc', teFmt(calc.netSEIncome)); }
 
+  // Track 4 income rows
+  let intRow = document.getElementById('te-m-int-row');
+  if (intRow) { intRow.style.display = calc.interestIncome > 0 ? 'flex' : 'none'; teM('te-m-int', teFmt(calc.interestIncome)); }
+  let divRow = document.getElementById('te-m-div-row');
+  if (divRow) {
+    divRow.style.display = calc.ordinaryDividends > 0 ? 'flex' : 'none';
+    let divLabel = document.getElementById('te-m-div-lbl');
+    if (divLabel) divLabel.textContent = calc.qualifiedDividends > 0
+      ? 'Dividends (' + teFmt(calc.qualifiedDividends) + ' qual.)'
+      : 'Dividends';
+    teM('te-m-div', teFmt(calc.ordinaryDividends));
+  }
+  let capRow = document.getElementById('te-m-capgain-row');
+  if (capRow) {
+    capRow.style.display = (calc.scheduleDNet !== 0 || calc.scheduleDCombined !== 0) ? 'flex' : 'none';
+    teM('te-m-capgain', calc.scheduleDNet >= 0 ? teFmt(calc.scheduleDNet) : '(' + teFmt(Math.abs(calc.scheduleDNet)) + ')');
+  }
+  let scheRow = document.getElementById('te-m-sche-row');
+  if (scheRow) { scheRow.style.display = calc.scheduleENet !== 0 ? 'flex' : 'none'; teM('te-m-sche', calc.scheduleENet >= 0 ? teFmt(calc.scheduleENet) : '(' + teFmt(Math.abs(calc.scheduleENet)) + ')'); }
+
   let sliRow = document.getElementById('te-m-sli-row');
   if (sliRow) { sliRow.style.display = calc.sliDeduction > 0 ? 'flex' : 'none'; teM('te-m-sli', '(' + teFmt(calc.sliDeduction) + ')'); }
   let hsaRow = document.getElementById('te-m-hsa-row');
@@ -2252,6 +2759,12 @@ function teUpdateMeter(calc, K, fs) {
   // SE tax row in meter (post-credit)
   let seTaxMRow = document.getElementById('te-m-setax-row');
   if (seTaxMRow) { seTaxMRow.style.display = calc.seTax > 0 ? 'flex' : 'none'; teM('te-m-setax', teFmt(calc.seTax)); }
+
+  // NIIT and Additional Medicare rows
+  let niitMRow = document.getElementById('te-m-niit-row');
+  if (niitMRow) { niitMRow.style.display = calc.niit > 0 ? 'flex' : 'none'; teM('te-m-niit', teFmt(calc.niit)); }
+  let amMRow = document.getElementById('te-m-am-row');
+  if (amMRow) { amMRow.style.display = calc.addlMedicareTax > 0 ? 'flex' : 'none'; teM('te-m-am', teFmt(calc.addlMedicareTax)); }
 
   teM('te-m-wh',      '(' + teFmt(calc.w2Withholding) + ')');
 
@@ -2391,13 +2904,56 @@ function teRunFlags(calc, K, fs) {
     flags.push({ type: 'info', text: 'Social Security wage base (' + teFmt(K.selfEmployment.ssTaxWageBase) + ') partially or fully exhausted by W-2 wages (' + teFmt(calc.w2Wages) + '). SS portion of SE tax reduced by ' + teFmt(saved) + '. <span class="te-cite">IRC §1402(b)</span>' });
   }
 
-  // Additional Medicare Tax approaching — warn when SE + W-2 nears $200K/$250K
-  let addlMedicareThreshold = (fs === 'mfj' || fs === 'qss') ? 250000 : 200000;
-  if (calc.grossIncome > addlMedicareThreshold * 0.85 && calc.grossIncome <= addlMedicareThreshold) {
-    flags.push({ type: 'warning', text: 'Gross income is within ' + teFmt(addlMedicareThreshold - calc.grossIncome) + ' of the Additional Medicare Tax threshold (' + teFmt(addlMedicareThreshold) + '). The 0.9% surtax on wages and SE income will apply above this level. <span class="te-cite">IRC §3103</span>' });
+  // Track 4 — Additional Medicare Tax (0.9%) — now live
+  let K4 = TAX_CONSTANTS[r.taxYear || teActiveYear];
+  if (K4 && K4.addlMedicare) {
+    let amThr      = K4.addlMedicare.threshold[fs] || K4.addlMedicare.threshold.single;
+    let earnedBase = teRound(calc.w2Wages + calc.netSEIncome);
+    if (earnedBase > amThr * 0.85 && earnedBase <= amThr) {
+      flags.push({ type: 'warning', text: 'Wages + SE income (' + teFmt(earnedBase) + ') is within ' + teFmt(amThr - earnedBase) + ' of the Additional Medicare Tax threshold (' + teFmt(amThr) + '). The 0.9% surtax will apply above this level. <span class="te-cite">IRC §3101(b)(2)</span>' });
+    }
+    if (calc.addlMedicareTax > 0) {
+      flags.push({ type: 'info', text: 'Additional Medicare Tax: ' + teFmt(calc.addlMedicareTax) + ' (0.9% on wages + SE income exceeding ' + teFmt(amThr) + '). Consider increasing W-4 withholding or estimated payments. <span class="te-cite">IRC §3101(b)(2)</span>' });
+    }
   }
-  if (calc.grossIncome > addlMedicareThreshold) {
-    flags.push({ type: 'info', text: 'Gross income exceeds ' + teFmt(addlMedicareThreshold) + '. Additional Medicare Tax (0.9%) on wages and SE income will be calculated in Track 4. <span class="te-cite">IRC §3103</span>' });
+
+  // Track 4 — NIIT (3.8%)
+  if (calc.niit > 0) {
+    flags.push({ type: 'info', text: 'Net Investment Income Tax: ' + teFmt(calc.niit) + ' (3.8% on lesser of NII ' + teFmt(calc.netInvestmentIncome) + ' or MAGI excess over threshold). <span class="te-cite">IRC §1411</span>' });
+  } else if (calc.netInvestmentIncome > 0 && K4 && K4.niit) {
+    let niitThr = K4.niit.threshold[fs] || K4.niit.threshold.single;
+    if (calc.agi > niitThr * 0.85 && calc.agi <= niitThr) {
+      flags.push({ type: 'warning', text: 'AGI is within ' + teFmt(niitThr - calc.agi) + ' of the NIIT threshold (' + teFmt(niitThr) + '). Investment income (' + teFmt(calc.netInvestmentIncome) + ') may become subject to 3.8% surtax. <span class="te-cite">IRC §1411</span>' });
+    }
+  }
+
+  // Track 4 — LTCG in 0% bracket (planning opportunity)
+  if (calc.qdltcg > 0 && K4 && K4.capitalGains) {
+    let bKey0    = (fs === 'qss') ? 'mfj' : fs;
+    let zeroCeil = K4.capitalGains.zeroRateCeiling[bKey0] || K4.capitalGains.zeroRateCeiling.single;
+    let ordPortion = teRound(Math.max(0, calc.taxableIncome - calc.qdltcg));
+    if (ordPortion < zeroCeil) {
+      let zeroRoom = teRound(zeroCeil - ordPortion);
+      let zeroAmt  = teRound(Math.min(calc.qdltcg, zeroRoom));
+      if (zeroAmt > 0) {
+        flags.push({ type: 'info', text: teFmt(zeroAmt) + ' of qualified dividends/LTCG is in the 0% rate bracket (taxable income below ' + teFmt(zeroCeil) + '). Planning opportunity: consider harvesting additional long-term gains tax-free. <span class="te-cite">IRC §1(h)</span>' });
+      }
+    }
+  }
+
+  // Track 4 — Passive loss suspended
+  if (calc.passiveLossSuspended > 0) {
+    flags.push({ type: 'warning', text: 'Suspended passive loss: ' + teFmt(calc.passiveLossSuspended) + ' from Schedule E passive activities is not currently deductible. Passive losses may only offset passive income. The suspended loss carries forward. <span class="te-cite">IRC §469(a)</span>' });
+  }
+
+  // Track 4 — Investment interest carryforward created
+  if (calc.investmentInterestCarryforward > 0) {
+    flags.push({ type: 'info', text: 'Investment interest expense exceeds net investment income. Disallowed amount of ' + teFmt(calc.investmentInterestCarryforward) + ' carries forward to next year. <span class="te-cite">IRC §163(d)(2)</span>' });
+  }
+
+  // Track 4 — QD input validation
+  if ((parseFloat((teCurrentReturn.schedule1099 || {}).qualifiedDividends) || 0) > (parseFloat((teCurrentReturn.schedule1099 || {}).ordinaryDividends) || 0)) {
+    flags.push({ type: 'warning', text: 'Qualified dividends (Box 1b) exceed ordinary dividends (Box 1a). Qualified dividends are a subset — Box 1b cannot exceed Box 1a. Engine has capped at Box 1a. <span class="te-cite">IRC §1(h)(11)(B)</span>' });
   }
 
   // Alimony: post-2018 agreement entered but marked as non-deductible
@@ -2529,10 +3085,14 @@ function teSerialize(r) {
     spouse:            r.spouse            || {},
     dependents:        r.dependents        || [],
     w2:                r.w2                || [],
-    scheduleC:         r.scheduleC         || { netProfit: '' },
-    alimony:           r.alimony           || { paid: '', preAgreement: false },
-    estimatedPayments: r.estimatedPayments || { q1: '', q2: '', q3: '', q4: '' },
-    deductionType:     r.deductionType     || 'standard',
+    scheduleC:          r.scheduleC          || { netProfit: '' },
+    alimony:            r.alimony            || { paid: '', preAgreement: false },
+    estimatedPayments:  r.estimatedPayments  || { q1: '', q2: '', q3: '', q4: '' },
+    schedule1099:       r.schedule1099       || { interestIncome: '', ordinaryDividends: '', qualifiedDividends: '' },
+    scheduleD:          r.scheduleD          || { netSTCG: '', netLTCG: '', priorYearCarryforward: '' },
+    scheduleE:          r.scheduleE          || [],
+    investmentInterest: r.investmentInterest || { expense: '', priorYearCarryforward: '', includeQDinNII: false },
+    deductionType:      r.deductionType      || 'standard',
     educationStudents: r.educationStudents || [],
     agiAdjustments:    r.agiAdjustments    || { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false },
     scheduleA:         r.scheduleA         || { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', mortgagePurpose: 'acquisition', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '', mfsSpouseItemizes: false },
@@ -2553,10 +3113,15 @@ function teDeserialize(data) {
   if (!r.educationStudents)   r.educationStudents   = [];
   if (!r.agiAdjustments)      r.agiAdjustments      = { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false };
   if (!r.scheduleA)           r.scheduleA           = { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', mortgagePurpose: 'acquisition', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '', mfsSpouseItemizes: false };
-  // Backfill new fields on existing saved returns that predate this update
+  // Backfill fields on existing returns that predate this update
   if (!r.scheduleA.mortgagePurpose)   r.scheduleA.mortgagePurpose   = 'acquisition';
   if (r.scheduleA.mfsSpouseItemizes === undefined) r.scheduleA.mfsSpouseItemizes = false;
-  if (!r.annotations)       r.annotations       = [];
+  // Track 4 backfill
+  if (!r.schedule1099)       r.schedule1099       = { interestIncome: '', ordinaryDividends: '', qualifiedDividends: '' };
+  if (!r.scheduleD)          r.scheduleD          = { netSTCG: '', netLTCG: '', priorYearCarryforward: '' };
+  if (!r.scheduleE)          r.scheduleE          = [];
+  if (!r.investmentInterest) r.investmentInterest = { expense: '', priorYearCarryforward: '', includeQDinNII: false };
+  if (!r.annotations)        r.annotations        = [];
   return r;
 }
 
