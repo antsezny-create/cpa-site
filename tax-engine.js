@@ -2480,7 +2480,36 @@ function teRenderAddlTaxes() {
     </div>
     <div class="te-ded-note" style="margin-top:4px;">NII excludes SE income and non-passive K-1 income (active trade or business). MAGI = AGI for domestic taxpayers. Threshold is statutory. <span class="te-cite">IRC §1411(c)(1); IRC §1411(b)</span></div>`;
 
+  // SE Tax panel
+  let seTriggered = (calc.seTax || 0) > 0;
+  let seHtml = `
+    <div class="te-ctc-tbl" style="margin-top:8px;">
+      ${row('Schedule C Net Profit', teFmt(calc.netSEIncome || 0))}
+      ${row('× Net Earnings Rate (92.35%) <span class="te-cite">IRC §1402(a)</span>', '', 'te-ctc-sub')}
+      ${row('= SE Tax Base', teFmt(calc.seTaxBase || 0), 'te-ctc-sub')}
+      <div class="te-ctc-row" style="margin-top:6px;"></div>
+      ${(calc.w2Wages || 0) > 0
+        ? row('SS Base (wage base − W-2 wages of ' + teFmt(calc.w2Wages) + ') <span class="te-cite">IRC §1402(b)</span>', teFmt(calc.seSSBase || 0))
+        : row('SS Base (= SE Tax Base; no W-2 wages) <span class="te-cite">IRC §1402(b)</span>', teFmt(calc.seSSBase || 0))}
+      ${row('SS Tax (12.4%)', teFmt(calc.seSSTax || 0), 'te-ctc-sub')}
+      ${row('Medicare Tax (2.9%)', teFmt(calc.seMedicareTax || 0), 'te-ctc-sub')}
+      ${row('= Total SE Tax (Schedule SE) <span class="te-cite">IRC §1401</span>', teFmt(calc.seTax || 0), 'te-ctc-tot')}
+      <div class="te-ctc-row" style="margin-top:6px;"></div>
+      ${row('§164(f) Deduction — 50% of SE Tax (reduces AGI)', '(' + teFmt(calc.seTaxDeduction || 0) + ')', 'te-ctc-sub')}
+    </div>
+    <div class="te-ded-note" style="margin-top:4px;">SE tax is self-employment's equivalent of FICA. Half is deductible above-the-line under §164(f). SS component is limited to the Social Security wage base less any W-2 wages already subject to SS. <span class="te-cite">IRC §1401; IRC §1402(a); IRC §164(f)</span></div>`;
+
   return `
+    <div class="te-adj-row${seTriggered ? ' te-adj-open' : ''}" id="te-adj-row-se">
+      <div class="te-adj-row-hdr" onclick="teToggleAdj('se')">
+        <span class="te-adj-row-label">Self-Employment Tax (Schedule SE) <span class="te-cite">IRC §1401</span></span>
+        <span class="te-adj-row-val ${seTriggered ? '' : 'te-adj-val-zero'}">${teFmt(calc.seTax || 0)}</span>
+        <span class="te-adj-chevron">&#8250;</span>
+      </div>
+      <div class="te-adj-body" id="te-adj-body-se" style="display:${seTriggered ? 'block' : 'none'};">
+        ${seHtml}
+      </div>
+    </div>
     <div class="te-adj-row${amTriggered ? ' te-adj-open' : ''}" id="te-adj-row-am">
       <div class="te-adj-row-hdr" onclick="teToggleAdj('am')">
         <span class="te-adj-row-label">Additional Medicare Tax <span class="te-cite">IRC §3101(b)(2)</span></span>
@@ -2530,7 +2559,7 @@ function teRenderPayments() {
     </div>
 
     <div class="te-subsec" style="margin-top:20px;">
-      <div class="te-subsec-lbl">Additional Taxes <span class="te-cite">IRC §3101(b)(2), §1411</span></div>
+      <div class="te-subsec-lbl">Additional Taxes <span class="te-cite">IRC §1401, §3101(b)(2), §1411</span></div>
       <div class="te-subsec-desc">Surtaxes computed automatically from income entries. Expand each to verify the calculation.</div>
       <div id="te-addl-taxes-panel">${teRenderAddlTaxes()}</div>
     </div>
