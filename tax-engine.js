@@ -1126,7 +1126,7 @@ function teRenderPersonal() {
       </div>
       <div class="te-field-group">
         <label class="te-lbl">Date of Birth</label>
-        <input type="text" id="te-tp-dob" class="te-input" value="${esc(tp.dob||'')}" placeholder="YYYY-MM-DD" oninput="teOnField()">
+        <input type="date" lang="en-GB" id="te-tp-dob" class="te-input" value="${esc(tp.dob||'')}" onchange="teOnField()">
       </div>
     </div>
 
@@ -1147,7 +1147,7 @@ function teRenderPersonal() {
         </div>
         <div class="te-field-group">
           <label class="te-lbl">Date of Birth</label>
-          <input type="text" id="te-sp-dob" class="te-input" value="${esc(sp.dob||'')}" placeholder="YYYY-MM-DD" oninput="teOnField()">
+          <input type="date" lang="en-GB" id="te-sp-dob" class="te-input" value="${esc(sp.dob||'')}" onchange="teOnField()">
         </div>
       </div>
     </div>
@@ -1210,7 +1210,7 @@ function teRenderDepsList() {
         <div class="te-dep-row">
           <input type="text" class="te-input te-dep-in" value="${esc(d.firstName||'')}" placeholder="First" oninput="teUpdDep(${i},'firstName',this.value)">
           <input type="text" class="te-input te-dep-in" value="${esc(d.lastName||'')}"  placeholder="Last"  oninput="teUpdDep(${i},'lastName',this.value)">
-          <input type="text" class="te-input te-dep-in" value="${esc(d.dob||'')}" placeholder="YYYY-MM-DD" oninput="teUpdDep(${i},'dob',this.value)">
+          <input type="date" lang="en-GB" class="te-input te-dep-in" value="${esc(d.dob||'')}" onchange="teUpdDep(${i},'dob',this.value)">
           <select class="te-select te-dep-in" onchange="teUpdDep(${i},'relationship',this.value)">
             <option value="child"     ${d.relationship==='child'    ?'selected':''}>Child</option>
             <option value="stepchild" ${d.relationship==='stepchild'?'selected':''}>Stepchild</option>
