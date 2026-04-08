@@ -1986,13 +1986,24 @@ function teRenderCTCDetail() {
     return;
   }
 
-  let gross     = qc.length * K.ctc.amountPerChild;
-  let threshold = K.ctc.phaseoutThreshold[fs] || K.ctc.phaseoutThreshold.single;
-  let calc      = teCurrentReturn._calc || {};
-  let agi       = calc.agi || 0;
-  let excess    = Math.max(0, agi - threshold);
-  let reduction = Math.ceil(excess / 1000) * 50;
-  let net       = Math.max(0, gross - reduction);
+  let gross        = qc.length * K.ctc.amountPerChild;
+  let threshold    = K.ctc.phaseoutThreshold[fs] || K.ctc.phaseoutThreshold.single;
+  let calc         = teCurrentReturn._calc || {};
+  let agi          = calc.agi || 0;
+  let excess       = Math.max(0, agi - threshold);
+  let reduction    = Math.ceil(excess / 1000) * 50;
+  let net          = Math.max(0, gross - reduction);
+
+  // ACTC (Schedule 8812) display values — pulled from calc (already computed in teCalcCTC)
+  let ctcNR        = calc.ctcNonRefundable || 0;
+  let unused       = teRound(Math.max(0, net - ctcNR));
+  let earnedIncome = teRound((calc.w2Wages || 0) + (calc.netSEIncome || 0));
+  let byEarned     = teRound(Math.max(0, earnedIncome - K.ctc.earnedIncomeMin) * K.ctc.earnedIncomeRate);
+  let perChildCap  = K.ctc.actcMax * qc.length;
+  let actc         = calc.actcRefundable || 0;
+  let limitLabel   = actc === byEarned && byEarned <= perChildCap ? '15% of earned income above threshold'
+                   : actc === perChildCap || actc >= perChildCap  ? 'Per-child cap ($' + K.ctc.actcMax.toLocaleString() + ' × ' + qc.length + ')'
+                   : 'Unused CTC';
 
   c.innerHTML = `
     <div class="te-ctc-tbl">
@@ -2004,7 +2015,21 @@ function teRenderCTCDetail() {
         : `<div class="te-ctc-row te-ctc-ok"><span>Phase-out: None — AGI below ${teFmt(threshold)} threshold</span><span>—</span></div>`}
       <div class="te-ctc-row te-ctc-tot"><span>Net CTC Available</span><span>${teFmt(net)}</span></div>
     </div>
-    <div class="te-info-sm">Non-refundable portion reduces tax liability first. Remaining unused credit may be refundable as ACTC (up to ${teFmt(K.ctc.actcMax)}/child). <span class="te-cite">IRC §24(d)</span></div>`;
+
+    <div class="te-subsec-lbl" style="font-size:12px;margin-top:16px;margin-bottom:6px;">Schedule 8812 — Additional Child Tax Credit <span class="te-cite">IRC §24(d)</span></div>
+    <div class="te-ctc-tbl">
+      <div class="te-ctc-row"><span>Non-Refundable CTC Applied Against Tax</span><span>(${teFmt(ctcNR)})</span></div>
+      <div class="te-ctc-row te-ctc-sub"><span>Unused CTC (ACTC basis)</span><span>${teFmt(unused)}</span></div>
+      ${unused > 0 ? `
+      <div class="te-ctc-row" style="margin-top:6px;"></div>
+      <div class="te-ctc-row"><span>Earned Income <span class="te-cite">IRC §24(d)(1)(B)</span></span><span>${teFmt(earnedIncome)}</span></div>
+      <div class="te-ctc-row te-ctc-sub"><span>− Earned Income Threshold</span><span>(${teFmt(K.ctc.earnedIncomeMin)})</span></div>
+      <div class="te-ctc-row te-ctc-sub"><span>× 15% Rate</span><span>${teFmt(byEarned)}</span></div>
+      <div class="te-ctc-row te-ctc-sub"><span>Per-Child Cap (${teFmt(K.ctc.actcMax)} × ${qc.length} children)</span><span>${teFmt(perChildCap)}</span></div>
+      <div class="te-ctc-row te-ctc-sub"><span>Limiting Factor</span><span>${limitLabel}</span></div>
+      <div class="te-ctc-row te-ctc-tot"><span>ACTC — Refundable <span class="te-cite">IRC §24(d)</span></span><span>${teFmt(actc)}</span></div>`
+      : `<div class="te-ctc-row te-ctc-ok"><span>ACTC: $0 — CTC fully absorbed by tax liability</span><span>—</span></div>`}
+    </div>`;
 }
 
 function teRenderEduList() {
