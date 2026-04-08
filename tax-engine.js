@@ -1249,7 +1249,7 @@ function teUpdDep(i, field, val) {
   if (!teCurrentReturn.dependents[i]) return;
   teMarkDirty();
   teCurrentReturn.dependents[i][field] = val;
-  if (field === 'dob' || field === 'isFullTimeStudent' || field === 'isPermanentlyDisabled') teRenderDepsList();
+  if (field === 'dob' || field === 'isFullTimeStudent' || field === 'isPermanentlyDisabled') teFocusSafe(teRenderDepsList);
   teRecalculate();
 }
 
