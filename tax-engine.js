@@ -815,6 +815,31 @@ function teMarkDirty() {
   if (btn) { btn.textContent = 'Save ●'; }
 }
 
+function teClearReturn() {
+  if (!teCurrentReturn) return;
+  showModal({
+    title: 'Clear All Data',
+    message: 'This will permanently erase every input on this return — income, deductions, credits, dependents, everything. The return record itself will remain. This cannot be undone. Are you sure?',
+    confirmText: 'Yes, Clear Everything',
+    onConfirm: () => {
+      let blank = teEmptyReturn(teCurrentReturn.clientId, teCurrentReturn.clientName, teCurrentReturn.taxYear);
+      // Preserve return identity and status — wipe all data fields
+      Object.assign(teCurrentReturn, blank, {
+        id:         teCurrentReturn.id,
+        clientId:   teCurrentReturn.clientId,
+        clientName: teCurrentReturn.clientName,
+        taxYear:    teCurrentReturn.taxYear,
+        returnType: teCurrentReturn.returnType,
+        status:     teCurrentReturn.status
+      });
+      teMarkDirty();
+      teSwitchSection('personal');
+      teRecalculate();
+      toast('Return cleared. Save to persist.', 'info');
+    }
+  });
+}
+
 // teClearDirty(): called on successful save or confirmed discard.
 function teClearDirty() {
   teDirty = false;
