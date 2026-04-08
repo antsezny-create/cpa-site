@@ -307,6 +307,49 @@ const TAX_CONSTANTS = {
         hoh:    200000,
         qss:    250000
       }
+    },
+
+    // ── TRACK 5: Earned Income Credit (EIC) Constants (2025) ─────────────
+
+    // IRC §32 — Earned Income Credit
+    // Fully refundable credit for low-to-moderate income workers — IRC §32(a)
+    //
+    // Phase-in rates — IRC §32(b)(1)(A) — STATUTORY (not inflation-adjusted)
+    // Phase-out rates — IRC §32(b)(1)(B) — STATUTORY (not inflation-adjusted)
+    // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section32
+    //
+    // Max credit, phase-out thresholds, investment income limit: inflation-adjusted per IRC §32(j)
+    // Source: Rev. Proc. 2024-40 §3.07 — irs.gov/pub/irs-drop/rp-24-40.pdf
+    // TODO:VERIFY — reconcile end thresholds (computed vs. IRS Pub 596 table); minor rounding noted
+    //
+    // MFS filers categorically ineligible — IRC §32(d)
+    // Investment income disqualifier — IRC §32(i)(1): EIC = $0 if investment income > limit
+    // EIC qualifying child age test — IRC §32(c)(3): differs from CTC §24(c)(1):
+    //   EIC QC: under 19; OR under 24 + full-time student; OR permanently and totally disabled
+    eic: {
+      // Maximum EIC by number of qualifying children (key 3 = 3 or more)
+      // Source: Rev. Proc. 2024-40 §3.07 — TODO:VERIFY exact figures
+      maxCredit: { 0: 649, 1: 4328, 2: 7152, 3: 8046 },
+
+      // Phase-in rates — IRC §32(b)(1)(A) — STATUTORY
+      phaseInRate:  { 0: 0.0765, 1: 0.34, 2: 0.40, 3: 0.40 },
+
+      // Phase-out rates — IRC §32(b)(1)(B) — STATUTORY
+      phaseOutRate: { 0: 0.0765, 1: 0.1598, 2: 0.2106, 3: 0.2106 },
+
+      // Phase-out beginning amounts — single/HOH/QSS (income at which phase-out starts)
+      // Source: Rev. Proc. 2024-40 §3.07 — TODO:VERIFY
+      phaseOutThreshold: { 0: 10020, 1: 23511, 2: 23511, 3: 23511 },
+
+      // Joint return phaseout amount — added to threshold for MFJ filers
+      // IRC §32(b)(3); inflation-adjusted per IRC §32(j)
+      // Source: Rev. Proc. 2024-40 §3.07 — TODO:VERIFY
+      jointBonus: 6020,
+
+      // Investment income limit — IRC §32(i)(1)
+      // EIC = $0 if investment income (interest + dividends + net cap gain + passive income) > this
+      // Source: Rev. Proc. 2024-40 §3.07 — TODO:VERIFY
+      investmentIncomeLimit: 11600
     }
   },
 
@@ -517,6 +560,21 @@ const TAX_CONSTANTS = {
         hoh:    200000,
         qss:    250000
       }
+    },
+
+    // ── TRACK 5: Earned Income Credit (EIC) Constants (2026) ─────────────
+
+    // IRC §32 — Earned Income Credit (2026)
+    // Statutory rates unchanged — IRC §32(b)(1)(A),(B)
+    // Inflation-adjusted amounts: Source: Rev. Proc. 2025-32 — TODO:VERIFY (not parsed)
+    // Values below are estimates based on ~2% inflation adjustment from 2025 pending verification.
+    eic: {
+      maxCredit:         { 0: 660, 1: 4400, 2: 7270, 3: 8180 }, // TODO:VERIFY vs Rev. Proc. 2025-32
+      phaseInRate:       { 0: 0.0765, 1: 0.34, 2: 0.40, 3: 0.40 },  // IRC §32(b)(1)(A) — statutory
+      phaseOutRate:      { 0: 0.0765, 1: 0.1598, 2: 0.2106, 3: 0.2106 }, // IRC §32(b)(1)(B) — statutory
+      phaseOutThreshold: { 0: 10230, 1: 24035, 2: 24035, 3: 24035 }, // TODO:VERIFY vs Rev. Proc. 2025-32
+      jointBonus:        6150,    // TODO:VERIFY vs Rev. Proc. 2025-32
+      investmentIncomeLimit: 11950 // TODO:VERIFY vs Rev. Proc. 2025-32
     }
   }
 };
@@ -599,6 +657,11 @@ function teEmptyReturn(clientId, clientName, taxYear) {
       nonCashCharitable:   '',
       medicalExpenses:     '',
       mfsSpouseItemizes:   false           // IRC §63(e): if true, standard deduction overridden to $0
+    },
+    // ── Track 5: EIC ──────────────────────────────────────────────────────
+    eic: {
+      claimChildless: false  // IRC §32(c)(1)(A) — eligible worker with no QC (age/income tests apply)
+                             // TODO:VERIFY OBBBA P.L. 119-21 age limit changes for childless EIC
     },
     annotations:  [],
     completedSections: []
@@ -875,6 +938,7 @@ function teSwitchSection(section) {
     body.innerHTML = teRenderCredits();
     teRenderCTCDetail();
     teRenderEduList();
+    teRenderEICSection();
   } else if (section === 'payments') {
     body.innerHTML = teRenderPayments();
   }
@@ -1002,9 +1066,14 @@ function teRenderDepsList() {
     <div class="te-dep-tbl">
       <div class="te-dep-hdr">
         <span>First Name</span><span>Last Name</span><span>Date of Birth</span>
-        <span>Relationship</span><span>Qualifying Child?</span><span></span>
+        <span>Relationship</span><span>CTC QC? <span class="te-cite" style="font-weight:400">&lt;17</span></span>
+        <span>Student? <span class="te-cite" style="font-weight:400">EIC</span></span>
+        <span>Disabled? <span class="te-cite" style="font-weight:400">EIC</span></span>
+        <span></span>
       </div>
-      ${deps.map((d, i) => `
+      ${deps.map((d, i) => {
+        let isEICQC = teIsEICQualifyingChild(d, teCurrentReturn.taxYear);
+        return `
         <div class="te-dep-row">
           <input type="text" class="te-input te-dep-in" value="${esc(d.firstName||'')}" placeholder="First" oninput="teUpdDep(${i},'firstName',this.value)">
           <input type="text" class="te-input te-dep-in" value="${esc(d.lastName||'')}"  placeholder="Last"  oninput="teUpdDep(${i},'lastName',this.value)">
@@ -1019,17 +1088,26 @@ function teRenderDepsList() {
           <div class="te-qc-cell">
             <input type="checkbox" id="te-qc-${i}" ${d.isQualifyingChild?'checked':''} onchange="teUpdDep(${i},'isQualifyingChild',this.checked)">
             <label for="te-qc-${i}" style="font-size:11px;">
-              ${d.dob ? (teIsUnder17(d.dob, teCurrentReturn.taxYear) ? '<span style="color:var(--green)">Under 17 ✓</span>' : '<span style="color:var(--orange)">Age 17+</span>') : ''}
+              ${d.dob ? (teIsUnder17(d.dob, teCurrentReturn.taxYear) ? '<span style="color:var(--green)">✓</span>' : '<span style="color:var(--orange)">17+</span>') : ''}
             </label>
           </div>
+          <div class="te-qc-cell">
+            <input type="checkbox" id="te-stu-${i}" ${d.isFullTimeStudent?'checked':''} onchange="teUpdDep(${i},'isFullTimeStudent',this.checked)">
+            <label for="te-stu-${i}" style="font-size:11px;color:var(--text-muted);">FT</label>
+          </div>
+          <div class="te-qc-cell">
+            <input type="checkbox" id="te-dis-${i}" ${d.isPermanentlyDisabled?'checked':''} onchange="teUpdDep(${i},'isPermanentlyDisabled',this.checked)">
+            <label for="te-dis-${i}" style="font-size:11px;${isEICQC ? 'color:var(--green)' : 'color:var(--text-muted)'};">${isEICQC ? 'EIC ✓' : ''}</label>
+          </div>
           <button class="te-rm-btn" onclick="teRmDep(${i})">✕</button>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
     </div>`;
 }
 
 function teAddDep() {
   teMarkDirty();
-  teCurrentReturn.dependents.push({ firstName: '', lastName: '', dob: '', relationship: 'child', isQualifyingChild: true });
+  teCurrentReturn.dependents.push({ firstName: '', lastName: '', dob: '', relationship: 'child', isQualifyingChild: true, isFullTimeStudent: false, isPermanentlyDisabled: false });
   teRenderDepsList();
   teRecalculate();
 }
@@ -1038,7 +1116,7 @@ function teUpdDep(i, field, val) {
   if (!teCurrentReturn.dependents[i]) return;
   teMarkDirty();
   teCurrentReturn.dependents[i][field] = val;
-  if (field === 'dob') teRenderDepsList();
+  if (field === 'dob' || field === 'isFullTimeStudent' || field === 'isPermanentlyDisabled') teRenderDepsList();
   teRecalculate();
 }
 
@@ -1724,11 +1802,18 @@ function teRenderCredits() {
         : '<div id="te-edu-list"></div>'}
     </div>
 
+    <div class="te-subsec" style="margin-top:24px;">
+      <div class="te-subsec-lbl">Earned Income Credit (EIC) <span class="te-cite">IRC §32</span></div>
+      <div class="te-subsec-desc">Fully refundable credit for earned income. Qualifying children are identified automatically from the Personal section. <span class="te-cite">IRC §32(c)(3)</span></div>
+      ${isMFS
+        ? '<div class="te-ded-note" style="margin-top:8px;">Not available for Married Filing Separately. <span class="te-cite">IRC §32(d)</span></div>'
+        : `<div id="te-eic-section" style="margin-top:10px;"></div>`}
+    </div>
+
     <div class="te-stub-sec" style="margin-top:16px;">
-      <div class="te-stub-blk"><span class="te-stub-title">Earned Income Credit (EIC) <span class="te-cite">IRC §32</span></span><span class="te-stub-pill">Phase 2</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">Child &amp; Dependent Care Credit <span class="te-cite">IRC §21</span></span><span class="te-stub-pill">Phase 2</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">Retirement Savings Contributions Credit <span class="te-cite">IRC §25B</span></span><span class="te-stub-pill">Phase 2</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">Energy-Efficient Home Improvement Credit <span class="te-cite">IRC §25C, §25D</span></span><span class="te-stub-pill">Phase 2</span></div>
+      <div class="te-stub-blk"><span class="te-stub-title">Child &amp; Dependent Care Credit <span class="te-cite">IRC §21</span></span><span class="te-stub-pill">Track 5b</span></div>
+      <div class="te-stub-blk"><span class="te-stub-title">Retirement Savings Contributions Credit <span class="te-cite">IRC §25B</span></span><span class="te-stub-pill">Track 5c</span></div>
+      <div class="te-stub-blk"><span class="te-stub-title">Energy-Efficient Home Improvement Credit <span class="te-cite">IRC §25C, §25D</span></span><span class="te-stub-pill">Track 5d</span></div>
     </div>`;
 }
 
@@ -2523,6 +2608,11 @@ function teRecalculate() {
   calc.totalNonRefundable  = teRound(calc.ctcNonRefundable + calc.totalEduNonRefundable);
   calc.taxAfterNRCredits   = teRound(Math.max(0, calc.taxBeforeCredits - calc.totalNonRefundable));
 
+  // ── Step 10a: EIC — Fully refundable — IRC §32 ──────────────────────
+  // EIC does NOT reduce regular tax (non-refundable); it is applied in Step 12 as a refundable credit.
+  // Computed here (after AGI and earned income are final) before payments are summed.
+  calc.eicCredit = teCalcEIC(teCurrentReturn, calc, fs, K);
+
   // ── Step 7b: Post-credit taxes (Schedule 2, Part II) ────────────────
   // SE Tax (calc.seTax) already computed in Step 2a — it is NOT offset by non-refundable credits.
 
@@ -2563,7 +2653,7 @@ function teRecalculate() {
 
   // ── Step 12: Refund / Balance Due ───────────────────────────────────
   // Positive = refund; negative = balance due
-  calc.totalRefundableCredits = teRound(calc.actcRefundable + calc.aocRefundable);
+  calc.totalRefundableCredits = teRound(calc.actcRefundable + calc.aocRefundable + calc.eicCredit);
   calc.refundOrDue = teRound(calc.totalPayments + calc.totalRefundableCredits - calc.taxAfterCredits);
 
   teCurrentReturn._calc = calc;
@@ -2573,7 +2663,7 @@ function teRecalculate() {
   teRunFlags(calc, K, fs);
 
   // Refresh live displays on active sections
-  if (teActiveSection === 'credits') { teRenderCTCDetail(); teRenderEduList(); }
+  if (teActiveSection === 'credits') { teRenderCTCDetail(); teRenderEduList(); teRenderEICSection(); }
   if (teActiveSection === 'income') {
     let scEl = document.getElementById('te-sc-netprofit');
     if (!scEl) { teRenderW2List(); }  // full re-render only if SC input gone
@@ -2789,6 +2879,174 @@ function teCalcEduCredits(r, agi, taxAfterCTC, fs, K) {
 
 
 // ──────────────────────────────────────────────────────────────────────
+//  TRACK 5 — EARNED INCOME CREDIT
+// ──────────────────────────────────────────────────────────────────────
+
+// IRC §32(c)(3) — EIC Qualifying Child Age Test
+// Distinct from CTC §24(c)(1) (under 17). Must also satisfy the general qualifying child
+// relationship, residency, and joint-return tests of IRC §152(c), which the engine tracks
+// via d.isQualifyingChild (user-attested in Personal section).
+// Three age alternatives — ALL THREE must be checked:
+//   (I)  Under age 19 as of December 31 of tax year — IRC §32(c)(3)(A)(ii)(I)
+//   (II) Under age 24 AND full-time student for at least 5 months — IRC §32(c)(3)(A)(ii)(II)
+//   (III) Permanently and totally disabled — any age — IRC §32(c)(3)(A)(ii)(III)
+function teIsEICQualifyingChild(d, taxYear) {
+  if (!d.isQualifyingChild) return false;         // Must first satisfy general QC tests
+  if (d.isPermanentlyDisabled) return true;        // Alternative (III): any age — IRC §32(c)(3)(A)(ii)(III)
+  if (!d.dob) return false;
+  let birth = new Date(d.dob + 'T12:00:00');      // Noon avoids DST edge
+  let dec31 = new Date(taxYear, 11, 31);
+  let age   = dec31.getFullYear() - birth.getFullYear();
+  if (dec31 < new Date(taxYear, birth.getMonth(), birth.getDate())) age--;
+  if (age < 19) return true;                       // Alternative (I): under 19 — IRC §32(c)(3)(A)(ii)(I)
+  if (age < 24 && d.isFullTimeStudent) return true; // Alternative (II): under 24, student — IRC §32(c)(3)(A)(ii)(II)
+  return false;
+}
+
+// Returns count of EIC qualifying children, capped at 3 (3+ uses same rates as 3)
+function teCountEICQC(r) {
+  let taxYear = r.taxYear || teActiveYear;
+  return Math.min(3, (r.dependents || []).filter(d => teIsEICQualifyingChild(d, taxYear)).length);
+}
+
+// IRC §32 — Earned Income Credit Calculation
+// r:    current return object
+// calc: computed values from teRecalculate (w2Wages, netSEIncome, agi, investment income fields)
+// fs:   filing status
+// K:    TAX_CONSTANTS for the return's tax year
+function teCalcEIC(r, calc, fs, K) {
+  // IRC §32(d): MFS filers categorically ineligible
+  if (fs === 'mfs') return 0;
+
+  let eicK = K.eic;
+  if (!eicK) return 0;
+
+  // Earned income for EIC: W-2 wages + net SE income — IRC §32(c)(2)(A)
+  // NOTE: Nontaxable combat pay election (IRC §32(c)(2)(B)) not implemented — TODO Track 5 future
+  let earnedIncome = teRound(calc.w2Wages + calc.netSEIncome);
+  if (earnedIncome <= 0) return 0;
+
+  let numQC   = teCountEICQC(r);
+  let eicData = r.eic || {};
+
+  // If no EIC qualifying children and claimChildless not checked → no EIC
+  // Childless EIC age test (must be ≥25 and <65 under traditional rule) — TODO:VERIFY OBBBA changes
+  if (numQC === 0 && !eicData.claimChildless) return 0;
+
+  // IRC §32(i)(1) — Investment income disqualifier
+  // Investment income = interest + dividends + net capital gain + passive income
+  // Source: IRC §32(i)(2) — uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section32
+  let investmentIncome = teRound(
+    calc.interestIncome
+    + calc.ordinaryDividends
+    + Math.max(0, calc.scheduleDNet)      // net cap gain (losses don't reduce for EIC purposes)
+    + Math.max(0, calc.scheduleEPassive)  // passive income (rents, royalties, passive K-1)
+  );
+  if (investmentIncome > eicK.investmentIncomeLimit) return 0;
+
+  let qcKey      = Math.min(numQC, 3);  // 3+ treated same as 3
+  let maxCredit  = eicK.maxCredit[qcKey];
+  let phaseInR   = eicK.phaseInRate[qcKey];
+  let phaseOutR  = eicK.phaseOutRate[qcKey];
+
+  // Phase-in: tentative credit = min(earnedIncome × phaseInRate, maxCredit) — IRC §32(a)(1)
+  let tentative  = teRound(Math.min(earnedIncome * phaseInR, maxCredit));
+
+  // Phase-out base: GREATER of AGI or earned income — IRC §32(a)(2)
+  // This prevents artificially low earned income (e.g., large losses) from defeating the phase-out
+  let phaseBase  = Math.max(calc.agi, earnedIncome);
+
+  // MFJ gets joint return phaseout bonus — IRC §32(b)(3)
+  let threshold  = eicK.phaseOutThreshold[qcKey] + (fs === 'mfj' ? eicK.jointBonus : 0);
+
+  // Phase-out: reduction = max(0, (phaseBase − threshold) × phaseOutRate)
+  let excess     = Math.max(0, phaseBase - threshold);
+  let reduction  = teRound(excess * phaseOutR);
+
+  return teRound(Math.max(0, tentative - reduction));
+}
+
+// EIC section UI renderer — called when credits tab is active
+function teRenderEICSection() {
+  let c = document.getElementById('te-eic-section');
+  if (!c || !teCurrentReturn) return;
+  let r     = teCurrentReturn;
+  let K     = TAX_CONSTANTS[r.taxYear || teActiveYear];
+  if (!K || !K.eic) return;
+  let fs    = r.filingStatus || 'single';
+  let calc  = r._calc || {};
+  let numQC = teCountEICQC(r);
+  let eicData = r.eic || {};
+
+  // Investment income check
+  let invIncome = teRound(
+    (calc.interestIncome || 0) + (calc.ordinaryDividends || 0)
+    + Math.max(0, calc.scheduleDNet || 0) + Math.max(0, calc.scheduleEPassive || 0)
+  );
+  let invDisqualified = invIncome > K.eic.investmentIncomeLimit;
+
+  let earnedIncome = teRound((calc.w2Wages || 0) + (calc.netSEIncome || 0));
+  let credit       = calc.eicCredit || 0;
+
+  // Build audit-trail breakdown
+  let breakdownHTML = '';
+  if (!invDisqualified && (numQC > 0 || eicData.claimChildless) && earnedIncome > 0) {
+    let qcKey     = Math.min(numQC, 3);
+    let max       = K.eic.maxCredit[qcKey];
+    let piRate    = K.eic.phaseInRate[qcKey];
+    let poRate    = K.eic.phaseOutRate[qcKey];
+    let tentative = Math.min(earnedIncome * piRate, max);
+    let threshold = K.eic.phaseOutThreshold[qcKey] + (fs === 'mfj' ? K.eic.jointBonus : 0);
+    let phaseBase = Math.max(calc.agi || 0, earnedIncome);
+    let excess    = Math.max(0, phaseBase - threshold);
+    let reduction = excess * poRate;
+
+    breakdownHTML = `
+      <div class="te-ctc-tbl" style="margin-top:10px;">
+        <div class="te-ctc-row"><span>EIC Qualifying Children <span class="te-cite">IRC §32(c)(3)</span></span><span>${numQC}${numQC === 3 ? '+' : ''}</span></div>
+        <div class="te-ctc-row"><span>Earned Income</span><span>${teFmt(earnedIncome)}</span></div>
+        <div class="te-ctc-row te-ctc-sub"><span>Tentative Credit <small>(${(piRate*100).toFixed(2)}% × earned income, cap ${teFmt(max)})</small></span><span>${teFmt(tentative)}</span></div>
+        <div class="te-ctc-row"><span>Phase-out Base <small>(greater of AGI ${teFmt(calc.agi||0)} or earned income)</small></span><span>${teFmt(phaseBase)}</span></div>
+        ${excess > 0
+          ? `<div class="te-ctc-row te-ctc-red"><span>Phase-out <span class="te-cite">IRC §32(b)</span><br><small>Excess over ${teFmt(threshold)}: ${teFmt(excess)} × ${(poRate*100).toFixed(2)}%</small></span><span>(${teFmt(reduction)})</span></div>`
+          : `<div class="te-ctc-row te-ctc-ok"><span>No phase-out — income below ${teFmt(threshold)}</span><span>—</span></div>`}
+        <div class="te-ctc-row te-ctc-tot"><span>EIC (Fully Refundable) <span class="te-cite">IRC §32(a)</span></span><span>${teFmt(credit)}</span></div>
+      </div>`;
+  }
+
+  c.innerHTML = `
+    ${numQC > 0
+      ? `<div class="te-info-sm" style="margin-bottom:8px;">
+           <strong>${numQC}${numQC===3?'+':''} EIC qualifying child${numQC===1?'':'ren'}</strong> identified from the Personal section.
+           Age test: under 19, or under 24 + full-time student, or permanently disabled. <span class="te-cite">IRC §32(c)(3)</span>
+         </div>`
+      : `<div class="te-info-sm" style="margin-bottom:8px;">
+           No EIC qualifying children found. Add dependents in the Personal section and check Full-Time Student or Disabled where applicable.
+         </div>
+         <div class="te-field-group" style="margin-bottom:8px;">
+           <label class="te-lbl" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+             <input type="checkbox" ${eicData.claimChildless?'checked':''} onchange="teOnEICClaimChildless(this.checked)">
+             Claim as childless eligible worker <span class="te-cite">IRC §32(c)(1)(A)</span>
+           </label>
+           <div class="te-ded-note" style="margin-top:4px;">Age eligibility (25–64 under traditional rules) applies. TODO:VERIFY OBBBA P.L. 119-21 age changes.</div>
+         </div>`}
+    ${invDisqualified
+      ? `<div class="te-info-box te-info-warn" style="margin-top:6px;">Investment income (${teFmt(invIncome)}) exceeds the ${teFmt(K.eic.investmentIncomeLimit)} limit — EIC disqualified. <span class="te-cite">IRC §32(i)(1)</span></div>`
+      : ''}
+    ${breakdownHTML}`;
+}
+
+// Handler for the childless EIC checkbox
+function teOnEICClaimChildless(checked) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.eic) teCurrentReturn.eic = {};
+  teCurrentReturn.eic.claimChildless = checked;
+  teRecalculate();
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
 //  METER UPDATE
 // ──────────────────────────────────────────────────────────────────────
 
@@ -2873,6 +3131,11 @@ function teUpdateMeter(calc, K, fs) {
   if (aocRow) {
     aocRow.style.display = calc.aocRefundable > 0 ? 'flex' : 'none';
     teM('te-m-aoc-ref', '(' + teFmt(calc.aocRefundable) + ')');
+  }
+  let eicRow = document.getElementById('te-m-eic-row');
+  if (eicRow) {
+    eicRow.style.display = calc.eicCredit > 0 ? 'flex' : 'none';
+    teM('te-m-eic', '(' + teFmt(calc.eicCredit) + ')');
   }
 
   let rl = document.getElementById('te-m-result-lbl');
@@ -3065,6 +3328,52 @@ function teRunFlags(calc, K, fs) {
     flags.push({ type: 'warning', text: 'MFS: Spouse is itemizing — standard deduction ($' + (TAX_CONSTANTS[r.taxYear] ? TAX_CONSTANTS[r.taxYear].standardDeduction.mfs.toLocaleString() : '0') + ') is disallowed on this return. Deduction used: itemized total of ' + teFmt(calc.itemizedTotal) + '. IRC §63(e).' });
   }
 
+  // Track 5 — EIC flags
+  if (fs !== 'mfs') {
+    let eicQC  = teCountEICQC(teCurrentReturn);
+    let eicK   = K.eic;
+    let earnedIncome = teRound(calc.w2Wages + calc.netSEIncome);
+    let eicData = teCurrentReturn.eic || {};
+
+    // Investment income disqualifier — IRC §32(i)(1)
+    let eicInvIncome = teRound(calc.interestIncome + calc.ordinaryDividends + Math.max(0, calc.scheduleDNet) + Math.max(0, calc.scheduleEPassive));
+    if (eicInvIncome > 0 && eicK && eicInvIncome > eicK.investmentIncomeLimit) {
+      flags.push({ type: 'warning', text: 'EIC disqualified: Investment income (' + teFmt(eicInvIncome) + ') exceeds the ' + teFmt(eicK.investmentIncomeLimit) + ' limit. <span class="te-cite">IRC §32(i)(1)</span>' });
+    }
+
+    if (calc.eicCredit > 0) {
+      let numKey = Math.min(eicQC + (eicData.claimChildless && eicQC === 0 ? 0 : 0), 3);
+      let threshold = eicK.phaseOutThreshold[eicQC] + (fs === 'mfj' ? eicK.jointBonus : 0);
+      let phaseOutBase = Math.max(calc.agi, earnedIncome);
+      flags.push({ type: 'info', text: 'Earned Income Credit: ' + teFmt(calc.eicCredit) + ' (fully refundable). Based on ' + eicQC + ' EIC qualifying child' + (eicQC === 1 ? '' : 'ren') + '. Phase-out begins at ' + teFmt(threshold) + '. <span class="te-cite">IRC §32</span>' });
+    } else if (earnedIncome > 0 && eicQC > 0 && eicK && eicInvIncome <= eicK.investmentIncomeLimit) {
+      // Would have qualified but phased out
+      let threshold = eicK.phaseOutThreshold[Math.min(eicQC, 3)] + (fs === 'mfj' ? eicK.jointBonus : 0);
+      let phaseOutBase = Math.max(calc.agi, earnedIncome);
+      if (phaseOutBase > threshold) {
+        let maxCredit = eicK.maxCredit[Math.min(eicQC, 3)];
+        let excess = phaseOutBase - threshold;
+        let reduction = excess * eicK.phaseOutRate[Math.min(eicQC, 3)];
+        if (reduction >= maxCredit) {
+          flags.push({ type: 'info', text: 'EIC fully phased out: AGI/earned income (' + teFmt(phaseOutBase) + ') exceeds the ' + eicQC + '-child phase-out range. Max credit (' + teFmt(maxCredit) + ') fully reduced. <span class="te-cite">IRC §32(b)</span>' });
+        }
+      }
+    }
+
+    // EIC phase-out proximity warning
+    if (calc.eicCredit > 0 && eicK && eicQC >= 0) {
+      let threshold = eicK.phaseOutThreshold[Math.min(eicQC, 3)] + (fs === 'mfj' ? eicK.jointBonus : 0);
+      let phaseOutBase = Math.max(calc.agi, earnedIncome);
+      if (phaseOutBase > threshold) {
+        let maxCredit = eicK.maxCredit[Math.min(eicQC, 3)];
+        let dollarsTillZero = teRound(maxCredit / eicK.phaseOutRate[Math.min(eicQC, 3)] - (phaseOutBase - threshold));
+        if (dollarsTillZero > 0 && dollarsTillZero < 5000) {
+          flags.push({ type: 'warning', text: 'EIC phase-out: credit will be fully eliminated in ' + teFmt(dollarsTillZero) + ' more of income. <span class="te-cite">IRC §32(b)</span>' });
+        }
+      }
+    }
+  }
+
   // Deduction comparison note
   if (calc.mfsItemizedRequired) {
     // already flagged above; skip redundant comparison note
@@ -3188,6 +3497,7 @@ function teSerialize(r) {
     educationStudents: r.educationStudents || [],
     agiAdjustments:    r.agiAdjustments    || { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false },
     scheduleA:         r.scheduleA         || { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', mortgagePurpose: 'acquisition', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '', mfsSpouseItemizes: false },
+    eic:               r.eic               || { claimChildless: false },
     annotations:       r.annotations       || [],
     completedSections: r.completedSections || []
   };
@@ -3214,6 +3524,13 @@ function teDeserialize(data) {
   if (!r.scheduleE)          r.scheduleE          = [];
   if (!r.investmentInterest) r.investmentInterest = { expense: '', priorYearCarryforward: '', includeQDinNII: false };
   if (!r.annotations)        r.annotations        = [];
+  // Track 5 backfill — existing returns predate EIC field
+  if (!r.eic)                r.eic                = { claimChildless: false };
+  // Backfill dependent EIC fields on existing returns
+  (r.dependents || []).forEach(d => {
+    if (d.isFullTimeStudent   === undefined) d.isFullTimeStudent   = false;
+    if (d.isPermanentlyDisabled === undefined) d.isPermanentlyDisabled = false;
+  });
   return r;
 }
 
