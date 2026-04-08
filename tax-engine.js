@@ -2037,7 +2037,7 @@ function teRenderEduList() {
             </div>
             <div class="te-field-group">
               <label class="te-lbl">Qualified Expenses</label>
-              <input type="number" class="te-input te-mono" value="${s.expenses||''}" placeholder="0.00" step="0.01" min="0" oninput="teUpdStudent(${i},'expenses',this.value)">
+              <input type="text" inputmode="numeric" class="te-input te-mono" value="${s.expenses||''}" placeholder="0.00" oninput="teUpdStudent(${i},'expenses',this.value)">
             </div>
             ${s.creditType === 'aoc' ? `
             <div class="te-field-group te-narrow">
@@ -3453,13 +3453,13 @@ function teRenderCDCCSection() {
       </div>
       <div class="te-field-group">
         <label class="te-lbl">Qualifying Care Expenses Paid</label>
-        <input type="number" class="te-input te-mono" value="${d.careExpenses||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${d.careExpenses||''}" placeholder="0.00"
           oninput="teOnCDCCField('careExpenses',this.value)">
         ${persons ? `<div class="te-ded-note">Cap: ${teFmt(expCap)}. <span class="te-cite">IRC §21(c)</span></div>` : ''}
       </div>
       <div class="te-field-group">
         <label class="te-lbl">Employer Dependent Care FSA <span class="te-cite">§129</span></label>
-        <input type="number" class="te-input te-mono" value="${d.fsaBenefits||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${d.fsaBenefits||''}" placeholder="0.00"
           oninput="teOnCDCCField('fsaBenefits',this.value)">
         <div class="te-ded-note">Benefits received from employer FSA reduce qualifying expenses dollar-for-dollar. Form 2441.</div>
       </div>
@@ -3468,7 +3468,7 @@ function teRenderCDCCSection() {
     <div class="te-frow" style="gap:14px;flex-wrap:wrap;margin-top:10px;align-items:flex-start;">
       <div class="te-field-group">
         <label class="te-lbl">Spouse Earned Income <span class="te-cite">IRC §21(d)</span></label>
-        <input type="number" class="te-input te-mono" value="${d.spouseEarnedIncome||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${d.spouseEarnedIncome||''}" placeholder="0.00"
           ${d.spouseIsStudentOrDisabled ? 'disabled style="opacity:0.5;"' : ''}
           oninput="teOnCDCCField('spouseEarnedIncome',this.value)">
         <div class="te-ded-note">Qualifying expenses capped at lesser of both spouses' earned income.</div>
@@ -3483,7 +3483,7 @@ function teRenderCDCCSection() {
       ${d.spouseIsStudentOrDisabled ? `
       <div class="te-field-group te-narrow">
         <label class="te-lbl">Months Condition Applies</label>
-        <input type="number" class="te-input te-mono" value="${d.studentDisabledMonths||''}" placeholder="12" min="1" max="12"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${d.studentDisabledMonths||''}" placeholder="12"
           oninput="teOnCDCCField('studentDisabledMonths',this.value)">
       </div>` : ''}
     </div>` : ''}
@@ -3554,18 +3554,18 @@ function teRenderSaversSection() {
     <div class="te-frow" style="gap:14px;flex-wrap:wrap;">
       <div class="te-field-group">
         <label class="te-lbl">Taxpayer Retirement Contributions <span class="te-cite">IRC §25B(d)(1)</span></label>
-        <input type="number" class="te-input te-mono" value="${d.taxpayerContributions||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${d.taxpayerContributions||''}" placeholder="0.00"
           oninput="teOnSaversField('taxpayerContributions',this.value)">
         <div class="te-ded-note">IRA + 401(k)/403(b)/457(b)/SIMPLE combined. Cap: ${teFmt(K.savers.maxContribPerPerson)}/person.</div>
       </div>
       <div class="te-field-group">
         <label class="te-lbl">Current Year Distributions <span class="te-cite">IRC §25B(d)</span></label>
-        <input type="number" class="te-input te-mono" value="${d.taxpayerDistCurrent||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${d.taxpayerDistCurrent||''}" placeholder="0.00"
           oninput="teOnSaversField('taxpayerDistCurrent',this.value)">
       </div>
       <div class="te-field-group">
         <label class="te-lbl">Prior 2 Years Distributions <span class="te-cite">IRC §25B(d)</span></label>
-        <input type="number" class="te-input te-mono" value="${d.taxpayerDistPrior||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${d.taxpayerDistPrior||''}" placeholder="0.00"
           oninput="teOnSaversField('taxpayerDistPrior',this.value)">
         <div class="te-ded-note">Future: auto-populated from client return history.</div>
       </div>
@@ -3573,7 +3573,7 @@ function teRenderSaversSection() {
     <div class="te-frow" style="gap:14px;flex-wrap:wrap;margin-top:8px;align-items:flex-end;">
       <div class="te-field-group te-narrow">
         <label class="te-lbl">Taxpayer Age</label>
-        <input type="number" class="te-input te-mono" value="${d.taxpayerAge||''}" placeholder="e.g. 35" min="0" max="120"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${d.taxpayerAge||''}" placeholder="e.g. 35"
           oninput="teOnSaversField('taxpayerAge',this.value)">
         <div class="te-ded-note">Under 18 → disqualified. <span class="te-cite">IRC §25B(c)(1)</span></div>
       </div>
@@ -3589,17 +3589,17 @@ function teRenderSaversSection() {
     <div class="te-frow" style="gap:14px;flex-wrap:wrap;">
       <div class="te-field-group">
         <label class="te-lbl">Spouse Retirement Contributions</label>
-        <input type="number" class="te-input te-mono" value="${d.spouseContributions||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${d.spouseContributions||''}" placeholder="0.00"
           oninput="teOnSaversField('spouseContributions',this.value)">
       </div>
       <div class="te-field-group">
         <label class="te-lbl">Spouse Current Year Distributions</label>
-        <input type="number" class="te-input te-mono" value="${d.spouseDistCurrent||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${d.spouseDistCurrent||''}" placeholder="0.00"
           oninput="teOnSaversField('spouseDistCurrent',this.value)">
       </div>
       <div class="te-field-group">
         <label class="te-lbl">Spouse Prior 2 Years Distributions</label>
-        <input type="number" class="te-input te-mono" value="${d.spouseDistPrior||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${d.spouseDistPrior||''}" placeholder="0.00"
           oninput="teOnSaversField('spouseDistPrior',this.value)">
       </div>
     </div>` : ''}
@@ -3665,30 +3665,30 @@ function teRenderEnergySection() {
     <div class="te-frow" style="gap:12px;flex-wrap:wrap;">
       <div class="te-field-group">
         <label class="te-lbl">Windows &amp; Skylights <small>(sub-cap ${teFmt(cfg.poolA.subCaps.windows)})</small></label>
-        <input type="number" class="te-input te-mono" value="${e.windows||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${e.windows||''}" placeholder="0.00"
           oninput="teOnEnergyField('windows',this.value)">
         ${winAmt >= cfg.poolA.subCaps.windows && (parseFloat(e.windows)||0) > 0 ? `<div class="te-ded-note te-warn-note">${teFmt(cfg.poolA.subCaps.windows)} sub-cap reached.</div>` : ''}
       </div>
       <div class="te-field-group">
         <label class="te-lbl">Exterior Doors <small>($250/door, max ${teFmt(cfg.poolA.subCaps.doors)})</small></label>
-        <input type="number" class="te-input te-mono" value="${e.doors||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${e.doors||''}" placeholder="0.00"
           oninput="teOnEnergyField('doors',this.value)">
       </div>
       <div class="te-field-group te-narrow">
         <label class="te-lbl"># of Doors</label>
-        <input type="number" class="te-input te-mono" value="${e.doorCount||''}" placeholder="1" min="1" max="20"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${e.doorCount||''}" placeholder="1"
           oninput="teOnEnergyField('doorCount',this.value)">
       </div>
       <div class="te-field-group">
         <label class="te-lbl">Energy Property <small>(sub-cap ${teFmt(cfg.poolA.subCaps.energyProperty)})</small></label>
-        <input type="number" class="te-input te-mono" value="${e.energyProperty||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${e.energyProperty||''}" placeholder="0.00"
           oninput="teOnEnergyField('energyProperty',this.value)">
         <div class="te-ded-note">Central A/C, gas/oil water heater, furnace, boiler (non-heat-pump). <span class="te-cite">§25C(d)(2)</span></div>
         ${epAmt >= cfg.poolA.subCaps.energyProperty && (parseFloat(e.energyProperty)||0) > 0 ? `<div class="te-ded-note te-warn-note">${teFmt(cfg.poolA.subCaps.energyProperty)} sub-cap reached.</div>` : ''}
       </div>
       <div class="te-field-group">
         <label class="te-lbl">Home Energy Audit <small>(sub-cap ${teFmt(cfg.poolA.subCaps.audit)})</small></label>
-        <input type="number" class="te-input te-mono" value="${e.audit||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${e.audit||''}" placeholder="0.00"
           oninput="teOnEnergyField('audit',this.value)">
         ${audAmt >= cfg.poolA.subCaps.audit && (parseFloat(e.audit)||0) > 0 ? `<div class="te-ded-note te-warn-note">${teFmt(cfg.poolA.subCaps.audit)} sub-cap reached.</div>` : ''}
       </div>
@@ -3702,17 +3702,17 @@ function teRenderEnergySection() {
     <div class="te-frow" style="gap:12px;flex-wrap:wrap;">
       <div class="te-field-group">
         <label class="te-lbl">Heat Pumps (space heating/cooling)</label>
-        <input type="number" class="te-input te-mono" value="${e.heatPumps||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${e.heatPumps||''}" placeholder="0.00"
           oninput="teOnEnergyField('heatPumps',this.value)">
       </div>
       <div class="te-field-group">
         <label class="te-lbl">Heat Pump Water Heaters</label>
-        <input type="number" class="te-input te-mono" value="${e.heatPumpWH||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${e.heatPumpWH||''}" placeholder="0.00"
           oninput="teOnEnergyField('heatPumpWH',this.value)">
       </div>
       <div class="te-field-group">
         <label class="te-lbl">Biomass Stoves / Boilers</label>
-        <input type="number" class="te-input te-mono" value="${e.biomass||''}" placeholder="0.00" step="0.01" min="0"
+        <input type="text" inputmode="numeric" class="te-input te-mono" value="${e.biomass||''}" placeholder="0.00"
           oninput="teOnEnergyField('biomass',this.value)">
       </div>
     </div>
