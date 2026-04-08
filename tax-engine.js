@@ -353,6 +353,64 @@ const TAX_CONSTANTS = {
       // Investment income limit — IRC §32(i)(1): EIC = $0 if investment income exceeds this
       // Source: IRS Pub. 596 (2025) Ch.2 Rule 6 — verified 2026-04-08
       investmentIncomeLimit: 11950
+    },
+
+    // ── TRACK 5B: Child & Dependent Care Credit (2025) ───────────────────
+    // IRC §21 — pre-OBBBA rate structure (single-tier phase-down)
+    // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section21
+    // OBBBA §70405 amended §21(a)(2) — effective TY beginning after 12/31/2025.
+    // 2025 returns use the pre-OBBBA single-tier rate: 35% → 20%, threshold $15,000.
+    cdcc: {
+      expenseCap1:    3000,   // IRC §21(c)(1) — 1 qualifying person — STATUTORY
+      expenseCap2:    6000,   // IRC §21(c)(2) — 2+ qualifying persons — STATUTORY
+      deemedIncome1:   250,   // IRC §21(d)(2)(A) — student/disabled spouse, 1 QP — per month — STATUTORY
+      deemedIncome2:   500,   // IRC §21(d)(2)(B) — student/disabled spouse, 2+ QPs — per month — STATUTORY
+      // IRC §21(a)(2) — pre-OBBBA: rate = max(20%, 35% − 1% per $2,000 above $15,000)
+      rateStart:      0.35,
+      rateFloor:      0.20,
+      rateThreshold:  15000,
+      rateStep:       2000
+    },
+
+    // ── TRACK 5C: Retirement Savings Contributions Credit (2025) ─────────
+    // IRC §25B — Saver's Credit
+    // Source: IRS Notice 2024-80 (irs.gov/pub/irs-drop/n-24-80.pdf)
+    // NOTE: Thresholds are NOT in Rev. Proc. 2024-40 — published in separate annual Notice.
+    // OBBBA §70116: for 2025, traditional retirement contributions still qualify.
+    // Per-person contribution cap: $2,000 — IRC §25B(a) — STATUTORY.
+    // MFS ineligible — IRC §25B(g). Under-18/student/dependent ineligible — IRC §25B(c).
+    savers: {
+      maxContribPerPerson: 2000,   // IRC §25B(a) — STATUTORY — unchanged through 2026
+      // AGI bracket lookup: [maxAGI, creditRate] — rate = 0% above the last bracket
+      agiBrackets: {
+        mfj:   [ [47500, 0.50], [51000, 0.20], [79000, 0.10] ],  // Notice 2024-80
+        hoh:   [ [35625, 0.50], [38250, 0.20], [59250, 0.10] ],  // Notice 2024-80
+        other: [ [23750, 0.50], [25500, 0.20], [39500, 0.10] ]   // Notice 2024-80 — single, QSS
+        // MFS: categorically ineligible — IRC §25B(g) — no bracket applies
+      }
+    },
+
+    // ── TRACK 5D: Energy-Efficient Home Improvement Credit (2025) ────────
+    // IRC §25C — final year available
+    // Source: uscode.house.gov 26 U.S.C. §25C (as amended by IRA 2022 P.L. 117-169)
+    // OBBBA §70505: terminated for property placed in service after December 31, 2025.
+    // 2025 is the FINAL year this credit is available.
+    energyImprovement: {
+      rate: 0.30,   // §25C(a) — 30% of qualified expenditures
+      poolA: {
+        cap: 1200,  // §25C(b)(1) — annual aggregate cap for general improvements
+        subCaps: {
+          energyProperty: 600,  // §25C(b)(1)(A) — central A/C, gas/oil water heaters, furnaces, boilers (non-heat-pump)
+          windows:        600,  // §25C(b)(1)(B) — exterior windows & skylights
+          doorPerUnit:    250,  // §25C(b)(1)(C) — per exterior door
+          doors:          500,  // §25C(b)(1)(C) — aggregate door limit
+          audit:          150   // §25C(b)(1)(D) — home energy audit
+        }
+      },
+      poolB: {
+        cap: 2000   // §25C(b)(2) — heat pumps, heat pump water heaters, biomass stoves/boilers
+                    // SEPARATE cap — IN ADDITION to the $1,200 Pool A cap
+      }
     }
   },
 
@@ -578,7 +636,48 @@ const TAX_CONSTANTS = {
       phaseOutThreshold: { 0: 10230, 1: 24035, 2: 24035, 3: 24035 }, // TODO:VERIFY vs Rev. Proc. 2025-32
       jointBonus:        6150,    // TODO:VERIFY vs Rev. Proc. 2025-32
       investmentIncomeLimit: 11950 // TODO:VERIFY vs Rev. Proc. 2025-32
-    }
+    },
+
+    // ── TRACK 5B: Child & Dependent Care Credit (2026) ───────────────────
+    // IRC §21 — OBBBA §70405 two-tier rate structure (effective TY beginning after 12/31/2025)
+    // Source: P.L. 119-21 §70405; uscode.house.gov 26 U.S.C. §21 (current, reflects OBBBA)
+    // Tier 1: 50% → 35% (1% per $2,000 above $15,000)
+    // Tier 2: 35% → 20% further (1% per $2,000 single / $4,000 MFJ above $75,000/$150,000)
+    cdcc: {
+      expenseCap1:           3000,   // IRC §21(c)(1) — STATUTORY — unchanged by OBBBA
+      expenseCap2:           6000,   // IRC §21(c)(2) — STATUTORY — unchanged by OBBBA
+      deemedIncome1:          250,   // IRC §21(d)(2)(A) — STATUTORY — unchanged by OBBBA
+      deemedIncome2:          500,   // IRC §21(d)(2)(B) — STATUTORY — unchanged by OBBBA
+      // OBBBA §70405 — two-tier structure, effective TY2026+
+      rateStart:             0.50,
+      tier1Floor:            0.35,
+      tier1Threshold:       15000,
+      tier1Step:             2000,
+      tier2Floor:            0.20,
+      tier2ThresholdSingle: 75000,
+      tier2ThresholdMFJ:   150000,
+      tier2StepSingle:       2000,
+      tier2StepMFJ:          4000
+    },
+
+    // ── TRACK 5C: Retirement Savings Contributions Credit (2026) ─────────
+    // IRC §25B — Saver's Credit
+    // Source: IRS Notice 2025-67 (irs.gov/pub/irs-drop/n-25-67.pdf)
+    // OBBBA §70116: for 2026, traditional retirement contributions still qualify.
+    // WARNING: OBBBA §70116 limits qualifying contributions to ABLE-only starting TY2027.
+    savers: {
+      maxContribPerPerson: 2000,   // IRC §25B(a) — STATUTORY — unchanged through 2026
+      agiBrackets: {
+        mfj:   [ [48500, 0.50], [52500, 0.20], [80500, 0.10] ],  // Notice 2025-67
+        hoh:   [ [36375, 0.50], [39375, 0.20], [60375, 0.10] ],  // Notice 2025-67
+        other: [ [24250, 0.50], [26250, 0.20], [40250, 0.10] ]   // Notice 2025-67 — single, QSS
+      }
+    },
+
+    // ── TRACK 5D: Energy-Efficient Home Improvement Credit (2026) ────────
+    // TERMINATED — OBBBA §70505 amended §25C(h): no credit for property placed in service
+    // after December 31, 2025. Code structure preserved for potential future re-enactment.
+    energyImprovement: null
   }
 };
 
@@ -665,6 +764,37 @@ function teEmptyReturn(clientId, clientName, taxYear) {
     eic: {
       claimChildless: false  // IRC §32(c)(1)(A) — eligible worker with no QC (age/income tests apply)
                              // TODO:VERIFY OBBBA P.L. 119-21 age limit changes for childless EIC
+    },
+    // ── Track 5B — Child & Dependent Care Credit — IRC §21 ───────────────
+    cdcc: {
+      qualifyingPersons:         '',      // '1' or '2plus'
+      careExpenses:              '',      // total qualifying care expenses paid
+      fsaBenefits:               '',      // employer-provided dependent care FSA — §129 / Form 2441 Box 12
+      spouseEarnedIncome:        '',      // MFJ: spouse's earned income (if no deemed income applies)
+      spouseIsStudentOrDisabled: false,   // true → deemed earned income applies — IRC §21(d)(2)
+      studentDisabledMonths:     ''       // # months condition applies (1–12) for deemed income calc
+    },
+    // ── Track 5C — Retirement Savings Contributions Credit — IRC §25B ────
+    savers: {
+      taxpayerContributions: '',    // IRA + 401k/403b/457b/SIMPLE combined — IRC §25B(d)(1)
+      spouseContributions:   '',    // MFJ only — separate $2,000 cap per spouse
+      taxpayerDistCurrent:   '',    // distributions received this tax year — IRC §25B(d)
+      taxpayerDistPrior:     '',    // distributions received in prior 2 years — IRC §25B(d) (manual; future: auto-populated from client history)
+      spouseDistCurrent:     '',    // MFJ — spouse distributions this year
+      spouseDistPrior:       '',    // MFJ — spouse distributions prior 2 years
+      taxpayerIsStudent:     false, // full-time student → disqualified — IRC §25B(c)(2)
+      taxpayerAge:           ''     // under 18 → disqualified — IRC §25B(c)(1)
+    },
+    // ── Track 5D — Energy-Efficient Home Improvement Credit — IRC §25C ───
+    energyImprovement: {
+      windows:        '',   // exterior windows & skylights — Pool A sub-cap $600
+      doors:          '',   // exterior doors — total expenditure — Pool A sub-cap $250/door, $500 max
+      doorCount:      '',   // number of exterior doors installed
+      energyProperty: '',   // central A/C, gas/oil water heaters, furnaces, boilers (non-heat-pump) — Pool A sub-cap $600
+      audit:          '',   // home energy audit — Pool A sub-cap $150
+      heatPumps:      '',   // heat pump space heating/cooling — Pool B ($2,000 separate cap)
+      heatPumpWH:     '',   // heat pump water heaters — Pool B
+      biomass:        ''    // biomass stoves/boilers — Pool B
     },
     annotations:  [],
     completedSections: []
@@ -1813,10 +1943,26 @@ function teRenderCredits() {
         : `<div id="te-eic-section" style="margin-top:10px;"></div>`}
     </div>
 
-    <div class="te-stub-sec" style="margin-top:16px;">
-      <div class="te-stub-blk"><span class="te-stub-title">Child &amp; Dependent Care Credit <span class="te-cite">IRC §21</span></span><span class="te-stub-pill">Track 5b</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">Retirement Savings Contributions Credit <span class="te-cite">IRC §25B</span></span><span class="te-stub-pill">Track 5c</span></div>
-      <div class="te-stub-blk"><span class="te-stub-title">Energy-Efficient Home Improvement Credit <span class="te-cite">IRC §25C, §25D</span></span><span class="te-stub-pill">Track 5d</span></div>
+    <div class="te-subsec" style="margin-top:24px;">
+      <div class="te-subsec-lbl">Child &amp; Dependent Care Credit <span class="te-cite">IRC §21</span></div>
+      <div class="te-subsec-desc">Credit for care expenses paid so the taxpayer (and spouse, if MFJ) can work or look for work. Coordinates with employer-provided dependent care FSA benefits. Non-refundable. <span class="te-cite">IRC §21</span></div>
+      ${isMFS
+        ? '<div class="te-ded-note" style="margin-top:6px;">Not available for Married Filing Separately. <span class="te-cite">IRC §21(e)(2)</span></div>'
+        : '<div id="te-cdcc-section" style="margin-top:10px;"></div>'}
+    </div>
+
+    <div class="te-subsec" style="margin-top:24px;">
+      <div class="te-subsec-lbl">Retirement Savings Contributions Credit <span class="te-cite">IRC §25B</span></div>
+      <div class="te-subsec-desc">Credit for contributions to eligible retirement plans. Contributions reduced by distributions received in the current year and prior 2 years. Non-refundable. <span class="te-cite">IRC §25B</span></div>
+      ${isMFS
+        ? '<div class="te-ded-note" style="margin-top:6px;">Not available for Married Filing Separately. <span class="te-cite">IRC §25B(g)</span></div>'
+        : '<div id="te-savers-section" style="margin-top:10px;"></div>'}
+    </div>
+
+    <div class="te-subsec" style="margin-top:24px;">
+      <div class="te-subsec-lbl">Energy-Efficient Home Improvement Credit <span class="te-cite">IRC §25C</span></div>
+      <div class="te-subsec-desc">Credit for qualifying improvements to an existing primary residence. Two separate credit pools with distinct annual caps. Non-refundable; no carryforward. <span class="te-cite">IRC §25C</span></div>
+      <div id="te-energy-section" style="margin-top:10px;"></div>
     </div>`;
 }
 
@@ -2598,18 +2744,47 @@ function teRecalculate() {
   calc.ctcNonRefundable  = ctc.nonRefundable;
   calc.actcRefundable    = ctc.actcRefundable;
 
-  // ── Step 9: Education Credits — IRC §25A ────────────────────────────
-  // Education credits applied against remaining tax after CTC, still against taxBeforeCredits base.
-  let taxAfterCTC = teRound(Math.max(0, calc.taxBeforeCredits - calc.ctcNonRefundable));
-  let edu = teCalcEduCredits(teCurrentReturn, calc.agi, taxAfterCTC, fs, K);
+  // ── Step 9a: Child & Dependent Care Credit — IRC §21 ────────────────
+  // Per Schedule 3 Line 2: §21 is applied immediately after CTC (Line 19 of Form 1040)
+  // and before education credits (Schedule 3 Line 3). Non-refundable only.
+  let taxAfterCTC   = teRound(Math.max(0, calc.taxBeforeCredits - calc.ctcNonRefundable));
+  let cdccResult    = teCalcCDCC(teCurrentReturn, calc, K, fs);
+  calc.cdccRate     = cdccResult.rate;
+  calc.cdccQualExp  = cdccResult.qualifyingExpenses;
+  calc.cdccCredit   = teRound(Math.min(cdccResult.credit, taxAfterCTC));
+
+  // ── Step 9b: Education Credits — IRC §25A ───────────────────────────
+  // Applied after CDCC (Schedule 3 Line 3). Pass remaining tax after CDCC.
+  let taxAfterCDCC = teRound(Math.max(0, taxAfterCTC - calc.cdccCredit));
+  let edu = teCalcEduCredits(teCurrentReturn, calc.agi, taxAfterCDCC, fs, K);
   calc.aocNonRefundable      = edu.aocNonRefundable;
   calc.aocRefundable         = edu.aocRefundable;
   calc.llcCredit             = edu.llcCredit;
   calc.totalEduNonRefundable = edu.aocNonRefundable + edu.llcCredit;
 
+  // ── Step 9c: Saver's Credit — IRC §25B ──────────────────────────────
+  // Schedule 3, Line 4. Non-refundable. Applied after education credits.
+  let taxAfterEdu   = teRound(Math.max(0, taxAfterCDCC - calc.totalEduNonRefundable));
+  let saversResult  = teCalcSavers(teCurrentReturn, calc, K, fs);
+  calc.saversTaxpayer = saversResult.taxpayerCredit;
+  calc.saversSpouse   = saversResult.spouseCredit;
+  calc.saversCredit   = teRound(Math.min(saversResult.total, taxAfterEdu));
+
+  // ── Step 9d: Energy-Efficient Home Improvement Credit — IRC §25C ────
+  // Schedule 3, Line 5a. Non-refundable; no carryforward. 2025 only — terminated by OBBBA §70505.
+  let taxAfterSavers  = teRound(Math.max(0, taxAfterEdu - calc.saversCredit));
+  let energyResult    = teCalcEnergy(teCurrentReturn, K);
+  calc.energyPoolA    = energyResult.poolA;
+  calc.energyPoolB    = energyResult.poolB;
+  calc.energyTerminated = energyResult.terminated;
+  calc.energyCredit   = teRound(Math.min(energyResult.total, taxAfterSavers));
+
   // ── Step 10: Non-refundable credits applied — floor at $0 ───────────
-  calc.totalNonRefundable  = teRound(calc.ctcNonRefundable + calc.totalEduNonRefundable);
-  calc.taxAfterNRCredits   = teRound(Math.max(0, calc.taxBeforeCredits - calc.totalNonRefundable));
+  calc.totalNonRefundable = teRound(
+    calc.ctcNonRefundable + calc.cdccCredit
+    + calc.totalEduNonRefundable + calc.saversCredit + calc.energyCredit
+  );
+  calc.taxAfterNRCredits  = teRound(Math.max(0, calc.taxBeforeCredits - calc.totalNonRefundable));
 
   // ── Step 10a: EIC — Fully refundable — IRC §32 ──────────────────────
   // EIC does NOT reduce regular tax (non-refundable); it is applied in Step 12 as a refundable credit.
@@ -2666,7 +2841,7 @@ function teRecalculate() {
   teRunFlags(calc, K, fs);
 
   // Refresh live displays on active sections
-  if (teActiveSection === 'credits') { teRenderCTCDetail(); teRenderEduList(); teRenderEICSection(); }
+  if (teActiveSection === 'credits') { teRenderCTCDetail(); teRenderEduList(); teRenderEICSection(); teRenderCDCCSection(); teRenderSaversSection(); teRenderEnergySection(); }
   if (teActiveSection === 'income') {
     let scEl = document.getElementById('te-sc-netprofit');
     if (!scEl) { teRenderW2List(); }  // full re-render only if SC input gone
@@ -2969,6 +3144,175 @@ function teCalcEIC(r, calc, fs, K) {
   return teRound(Math.max(0, tentative - reduction));
 }
 
+// ──────────────────────────────────────────────────────────────────────
+//  TRACK 5B — CHILD & DEPENDENT CARE CREDIT
+// ──────────────────────────────────────────────────────────────────────
+
+// IRC §21 — Child & Dependent Care Credit
+// r:    current return object
+// calc: computed values from teRecalculate (w2Wages, netSEIncome, agi)
+// K:    TAX_CONSTANTS for the return's tax year
+// fs:   filing status
+function teCalcCDCC(r, calc, K, fs) {
+  // IRC §21(e)(2): MFS categorically ineligible
+  if (fs === 'mfs') return { credit: 0, rate: 0, qualifyingExpenses: 0 };
+  let C = K.cdcc;
+  if (!C) return { credit: 0, rate: 0, qualifyingExpenses: 0 };
+
+  let d = r.cdcc || {};
+  let persons = d.qualifyingPersons || '';
+  if (!persons) return { credit: 0, rate: 0, qualifyingExpenses: 0 };
+
+  let is2plus    = (persons === '2plus');
+  let expenseCap = is2plus ? C.expenseCap2 : C.expenseCap1;
+
+  // Step 1: Reduce qualifying expenses by employer FSA benefits — IRC §21(c); Form 2441
+  let careExp = teRound(Math.max(0, parseFloat(d.careExpenses) || 0));
+  let fsaBen  = teRound(Math.max(0, parseFloat(d.fsaBenefits) || 0));
+  let netExp  = teRound(Math.max(0, careExp - fsaBen));
+
+  // Step 2: Apply dollar cap — IRC §21(c)
+  netExp = teRound(Math.min(netExp, expenseCap));
+  if (netExp <= 0) return { credit: 0, rate: 0, qualifyingExpenses: 0 };
+
+  // Step 3: Earned income limit — IRC §21(d)
+  // MFJ: netExp capped at the LESSER of both spouses' earned income
+  // Single/HOH/QSS: capped at taxpayer's earned income
+  let taxpayerEI = teRound(calc.w2Wages + calc.netSEIncome);
+  if (fs === 'mfj') {
+    let spouseEI;
+    if (d.spouseIsStudentOrDisabled) {
+      // IRC §21(d)(2): deemed earned income for student or disabled spouse
+      let months  = Math.min(12, Math.max(0, parseInt(d.studentDisabledMonths) || 0));
+      let deemed  = is2plus ? C.deemedIncome2 : C.deemedIncome1;
+      spouseEI    = teRound(deemed * months);
+    } else {
+      spouseEI = teRound(Math.max(0, parseFloat(d.spouseEarnedIncome) || 0));
+    }
+    netExp = teRound(Math.min(netExp, Math.min(taxpayerEI, spouseEI)));
+  } else {
+    netExp = teRound(Math.min(netExp, taxpayerEI));
+  }
+  if (netExp <= 0) return { credit: 0, rate: 0, qualifyingExpenses: 0 };
+
+  // Step 4: Applicable credit rate — IRC §21(a)(2)
+  let agi  = calc.agi || 0;
+  let rate;
+  if (C.tier1Floor !== undefined) {
+    // 2026+ two-tier structure — OBBBA §70405
+    // Tier 1: 50% → floor 35%, reduce 1% per $2,000 above $15,000
+    let t1Reductions = Math.ceil(Math.max(0, agi - C.tier1Threshold) / C.tier1Step);
+    let afterTier1   = Math.max(C.tier1Floor, C.rateStart - t1Reductions * 0.01);
+    // Tier 2: further reduce 1% per $2,000 single / $4,000 MFJ above $75,000 / $150,000
+    let t2Thresh     = (fs === 'mfj') ? C.tier2ThresholdMFJ     : C.tier2ThresholdSingle;
+    let t2Step       = (fs === 'mfj') ? C.tier2StepMFJ          : C.tier2StepSingle;
+    let t2Reductions = Math.ceil(Math.max(0, agi - t2Thresh) / t2Step);
+    rate = Math.max(C.tier2Floor, afterTier1 - t2Reductions * 0.01);
+  } else {
+    // 2025 single-tier structure — pre-OBBBA
+    let reductions = Math.ceil(Math.max(0, agi - C.rateThreshold) / C.rateStep);
+    rate = Math.max(C.rateFloor, C.rateStart - reductions * 0.01);
+  }
+
+  let credit = teRound(netExp * rate);
+  return { credit, rate, qualifyingExpenses: netExp };
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
+//  TRACK 5C — RETIREMENT SAVINGS CONTRIBUTIONS CREDIT (SAVER'S CREDIT)
+// ──────────────────────────────────────────────────────────────────────
+
+// IRC §25B — Saver's Credit
+// r:    current return object
+// calc: computed values from teRecalculate (agi)
+// K:    TAX_CONSTANTS for the return's tax year
+// fs:   filing status
+function teCalcSavers(r, calc, K, fs) {
+  // IRC §25B(g): MFS categorically ineligible
+  if (fs === 'mfs') return { taxpayerCredit: 0, spouseCredit: 0, total: 0 };
+  let C = K.savers;
+  if (!C) return { taxpayerCredit: 0, spouseCredit: 0, total: 0 };
+
+  let d = r.savers || {};
+
+  // IRC §25B(c): categorical disqualifiers — full-time student or under age 18
+  if (d.taxpayerIsStudent) return { taxpayerCredit: 0, spouseCredit: 0, total: 0 };
+  let taxpayerAge = parseInt(d.taxpayerAge) || 0;
+  if (taxpayerAge > 0 && taxpayerAge < 18) return { taxpayerCredit: 0, spouseCredit: 0, total: 0 };
+
+  // AGI bracket lookup — rate = 0% above the highest bracket ceiling
+  let bracketKey = (fs === 'mfj') ? 'mfj' : (fs === 'hoh') ? 'hoh' : 'other';
+  let rate = 0;
+  let agi  = calc.agi || 0;
+  for (let [maxAGI, r_] of C.agiBrackets[bracketKey]) {
+    if (agi <= maxAGI) { rate = r_; break; }
+  }
+  if (rate === 0) return { taxpayerCredit: 0, spouseCredit: 0, total: 0 };
+
+  // Taxpayer net contributions — IRC §25B(d): reduce by distributions in current year + prior 2 years
+  let tpContrib = teRound(Math.max(0, parseFloat(d.taxpayerContributions) || 0));
+  let tpDistCur = teRound(Math.max(0, parseFloat(d.taxpayerDistCurrent) || 0));
+  let tpDistPri = teRound(Math.max(0, parseFloat(d.taxpayerDistPrior) || 0));
+  let tpNet     = teRound(Math.max(0, Math.min(C.maxContribPerPerson, tpContrib - tpDistCur - tpDistPri)));
+  let tpCredit  = teRound(tpNet * rate);
+
+  // Spouse contributions (MFJ only) — each spouse has an independent $2,000 cap
+  let spCredit = 0;
+  if (fs === 'mfj') {
+    let spContrib = teRound(Math.max(0, parseFloat(d.spouseContributions) || 0));
+    let spDistCur = teRound(Math.max(0, parseFloat(d.spouseDistCurrent) || 0));
+    let spDistPri = teRound(Math.max(0, parseFloat(d.spouseDistPrior) || 0));
+    let spNet     = teRound(Math.max(0, Math.min(C.maxContribPerPerson, spContrib - spDistCur - spDistPri)));
+    spCredit = teRound(spNet * rate);
+  }
+
+  return { taxpayerCredit: tpCredit, spouseCredit: spCredit, total: teRound(tpCredit + spCredit), rate };
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
+//  TRACK 5D — ENERGY-EFFICIENT HOME IMPROVEMENT CREDIT
+// ──────────────────────────────────────────────────────────────────────
+
+// IRC §25C — Energy-Efficient Home Improvement Credit
+// Terminated for property placed in service after 12/31/2025 — OBBBA §70505.
+// Code structure preserved for potential future re-enactment.
+// r: current return object
+// K: TAX_CONSTANTS for the return's tax year
+function teCalcEnergy(r, K) {
+  let C = K.energyImprovement;
+  // K.energyImprovement is null for 2026+ — credit terminated (OBBBA §70505)
+  if (!C) return { poolA: 0, poolB: 0, total: 0, terminated: true, poolAQual: 0, poolBQual: 0 };
+
+  let e = r.energyImprovement || {};
+
+  // Pool A — General improvements, aggregate cap $1,200 with sub-limits — §25C(b)(1)
+  let windows    = teRound(Math.min(Math.max(0, parseFloat(e.windows) || 0), C.poolA.subCaps.windows));
+  let doorExp    = teRound(Math.max(0, parseFloat(e.doors) || 0));
+  let doorCnt    = Math.max(1, parseInt(e.doorCount) || 1);
+  let doorsCap   = teRound(Math.min(doorExp, Math.min(doorCnt * C.poolA.subCaps.doorPerUnit, C.poolA.subCaps.doors)));
+  let energyProp = teRound(Math.min(Math.max(0, parseFloat(e.energyProperty) || 0), C.poolA.subCaps.energyProperty));
+  let audit      = teRound(Math.min(Math.max(0, parseFloat(e.audit) || 0), C.poolA.subCaps.audit));
+  let poolAQual  = teRound(Math.min(windows + doorsCap + energyProp + audit, C.poolA.cap));
+  let poolACredit = teRound(poolAQual * C.rate);
+
+  // Pool B — Heat pump / biomass, separate $2,000 cap — §25C(b)(2)
+  let heatPumps  = teRound(Math.max(0, parseFloat(e.heatPumps) || 0));
+  let heatPumpWH = teRound(Math.max(0, parseFloat(e.heatPumpWH) || 0));
+  let biomass    = teRound(Math.max(0, parseFloat(e.biomass) || 0));
+  let poolBQual  = teRound(Math.min(heatPumps + heatPumpWH + biomass, C.poolB.cap));
+  let poolBCredit = teRound(poolBQual * C.rate);
+
+  return {
+    poolA: poolACredit, poolB: poolBCredit,
+    total: teRound(poolACredit + poolBCredit),
+    poolAQual, poolBQual, terminated: false,
+    windows, doorsCap, energyProp, audit
+  };
+}
+
+
 // EIC section UI renderer — called when credits tab is active
 function teRenderEICSection() {
   let c = document.getElementById('te-eic-section');
@@ -3050,6 +3394,335 @@ function teOnEICClaimChildless(checked) {
 
 
 // ──────────────────────────────────────────────────────────────────────
+//  TRACK 5B — CDCC UI RENDERER & HANDLER
+// ──────────────────────────────────────────────────────────────────────
+
+function teOnCDCCField(field, value) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.cdcc) teCurrentReturn.cdcc = {};
+  teCurrentReturn.cdcc[field] = value;
+  teRecalculate();
+}
+
+function teRenderCDCCSection() {
+  let c = document.getElementById('te-cdcc-section');
+  if (!c || !teCurrentReturn) return;
+  let r    = teCurrentReturn;
+  let K    = TAX_CONSTANTS[r.taxYear || teActiveYear];
+  if (!K || !K.cdcc) return;
+  let fs   = r.filingStatus || 'single';
+  let calc = r._calc || {};
+  let d    = r.cdcc || {};
+
+  let persons = d.qualifyingPersons || '';
+  let is2plus = (persons === '2plus');
+  let expCap  = is2plus ? K.cdcc.expenseCap2 : K.cdcc.expenseCap1;
+
+  // Credit breakdown (shown when qualifying persons selected and data present)
+  let breakdownHTML = '';
+  if (persons && (calc.cdccQualExp > 0 || calc.cdccCredit >= 0)) {
+    let careVal = parseFloat(d.careExpenses) || 0;
+    let fsaVal  = parseFloat(d.fsaBenefits) || 0;
+    if (careVal > 0 || fsaVal > 0) {
+      breakdownHTML = `
+        <div class="te-ctc-tbl" style="margin-top:12px;">
+          <div class="te-ctc-row"><span>Qualifying Care Expenses Paid</span><span>${teFmt(careVal)}</span></div>
+          ${fsaVal > 0 ? `<div class="te-ctc-row te-ctc-red"><span>Employer FSA Reduction <span class="te-cite">§129 / Form 2441</span></span><span>(${teFmt(fsaVal)})</span></div>` : ''}
+          <div class="te-ctc-row te-ctc-sub"><span>Net Qualifying Expenses (cap: ${teFmt(expCap)})</span><span>${teFmt(calc.cdccQualExp || 0)}</span></div>
+          ${calc.cdccRate > 0 ? `<div class="te-ctc-row te-ctc-sub"><span>Applicable Rate <span class="te-cite">IRC §21(a)(2)</span></span><span>${Math.round((calc.cdccRate || 0) * 100)}%</span></div>` : ''}
+          <div class="te-ctc-row te-ctc-tot"><span>§21 Credit (Non-Refundable)</span><span>${teFmt(calc.cdccCredit || 0)}</span></div>
+        </div>`;
+    }
+  }
+
+  c.innerHTML = `
+    <div class="te-frow" style="gap:14px;flex-wrap:wrap;">
+      <div class="te-field-group">
+        <label class="te-lbl">Qualifying Persons <span class="te-cite">IRC §21(b)</span></label>
+        <select class="te-select" onchange="teOnCDCCField('qualifyingPersons',this.value)">
+          <option value="" ${!persons?'selected':''}>— Select —</option>
+          <option value="1" ${persons==='1'?'selected':''}>1 Qualifying Person</option>
+          <option value="2plus" ${persons==='2plus'?'selected':''}>2 or More Qualifying Persons</option>
+        </select>
+        <div class="te-ded-note">Child under 13, or spouse/dependent incapable of self-care. <span class="te-cite">IRC §21(b)</span></div>
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">Qualifying Care Expenses Paid</label>
+        <input type="number" class="te-input te-mono" value="${d.careExpenses||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnCDCCField('careExpenses',this.value)">
+        ${persons ? `<div class="te-ded-note">Cap: ${teFmt(expCap)}. <span class="te-cite">IRC §21(c)</span></div>` : ''}
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">Employer Dependent Care FSA <span class="te-cite">§129</span></label>
+        <input type="number" class="te-input te-mono" value="${d.fsaBenefits||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnCDCCField('fsaBenefits',this.value)">
+        <div class="te-ded-note">Benefits received from employer FSA reduce qualifying expenses dollar-for-dollar. Form 2441.</div>
+      </div>
+    </div>
+    ${fs === 'mfj' ? `
+    <div class="te-frow" style="gap:14px;flex-wrap:wrap;margin-top:10px;align-items:flex-start;">
+      <div class="te-field-group">
+        <label class="te-lbl">Spouse Earned Income <span class="te-cite">IRC §21(d)</span></label>
+        <input type="number" class="te-input te-mono" value="${d.spouseEarnedIncome||''}" placeholder="0.00" step="0.01" min="0"
+          ${d.spouseIsStudentOrDisabled ? 'disabled style="opacity:0.5;"' : ''}
+          oninput="teOnCDCCField('spouseEarnedIncome',this.value)">
+        <div class="te-ded-note">Qualifying expenses capped at lesser of both spouses' earned income.</div>
+      </div>
+      <div class="te-field-group" style="flex:1;min-width:220px;">
+        <label class="te-lbl" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:4px;">
+          <input type="checkbox" ${d.spouseIsStudentOrDisabled?'checked':''} onchange="teOnCDCCField('spouseIsStudentOrDisabled',this.checked)">
+          Spouse is full-time student or disabled <span class="te-cite">IRC §21(d)(2)</span>
+        </label>
+        <div class="te-ded-note">Deemed income applies: ${teFmt(is2plus ? K.cdcc.deemedIncome2 : K.cdcc.deemedIncome1)}/month.</div>
+      </div>
+      ${d.spouseIsStudentOrDisabled ? `
+      <div class="te-field-group te-narrow">
+        <label class="te-lbl">Months Condition Applies</label>
+        <input type="number" class="te-input te-mono" value="${d.studentDisabledMonths||''}" placeholder="12" min="1" max="12"
+          oninput="teOnCDCCField('studentDisabledMonths',this.value)">
+      </div>` : ''}
+    </div>` : ''}
+    ${breakdownHTML}
+    ${!persons ? '<div class="te-info-sm" style="margin-top:8px;">Select the number of qualifying persons to calculate the credit.</div>' : ''}`;
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
+//  TRACK 5C — SAVER'S CREDIT UI RENDERER & HANDLER
+// ──────────────────────────────────────────────────────────────────────
+
+function teOnSaversField(field, value) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.savers) teCurrentReturn.savers = {};
+  teCurrentReturn.savers[field] = value;
+  teRecalculate();
+}
+
+function teRenderSaversSection() {
+  let c = document.getElementById('te-savers-section');
+  if (!c || !teCurrentReturn) return;
+  let r    = teCurrentReturn;
+  let K    = TAX_CONSTANTS[r.taxYear || teActiveYear];
+  if (!K || !K.savers) return;
+  let fs   = r.filingStatus || 'single';
+  let calc = r._calc || {};
+  let d    = r.savers || {};
+
+  // AGI rate display
+  let agi        = calc.agi || 0;
+  let bracketKey = (fs === 'mfj') ? 'mfj' : (fs === 'hoh') ? 'hoh' : 'other';
+  let currentRate = 0;
+  for (let [maxAGI, rate] of K.savers.agiBrackets[bracketKey]) {
+    if (agi <= maxAGI) { currentRate = rate; break; }
+  }
+
+  let disqualified = (d.taxpayerIsStudent) || (parseInt(d.taxpayerAge) > 0 && parseInt(d.taxpayerAge) < 18);
+
+  // Breakdown
+  let tpContrib = Math.max(0, parseFloat(d.taxpayerContributions) || 0);
+  let tpDistCur = Math.max(0, parseFloat(d.taxpayerDistCurrent) || 0);
+  let tpDistPri = Math.max(0, parseFloat(d.taxpayerDistPrior) || 0);
+  let tpNet     = Math.max(0, Math.min(K.savers.maxContribPerPerson, tpContrib - tpDistCur - tpDistPri));
+  let spContrib = Math.max(0, parseFloat(d.spouseContributions) || 0);
+  let totalCredit = calc.saversCredit || 0;
+  let tpCredit    = calc.saversTaxpayer || 0;
+  let spCredit    = calc.saversSpouse || 0;
+
+  let breakdownHTML = '';
+  if (!disqualified && currentRate > 0 && (tpContrib > 0 || (fs === 'mfj' && spContrib > 0))) {
+    breakdownHTML = `
+      <div class="te-ctc-tbl" style="margin-top:12px;">
+        <div class="te-ctc-row te-ctc-sub"><span>AGI <span class="te-cite">IRC §25B(b)</span></span><span>${teFmt(agi)} → ${Math.round(currentRate*100)}% rate</span></div>
+        <div class="te-ctc-row"><span>Taxpayer Contributions</span><span>${teFmt(tpContrib)}</span></div>
+        ${(tpDistCur + tpDistPri) > 0 ? `<div class="te-ctc-row te-ctc-red"><span>Distributions (current yr + prior 2 yrs) <span class="te-cite">IRC §25B(d)</span></span><span>(${teFmt(tpDistCur + tpDistPri)})</span></div>` : ''}
+        <div class="te-ctc-row te-ctc-sub"><span>Net Taxpayer Contribution (cap: ${teFmt(K.savers.maxContribPerPerson)})</span><span>${teFmt(tpNet)}</span></div>
+        <div class="te-ctc-row"><span>Taxpayer Credit</span><span>${teFmt(tpCredit)}</span></div>
+        ${fs === 'mfj' && spContrib > 0 ? `<div class="te-ctc-row"><span>Spouse Credit</span><span>${teFmt(spCredit)}</span></div>` : ''}
+        <div class="te-ctc-row te-ctc-tot"><span>§25B Credit (Non-Refundable)</span><span>${teFmt(totalCredit)}</span></div>
+      </div>`;
+  }
+
+  c.innerHTML = `
+    ${disqualified ? `<div class="te-info-box te-info-warn" style="margin-bottom:8px;">${d.taxpayerIsStudent ? 'Taxpayer is a full-time student' : 'Taxpayer is under age 18'} — Saver\'s Credit disqualified. <span class="te-cite">IRC §25B(c)</span></div>` : ''}
+    ${!disqualified && currentRate === 0 && agi > 0 ? `<div class="te-info-box te-info-warn" style="margin-bottom:8px;">AGI (${teFmt(agi)}) exceeds the ${bracketKey === 'mfj' ? 'MFJ' : bracketKey === 'hoh' ? 'HOH' : 'Single'} income limit — credit rate is 0%. <span class="te-cite">IRC §25B(b)</span></div>` : ''}
+    <div class="te-frow" style="gap:14px;flex-wrap:wrap;">
+      <div class="te-field-group">
+        <label class="te-lbl">Taxpayer Retirement Contributions <span class="te-cite">IRC §25B(d)(1)</span></label>
+        <input type="number" class="te-input te-mono" value="${d.taxpayerContributions||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnSaversField('taxpayerContributions',this.value)">
+        <div class="te-ded-note">IRA + 401(k)/403(b)/457(b)/SIMPLE combined. Cap: ${teFmt(K.savers.maxContribPerPerson)}/person.</div>
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">Current Year Distributions <span class="te-cite">IRC §25B(d)</span></label>
+        <input type="number" class="te-input te-mono" value="${d.taxpayerDistCurrent||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnSaversField('taxpayerDistCurrent',this.value)">
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">Prior 2 Years Distributions <span class="te-cite">IRC §25B(d)</span></label>
+        <input type="number" class="te-input te-mono" value="${d.taxpayerDistPrior||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnSaversField('taxpayerDistPrior',this.value)">
+        <div class="te-ded-note">Future: auto-populated from client return history.</div>
+      </div>
+    </div>
+    <div class="te-frow" style="gap:14px;flex-wrap:wrap;margin-top:8px;align-items:flex-end;">
+      <div class="te-field-group te-narrow">
+        <label class="te-lbl">Taxpayer Age</label>
+        <input type="number" class="te-input te-mono" value="${d.taxpayerAge||''}" placeholder="e.g. 35" min="0" max="120"
+          oninput="teOnSaversField('taxpayerAge',this.value)">
+        <div class="te-ded-note">Under 18 → disqualified. <span class="te-cite">IRC §25B(c)(1)</span></div>
+      </div>
+      <div class="te-field-group" style="flex:1;">
+        <label class="te-lbl" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" ${d.taxpayerIsStudent?'checked':''} onchange="teOnSaversField('taxpayerIsStudent',this.checked)">
+          Taxpayer is a full-time student <span class="te-cite">IRC §25B(c)(2)</span>
+        </label>
+      </div>
+    </div>
+    ${fs === 'mfj' ? `
+    <div class="te-subsec-lbl" style="margin-top:14px;font-size:12px;color:var(--te-muted);">Spouse — Independent $${K.savers.maxContribPerPerson.toLocaleString()} Cap</div>
+    <div class="te-frow" style="gap:14px;flex-wrap:wrap;">
+      <div class="te-field-group">
+        <label class="te-lbl">Spouse Retirement Contributions</label>
+        <input type="number" class="te-input te-mono" value="${d.spouseContributions||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnSaversField('spouseContributions',this.value)">
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">Spouse Current Year Distributions</label>
+        <input type="number" class="te-input te-mono" value="${d.spouseDistCurrent||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnSaversField('spouseDistCurrent',this.value)">
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">Spouse Prior 2 Years Distributions</label>
+        <input type="number" class="te-input te-mono" value="${d.spouseDistPrior||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnSaversField('spouseDistPrior',this.value)">
+      </div>
+    </div>` : ''}
+    ${breakdownHTML}
+    <div class="te-info-sm" style="margin-top:10px;">OBBBA P.L. 119-21 §70116: Starting TY2027, only ABLE account contributions qualify for this credit. Clients relying on IRA/401(k) contributions for this credit will lose eligibility after 2026.</div>`;
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
+//  TRACK 5D — ENERGY CREDIT UI RENDERER & HANDLER
+// ──────────────────────────────────────────────────────────────────────
+
+function teOnEnergyField(field, value) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.energyImprovement) teCurrentReturn.energyImprovement = {};
+  teCurrentReturn.energyImprovement[field] = value;
+  teRecalculate();
+}
+
+function teRenderEnergySection() {
+  let c = document.getElementById('te-energy-section');
+  if (!c || !teCurrentReturn) return;
+  let r   = teCurrentReturn;
+  let yr  = r.taxYear || teActiveYear;
+  let K   = TAX_CONSTANTS[yr];
+  if (!K) return;
+
+  // 2026+: credit terminated — OBBBA §70505
+  if (!K.energyImprovement) {
+    c.innerHTML = `<div class="te-info-box te-info-warn">§25C was terminated by OBBBA P.L. 119-21 §70505 for property placed in service after December 31, 2025. No credit is available for ${yr} returns. Code structure is preserved for potential future re-enactment.</div>`;
+    return;
+  }
+
+  let cfg  = K.energyImprovement;
+  let calc = r._calc || {};
+  let e    = r.energyImprovement || {};
+
+  // Live running totals for UI display
+  let winAmt     = Math.min(parseFloat(e.windows)||0, cfg.poolA.subCaps.windows);
+  let doorExp    = parseFloat(e.doors)||0;
+  let doorCnt    = Math.max(1, parseInt(e.doorCount)||1);
+  let doorAmt    = Math.min(doorExp, Math.min(doorCnt * cfg.poolA.subCaps.doorPerUnit, cfg.poolA.subCaps.doors));
+  let epAmt      = Math.min(parseFloat(e.energyProperty)||0, cfg.poolA.subCaps.energyProperty);
+  let audAmt     = Math.min(parseFloat(e.audit)||0, cfg.poolA.subCaps.audit);
+  let poolAUsed  = Math.min(winAmt + doorAmt + epAmt + audAmt, cfg.poolA.cap);
+  let poolALeft  = Math.max(0, cfg.poolA.cap - poolAUsed);
+  let hpAmt      = parseFloat(e.heatPumps)||0;
+  let hpwhAmt    = parseFloat(e.heatPumpWH)||0;
+  let bioAmt     = parseFloat(e.biomass)||0;
+  let poolBUsed  = Math.min(hpAmt + hpwhAmt + bioAmt, cfg.poolB.cap);
+  let poolBLeft  = Math.max(0, cfg.poolB.cap - poolBUsed);
+  let totalCredit = calc.energyCredit || 0;
+
+  c.innerHTML = `
+    <div class="te-ded-note" style="margin-bottom:10px;">For property placed in service in ${yr} at an existing primary U.S. residence. New construction not eligible. Non-refundable; no carryforward. <span class="te-cite">IRC §25C</span></div>
+
+    <div class="te-subsec-lbl" style="font-size:12px;margin-bottom:8px;">
+      Pool A — General Improvements <span class="te-cite">§25C(b)(1)</span>
+      &nbsp;|&nbsp; Annual Cap: ${teFmt(cfg.poolA.cap)}
+      &nbsp;|&nbsp; <span style="color:${poolALeft===0?'var(--te-warn)':'var(--te-muted)'};">Remaining: ${teFmt(poolALeft)}</span>
+    </div>
+    <div class="te-frow" style="gap:12px;flex-wrap:wrap;">
+      <div class="te-field-group">
+        <label class="te-lbl">Windows &amp; Skylights <small>(sub-cap ${teFmt(cfg.poolA.subCaps.windows)})</small></label>
+        <input type="number" class="te-input te-mono" value="${e.windows||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnEnergyField('windows',this.value)">
+        ${winAmt >= cfg.poolA.subCaps.windows && (parseFloat(e.windows)||0) > 0 ? `<div class="te-ded-note te-warn-note">${teFmt(cfg.poolA.subCaps.windows)} sub-cap reached.</div>` : ''}
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">Exterior Doors <small>($250/door, max ${teFmt(cfg.poolA.subCaps.doors)})</small></label>
+        <input type="number" class="te-input te-mono" value="${e.doors||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnEnergyField('doors',this.value)">
+      </div>
+      <div class="te-field-group te-narrow">
+        <label class="te-lbl"># of Doors</label>
+        <input type="number" class="te-input te-mono" value="${e.doorCount||''}" placeholder="1" min="1" max="20"
+          oninput="teOnEnergyField('doorCount',this.value)">
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">Energy Property <small>(sub-cap ${teFmt(cfg.poolA.subCaps.energyProperty)})</small></label>
+        <input type="number" class="te-input te-mono" value="${e.energyProperty||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnEnergyField('energyProperty',this.value)">
+        <div class="te-ded-note">Central A/C, gas/oil water heater, furnace, boiler (non-heat-pump). <span class="te-cite">§25C(d)(2)</span></div>
+        ${epAmt >= cfg.poolA.subCaps.energyProperty && (parseFloat(e.energyProperty)||0) > 0 ? `<div class="te-ded-note te-warn-note">${teFmt(cfg.poolA.subCaps.energyProperty)} sub-cap reached.</div>` : ''}
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">Home Energy Audit <small>(sub-cap ${teFmt(cfg.poolA.subCaps.audit)})</small></label>
+        <input type="number" class="te-input te-mono" value="${e.audit||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnEnergyField('audit',this.value)">
+        ${audAmt >= cfg.poolA.subCaps.audit && (parseFloat(e.audit)||0) > 0 ? `<div class="te-ded-note te-warn-note">${teFmt(cfg.poolA.subCaps.audit)} sub-cap reached.</div>` : ''}
+      </div>
+    </div>
+
+    <div class="te-subsec-lbl" style="font-size:12px;margin-top:16px;margin-bottom:8px;">
+      Pool B — Heat Pumps &amp; Biomass <span class="te-cite">§25C(b)(2)</span>
+      &nbsp;|&nbsp; Separate Cap: ${teFmt(cfg.poolB.cap)} (in addition to Pool A)
+      &nbsp;|&nbsp; <span style="color:${poolBLeft===0?'var(--te-warn)':'var(--te-muted)'};">Remaining: ${teFmt(poolBLeft)}</span>
+    </div>
+    <div class="te-frow" style="gap:12px;flex-wrap:wrap;">
+      <div class="te-field-group">
+        <label class="te-lbl">Heat Pumps (space heating/cooling)</label>
+        <input type="number" class="te-input te-mono" value="${e.heatPumps||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnEnergyField('heatPumps',this.value)">
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">Heat Pump Water Heaters</label>
+        <input type="number" class="te-input te-mono" value="${e.heatPumpWH||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnEnergyField('heatPumpWH',this.value)">
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">Biomass Stoves / Boilers</label>
+        <input type="number" class="te-input te-mono" value="${e.biomass||''}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOnEnergyField('biomass',this.value)">
+      </div>
+    </div>
+
+    ${(poolAUsed > 0 || poolBUsed > 0) ? `
+    <div class="te-ctc-tbl" style="margin-top:14px;">
+      ${poolAUsed > 0 ? `<div class="te-ctc-row te-ctc-sub"><span>Pool A Qualified (cap ${teFmt(cfg.poolA.cap)}) <span class="te-cite">§25C(b)(1)</span></span><span>${teFmt(poolAUsed)}</span></div>` : ''}
+      ${poolBUsed > 0 ? `<div class="te-ctc-row te-ctc-sub"><span>Pool B Qualified (cap ${teFmt(cfg.poolB.cap)} — separate) <span class="te-cite">§25C(b)(2)</span></span><span>${teFmt(poolBUsed)}</span></div>` : ''}
+      <div class="te-ctc-row te-ctc-tot"><span>§25C Credit @ 30% (Non-Refundable)</span><span>${teFmt(totalCredit)}</span></div>
+    </div>` : ''}`;
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
 //  METER UPDATE
 // ──────────────────────────────────────────────────────────────────────
 
@@ -3107,6 +3780,12 @@ function teUpdateMeter(calc, K, fs) {
   teM('te-m-regtax',   teFmt(calc.regularTax));
   teM('te-m-ctc',     calc.ctcNonRefundable > 0 ? '(' + teFmt(calc.ctcNonRefundable) + ')' : '$0');
   teM('te-m-edu',     calc.totalEduNonRefundable > 0 ? '(' + teFmt(calc.totalEduNonRefundable) + ')' : '$0');
+  let cdccMRow = document.getElementById('te-m-cdcc-row');
+  if (cdccMRow) { cdccMRow.style.display = calc.cdccCredit > 0 ? 'flex' : 'none'; teM('te-m-cdcc', '(' + teFmt(calc.cdccCredit) + ')'); }
+  let saversMRow = document.getElementById('te-m-savers-row');
+  if (saversMRow) { saversMRow.style.display = calc.saversCredit > 0 ? 'flex' : 'none'; teM('te-m-savers', '(' + teFmt(calc.saversCredit) + ')'); }
+  let energyMRow = document.getElementById('te-m-energy-row');
+  if (energyMRow) { energyMRow.style.display = calc.energyCredit > 0 ? 'flex' : 'none'; teM('te-m-energy', '(' + teFmt(calc.energyCredit) + ')'); }
   teM('te-m-taxaft',   teFmt(calc.taxAfterNRCredits || 0));
 
   // SE tax row in meter (post-credit)
@@ -3377,6 +4056,67 @@ function teRunFlags(calc, K, fs) {
     }
   }
 
+  // Track 5B — CDCC flags
+  if (fs !== 'mfs' && K.cdcc) {
+    let cdccData = r.cdcc || {};
+    let careExp  = parseFloat(cdccData.careExpenses) || 0;
+    let fsaBen   = parseFloat(cdccData.fsaBenefits) || 0;
+    if (careExp > 0 && fsaBen >= careExp) {
+      flags.push({ type: 'warning', text: 'Child & Dependent Care Credit: FSA benefits (' + teFmt(fsaBen) + ') equal or exceed qualifying care expenses (' + teFmt(careExp) + '). Net qualifying expenses are $0 — no §21 credit available on those expenses. <span class="te-cite">IRC §21(c)</span>' });
+    }
+    if (cdccData.qualifyingPersons && !cdccData.spouseIsStudentOrDisabled && fs === 'mfj') {
+      let spouseEI = parseFloat(cdccData.spouseEarnedIncome) || 0;
+      if (spouseEI === 0 && (calc.w2Wages + calc.netSEIncome) > 0) {
+        flags.push({ type: 'warning', text: 'Child & Dependent Care Credit: MFJ return with spouse earned income of $0. Unless the spouse is a full-time student or incapable of self-care (check the student/disabled box for deemed income), the earned income limit eliminates the §21 credit. <span class="te-cite">IRC §21(d)</span>' });
+      }
+    }
+    if (calc.cdccCredit > 0) {
+      flags.push({ type: 'info', text: 'Child & Dependent Care Credit: ' + teFmt(calc.cdccCredit) + ' at ' + Math.round((calc.cdccRate || 0) * 100) + '% rate on ' + teFmt(calc.cdccQualExp) + ' of qualifying expenses (non-refundable). <span class="te-cite">IRC §21</span>' });
+    }
+  }
+
+  // Track 5C — Saver's Credit flags
+  if (fs !== 'mfs' && K.savers) {
+    let saversData = r.savers || {};
+    let tpContrib  = parseFloat(saversData.taxpayerContributions) || 0;
+    let tpDistTot  = (parseFloat(saversData.taxpayerDistCurrent) || 0) + (parseFloat(saversData.taxpayerDistPrior) || 0);
+    if (tpContrib > 0 && tpDistTot >= tpContrib) {
+      flags.push({ type: 'warning', text: 'Saver\'s Credit: distributions received (' + teFmt(tpDistTot) + ') equal or exceed contributions (' + teFmt(tpContrib) + '). Net qualifying contribution is $0 — no §25B credit for taxpayer. <span class="te-cite">IRC §25B(d)</span>' });
+    }
+    if (calc.saversCredit > 0 && K.savers.agiBrackets) {
+      let bracketKey = (fs === 'mfj') ? 'mfj' : (fs === 'hoh') ? 'hoh' : 'other';
+      // Check if AGI is within $2,000 of a rate tier boundary (planning opportunity)
+      for (let [maxAGI] of K.savers.agiBrackets[bracketKey]) {
+        if (calc.agi > maxAGI && calc.agi <= maxAGI + 2000) {
+          flags.push({ type: 'info', text: 'Saver\'s Credit: AGI (' + teFmt(calc.agi) + ') just crossed the ' + teFmt(maxAGI) + ' bracket threshold. A pre-tax contribution of ' + teFmt(calc.agi - maxAGI) + ' could move into the higher credit rate tier. <span class="te-cite">IRC §25B(b)</span>' });
+          break;
+        }
+      }
+      flags.push({ type: 'info', text: 'Saver\'s Credit: ' + teFmt(calc.saversCredit) + ' (non-refundable). OBBBA note: this credit will be limited to ABLE contributions only starting TY2027. <span class="te-cite">IRC §25B; OBBBA P.L. 119-21 §70116</span>' });
+    }
+  }
+
+  // Track 5D — Energy Credit flags
+  if (calc.energyTerminated) {
+    // Terminated — shown in UI panel; no flag needed here (avoid duplicate noise)
+  } else if (calc.energyCredit > 0) {
+    let poolAStr = calc.energyPoolA > 0 ? 'Pool A: ' + teFmt(calc.energyPoolA) : '';
+    let poolBStr = calc.energyPoolB > 0 ? 'Pool B (heat pump/biomass): ' + teFmt(calc.energyPoolB) : '';
+    let parts    = [poolAStr, poolBStr].filter(Boolean).join(' | ');
+    flags.push({ type: 'info', text: '§25C Energy Credit: ' + teFmt(calc.energyCredit) + ' total (non-refundable). ' + parts + '. This is the final year of §25C — credit terminated for TY2026+ by OBBBA P.L. 119-21 §70505.' });
+    if (K.energyImprovement) {
+      let eg = r.energyImprovement || {};
+      let winVal = parseFloat(eg.windows)||0;
+      let epVal  = parseFloat(eg.energyProperty)||0;
+      if (winVal > K.energyImprovement.poolA.subCaps.windows) {
+        flags.push({ type: 'info', text: '§25C: Window/skylight expenses exceed the $600 sub-cap. ' + teFmt(winVal - K.energyImprovement.poolA.subCaps.windows) + ' of expenses not creditable. <span class="te-cite">§25C(b)(1)(B)</span>' });
+      }
+      if (epVal > K.energyImprovement.poolA.subCaps.energyProperty) {
+        flags.push({ type: 'info', text: '§25C: Energy property expenses exceed the $600 sub-cap. ' + teFmt(epVal - K.energyImprovement.poolA.subCaps.energyProperty) + ' of expenses not creditable. <span class="te-cite">§25C(b)(1)(A)</span>' });
+      }
+    }
+  }
+
   // Deduction comparison note
   if (calc.mfsItemizedRequired) {
     // already flagged above; skip redundant comparison note
@@ -3501,6 +4241,9 @@ function teSerialize(r) {
     agiAdjustments:    r.agiAdjustments    || { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false },
     scheduleA:         r.scheduleA         || { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', mortgagePurpose: 'acquisition', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '', mfsSpouseItemizes: false },
     eic:               r.eic               || { claimChildless: false },
+    cdcc:              r.cdcc              || { qualifyingPersons: '', careExpenses: '', fsaBenefits: '', spouseEarnedIncome: '', spouseIsStudentOrDisabled: false, studentDisabledMonths: '' },
+    savers:            r.savers            || { taxpayerContributions: '', spouseContributions: '', taxpayerDistCurrent: '', taxpayerDistPrior: '', spouseDistCurrent: '', spouseDistPrior: '', taxpayerIsStudent: false, taxpayerAge: '' },
+    energyImprovement: r.energyImprovement || { windows: '', doors: '', doorCount: '', energyProperty: '', audit: '', heatPumps: '', heatPumpWH: '', biomass: '' },
     annotations:       r.annotations       || [],
     completedSections: r.completedSections || []
   };
@@ -3529,6 +4272,10 @@ function teDeserialize(data) {
   if (!r.annotations)        r.annotations        = [];
   // Track 5 backfill — existing returns predate EIC field
   if (!r.eic)                r.eic                = { claimChildless: false };
+  // Track 5B/5C/5D backfill — existing returns predate these fields
+  if (!r.cdcc)               r.cdcc               = { qualifyingPersons: '', careExpenses: '', fsaBenefits: '', spouseEarnedIncome: '', spouseIsStudentOrDisabled: false, studentDisabledMonths: '' };
+  if (!r.savers)             r.savers             = { taxpayerContributions: '', spouseContributions: '', taxpayerDistCurrent: '', taxpayerDistPrior: '', spouseDistCurrent: '', spouseDistPrior: '', taxpayerIsStudent: false, taxpayerAge: '' };
+  if (!r.energyImprovement)  r.energyImprovement  = { windows: '', doors: '', doorCount: '', energyProperty: '', audit: '', heatPumps: '', heatPumpWH: '', biomass: '' };
   // Backfill dependent EIC fields on existing returns
   (r.dependents || []).forEach(d => {
     if (d.isFullTimeStudent   === undefined) d.isFullTimeStudent   = false;
