@@ -3891,8 +3891,8 @@ input[type="number"].te-input {
 
 /* ── Personal Section Blocks ── */
 .te-pers-block {
-  margin-bottom: 24px;
-  padding-bottom: 24px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--border);
 }
 .te-pers-block:last-child { border-bottom: none; margin-bottom: 0; }
@@ -3902,7 +3902,7 @@ input[type="number"].te-input {
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--text-muted);
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 .te-pers-name-row {
   display: flex;
@@ -5289,7 +5289,7 @@ input[type="number"].te-input {
 }
 /* Column widths — must match in header, tx-cols, and totals-row */
 .te-sd-col-desc  { flex: 1; min-width: 120px; }
-.te-sd-col-date  { width: 106px; flex-shrink: 0; }
+.te-sd-col-date  { width: 132px; flex-shrink: 0; }
 .te-sd-col-amt   { width: 124px; flex-shrink: 0; }
 .te-sd-col-adj   { width: 104px; flex-shrink: 0; }
 .te-sd-col-gain  { width: 124px; flex-shrink: 0; text-align: right; }
