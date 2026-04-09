@@ -755,8 +755,9 @@ const TAX_CONSTANTS = {
     //   (2) Phase-out rate DOUBLED: 25% → 50% — OBBBA §70101
     // Exemption amounts confirmed: IRS newsroom irs-releases-tax-inflation-adjustments-for-tax-year-2026
     // Source: OBBBA P.L. 119-21 §70101; irs.gov/newsroom/one-big-beautiful-bill-provisions
-    // TODO:VERIFY — phaseoutRate 50%: confirmed from irs.gov OBBBA newsroom;
-    //   verify rate text in P.L. 119-21 §70101 when statute accessible
+    // VERIFIED — phaseoutRate 50%: CRS Report R48631 (congress.gov, 2026-04-09) confirms OBBBA P.L. 119-21
+    //   §70101 "increases the percentage rate to 50% (from 25%) at which the alternative minimum tax
+    //   exemption amount is phased out for individuals whose taxable income exceeds such threshold amount."
     // TODO:VERIFY — rateBreak: estimated 2025 ($239,100) × 2.3% CPI ≈ $244,600; verify vs Rev. Proc. 2025-32
     // Rates 26%/28% — IRC §55(b)(1)(A) — STATUTORY — UNCHANGED by OBBBA
     amt: {
@@ -777,7 +778,7 @@ const TAX_CONSTANTS = {
         qss:    1000000    // QSS uses MFJ threshold
       },
       // OBBBA §70101: doubled phase-out rate from 25% to 50% effective TY2026
-      // TODO:VERIFY — rate change confirmed from IRS OBBBA newsroom; verify vs. P.L. 119-21 §70101 text
+      // VERIFIED — CRS Report R48631 (congress.gov, 2026-04-09); IRS newsroom irs.gov (2026-04-09)
       phaseoutRate:  0.50,
       // TODO:VERIFY — 2026 rate break; estimated $239,100 × 2.3% ≈ $244,600
       rateBreak: {
