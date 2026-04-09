@@ -839,6 +839,7 @@ let teActiveSection  = 'dashboard';
 let teNavSource      = null;    // source section for mini-screen back button
 let teNotesPanelOpen = false;
 let teDirty          = false;  // true when return has unsaved changes
+let teSchedCTimer    = null;   // debounce timer for Schedule C inputs (150ms)
 
 function teEmptyReturn(clientId, clientName, taxYear) {
   return {
@@ -858,7 +859,34 @@ function teEmptyReturn(clientId, clientName, taxYear) {
     deductionType: 'standard',
     educationStudents: [],
     scheduleC: {
-      netProfit: ''             // IRC §162 — Schedule C net profit (gross receipts minus expenses)
+      // Business Info
+      businessInfo: { businessType:'', activityCode:'', businessName:'', ein:'',
+        street:'', city:'', state:'', zip:'',
+        accountingMethod:'cash', materialParticipation:true,
+        startedThisYear:false, required1099:false, filed1099:false },
+      // Part I — Income
+      grossReceipts:'', statutoryEmployee:false, returnsAllowances:'', otherIncome:'',
+      // Part II — Expenses
+      expenses: { advertising:'', carTruck:'', commissions:'', contractLabor:'',
+        depletion:'', depreciation:'', employeeBenefits:'', insurance:'',
+        interestMortgage:'', interestOther:'', legalProfessional:'', officeExpense:'',
+        pension:'', rentVehicles:'', rentProperty:'', repairs:'', supplies:'',
+        taxesLicenses:'', travel:'', meals:'', utilities:'', wages:'',
+        energyBuildings:'', otherExpenses:'' },
+      // Lines 29-32
+      homeOfficeMethod:'simplified', totalHomeSqFt:'', businessSqFt:'', homeOffice:'',
+      investmentAtRisk:'32a',
+      // Part III — COGS
+      partIII: { inventoryMethod:'cost', inventoryChange:false,
+        inventoryBegin:'', purchases:'', costOfLabor:'', materials:'', otherCosts:'',
+        inventoryEnd:'' },
+      // Part IV — Vehicle
+      partIV: { vehicleDate:'', businessMiles:'', commutingMiles:'', otherMiles:'',
+        personalUse:false, anotherVehicle:false, hasEvidence:false, writtenEvidence:false },
+      // Part V — Other Expenses (dynamic rows)
+      otherExpenseRows: [],
+      // Computed output — written by teRecalculate from detailed form
+      netProfit: ''   // IRC §162 — Schedule C net profit (gross receipts minus expenses)
     },
     alimony: {
       paid:        '',          // IRC §215 — alimony paid (pre-2019 agreements only)
@@ -1212,7 +1240,7 @@ function teBackToCenter() {
       confirmText: 'Save',
       cancelText: 'Discard',
       type: 'warning',
-      onConfirm: () => { teSaveReturn(); teClearDirty(); teDoBackToCenter(); },
+      onConfirm: () => { teSaveReturnThen(teDoBackToCenter); },
       onCancel:  () => { teClearDirty(); teDoBackToCenter(); }
     });
     return;
@@ -1610,7 +1638,7 @@ function teRenderMiniScreen(schedId) {
 
     case 'sched-c':
       return nav + `
-        <div class="te-sec-hdr"><h2>Schedule C — Self-Employment Income</h2>
+        <div class="te-sec-hdr"><h2>Schedule C — Profit or Loss From Business</h2>
         <p class="te-sec-sub"><span class="te-cite">IRC §162, §61(a)(2) &mdash; Sch. 1 Line 3</span></p></div>
         <div class="te-subsec">${teRenderScheduleC()}</div>`;
 
@@ -1715,6 +1743,7 @@ function teRenderMiniScreen(schedId) {
 function teMiniPostRender(schedId) {
   switch (schedId) {
     case 'w2':         teRenderW2List();              break;
+    case 'sched-c':    teRenderSchedCOtherExpRows(); break;  // re-render Part V rows after screen loads
     case 'sched-se':   /* all lines computed on render — no list post-render needed */ break;
     case 'retirement': teRender1099RList('ira'); teRender1099RList('pension'); break;
     case 'sched-e':    teRenderScheduleEList();        break;
@@ -3013,29 +3042,405 @@ function teRenderScheduleEList() {
 
 function teRenderScheduleC() {
   let r    = teCurrentReturn;
-  let sc   = (r && r.scheduleC) || {};
-  let calc = (r && r._calc)     || {};
-  let hasIncome = calc.netSEIncome > 0;
+  let sc   = (r && r.scheduleC)         || {};
+  let bi   = sc.businessInfo            || {};
+  let exp  = sc.expenses                || {};
+  let p3   = sc.partIII                 || {};
+  let p4   = sc.partIV                  || {};
+  let ln   = (r && r._calc && r._calc.scLines) || {};
+  let yr   = r ? (r.taxYear || teActiveYear) : teActiveYear;
+
+  // ── Row helpers ──────────────────────────────────────────────────────
+  // cRow: computed display (valId for live DOM updates)
+  let cRow = (num, label, val, cls='', valId='') =>
+    `<div class="te-sc-row${cls?' '+cls:''}">
+       <span class="te-sc-num">${num}</span>
+       <span class="te-sc-lbl">${label}</span>
+       <span class="te-sc-val"${valId?` id="${valId}"`:''} >${val}</span>
+     </div>`;
+
+  // iRow: number input
+  let iRow = (num, label, field, val, subObj='', note='') =>
+    `<div class="te-sc-row">
+       <span class="te-sc-num">${num}</span>
+       <span class="te-sc-lbl">${label}${note?`<span class="te-sc-note">${note}</span>`:''}</span>
+       <input type="number" class="te-input te-mono te-sc-inp" step="0.01" min="0"
+         value="${esc(String(val||''))}" placeholder="0.00"
+         oninput="teOnSchedC('${field}',this.value,'${subObj}')">
+     </div>`;
+
+  // Part III collapsible body
+  let p3Open = [p3.inventoryBegin,p3.purchases,p3.costOfLabor,p3.materials,p3.otherCosts,p3.inventoryEnd]
+    .some(v => (parseFloat(v)||0) > 0);
+
+  // Part IV collapsible body
+  let p4Open = !!(p4.vehicleDate || (parseFloat(p4.businessMiles)||0) > 0);
+
+  // Part V collapsible body
+  let p5Rows = sc.otherExpenseRows || [];
+  let p5Open = p5Rows.length > 0;
+
+  // Net profit styling
+  let line31 = ln.l31 || 0;
+  let profitCls = line31 > 0 ? 'te-sc-profit' : line31 < 0 ? 'te-sc-loss' : '';
+  let profitLbl = line31 >= 0 ? 'Net Profit' : 'Net Loss';
+
+  // Part V rows HTML
+  let p5RowsHtml = `<div id="te-sc-v-rows">${p5Rows.map((row, i) =>
+    `<div class="te-sc-row" style="gap:8px;">
+       <span class="te-sc-num">—</span>
+       <input type="text" class="te-input te-sc-lbl-inp" style="flex:1;" placeholder="Description"
+         value="${esc(row.desc||'')}" oninput="teOnSchedCOtherExp(${i},'desc',this.value)">
+       <input type="number" class="te-input te-mono te-sc-inp" step="0.01" min="0"
+         value="${esc(String(row.amount||''))}" placeholder="0.00"
+         oninput="teOnSchedCOtherExp(${i},'amount',this.value)">
+       <button class="te-sc-del-btn" onclick="teSchedCDelOtherExp(${i})" title="Remove">✕</button>
+     </div>`).join('')}</div>`;
+
   return `
-    <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:8px;">
-      <div class="te-field-group" style="max-width:220px;">
-        <label class="te-lbl">Schedule C Net Profit / (Loss) <span class="te-cite">IRC §162</span></label>
-        <input type="number" id="te-sc-netprofit" class="te-input te-mono"
-          value="${esc(String(sc.netProfit||''))}" placeholder="0.00" step="0.01"
-          oninput="teOnScheduleC()">
+  <div class="te-sch-c">
+
+    <!-- Form Header -->
+    <div class="te-sc-header-bar">
+      <div class="te-sc-title">Schedule C — Profit or Loss From Business</div>
+      <div class="te-sc-subtitle">(Sole Proprietorship) &nbsp;·&nbsp; Tax Year ${yr} &nbsp;·&nbsp; IRC §162</div>
+    </div>
+
+    <!-- Business Information -->
+    <div class="te-sc-section-label">Business Information</div>
+    <div class="te-sc-biz-grid">
+      <div class="te-field-group" style="grid-column:span 2;">
+        <label class="te-lbl">Principal business or profession</label>
+        <input type="text" class="te-input" value="${esc(bi.businessType||'')}" placeholder="e.g., Consulting, Landscaping"
+          oninput="teOnSchedC('businessType',this.value,'businessInfo')">
       </div>
-      ${hasIncome ? `
-      <div class="te-ded-note" style="flex:1;padding-bottom:6px;">
-        SE Tax Base: ${teFmt(calc.seTaxBase)} &nbsp;|&nbsp;
-        SE Tax: ${teFmt(calc.seTax)}
-        (SS: ${teFmt(calc.seSSTax)} + Medicare: ${teFmt(calc.seMedicareTax)}) &nbsp;|&nbsp;
-        §164(f) Deduction: ${teFmt(calc.seTaxDeduction)}
+      <div class="te-field-group">
+        <label class="te-lbl">Business activity code <span class="te-sc-note">6-digit NAICS</span></label>
+        <input type="text" class="te-input" value="${esc(bi.activityCode||'')}" maxlength="6" placeholder="e.g., 541110"
+          oninput="teOnSchedC('activityCode',this.value,'businessInfo')">
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">Business name <span class="te-sc-note">Leave blank if same as proprietor</span></label>
+        <input type="text" class="te-input" value="${esc(bi.businessName||'')}" placeholder="DBA name (optional)"
+          oninput="teOnSchedC('businessName',this.value,'businessInfo')">
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">EIN <span class="te-sc-note">Leave blank if using SSN only</span></label>
+        <input type="text" class="te-input" value="${esc(bi.ein||'')}" placeholder="XX-XXXXXXX" maxlength="10"
+          oninput="teOnSchedC('ein',this.value,'businessInfo')">
+      </div>
+      <div class="te-field-group">
+        <label class="te-lbl">Business street address</label>
+        <input type="text" class="te-input" value="${esc(bi.street||'')}" placeholder="Street"
+          oninput="teOnSchedC('street',this.value,'businessInfo')">
+      </div>
+      <div class="te-field-group" style="flex:1">
+        <label class="te-lbl">City</label>
+        <input type="text" class="te-input" value="${esc(bi.city||'')}" placeholder="City"
+          oninput="teOnSchedC('city',this.value,'businessInfo')">
+      </div>
+      <div class="te-field-group" style="flex:0 0 90px">
+        <label class="te-lbl">State</label>
+        <select class="te-select" onchange="teOnSchedC('state',this.value,'businessInfo')">
+          <option value="">—</option>
+          ${['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'].map(s=>`<option value="${s}" ${(bi.state||'')=== s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="te-field-group" style="flex:0 0 100px">
+        <label class="te-lbl">ZIP</label>
+        <input type="text" class="te-input" value="${esc(bi.zip||'')}" maxlength="10" placeholder="XXXXX"
+          oninput="teOnSchedC('zip',this.value,'businessInfo')">
+      </div>
+    </div>
+    <div class="te-sc-biz-flags">
+      <div class="te-sc-flag-row">
+        <span class="te-sc-flag-lbl">Accounting method:</span>
+        ${['cash','accrual','other'].map(m=>`<label class="te-sc-radio-lbl">
+          <input type="radio" name="te-sc-acct" value="${m}" ${(bi.accountingMethod||'cash')===m?'checked':''}
+            onchange="teOnSchedC('accountingMethod',this.value,'businessInfo')"> ${m.charAt(0).toUpperCase()+m.slice(1)}</label>`).join('')}
+      </div>
+      <div class="te-sc-flag-row">
+        <span class="te-sc-flag-lbl">Material participation:</span>
+        <label class="te-sc-radio-lbl"><input type="radio" name="te-sc-matpart" value="yes" ${bi.materialParticipation!==false?'checked':''}
+          onchange="teOnSchedC('materialParticipation',true,'businessInfo')"> Yes</label>
+        <label class="te-sc-radio-lbl"><input type="radio" name="te-sc-matpart" value="no" ${bi.materialParticipation===false?'checked':''}
+          onchange="teOnSchedC('materialParticipation',false,'businessInfo')"> No</label>
+        <span class="te-sc-note" style="margin-left:6px;">§469 — did you materially participate during the tax year?</span>
+      </div>
+      <div class="te-sc-flag-row">
+        <label class="te-pers-chk-cell">
+          <input type="checkbox" ${bi.startedThisYear?'checked':''}
+            onchange="teOnSchedC('startedThisYear',this.checked,'businessInfo')">
+          <span class="te-pers-chk-lbl">Business started or acquired this year</span>
+        </label>
+        &nbsp;&nbsp;
+        <label class="te-pers-chk-cell">
+          <input type="checkbox" ${bi.required1099?'checked':''}
+            onchange="teOnSchedC('required1099',this.checked,'businessInfo')">
+          <span class="te-pers-chk-lbl">Required to file 1099s</span>
+        </label>
+        ${bi.required1099 ? `&nbsp;&nbsp;<label class="te-pers-chk-cell">
+          <input type="checkbox" ${bi.filed1099?'checked':''}
+            onchange="teOnSchedC('filed1099',this.checked,'businessInfo')">
+          <span class="te-pers-chk-lbl">Did (or will) file 1099s</span>
+        </label>` : ''}
+      </div>
+    </div>
+
+    <!-- Part I — Income -->
+    <div class="te-sc-section-label" style="margin-top:14px;">Part I — Income <span class="te-cite">IRC §61(a)(2)</span></div>
+
+    <div class="te-sc-row">
+      <span class="te-sc-num">1</span>
+      <span class="te-sc-lbl">Gross receipts or sales
+        <label class="te-pers-chk-cell" style="display:inline-flex;margin-left:14px;">
+          <input type="checkbox" ${sc.statutoryEmployee?'checked':''}
+            onchange="teOnSchedC('statutoryEmployee',this.checked,'')">
+          <span class="te-pers-chk-lbl">Statutory employee (W-2)</span>
+        </label>
+      </span>
+      <input type="number" class="te-input te-mono te-sc-inp" step="0.01" min="0"
+        value="${esc(String(sc.grossReceipts||''))}" placeholder="0.00"
+        oninput="teOnSchedC('grossReceipts',this.value,'')">
+    </div>
+
+    ${iRow('2', 'Returns and allowances', 'returnsAllowances', sc.returnsAllowances)}
+    ${cRow('3', 'Subtract line 2 from line 1', teFmt(ln.l3||0), 'te-sc-sub', 'te-sc-l3')}
+    ${cRow('4', 'Cost of goods sold — from Part III, line 42 <span class="te-cite">IRC §263A</span>', teFmt(ln.l4||0), 'te-sc-sub', 'te-sc-l4')}
+    ${cRow('5', 'Gross profit (line 3 minus line 4)', teFmt(ln.l5||0), 'te-sc-sub', 'te-sc-l5')}
+    ${iRow('6', 'Other income, including federal fuel tax credit or refund', 'otherIncome', sc.otherIncome)}
+    ${cRow('7', 'Gross income (add lines 5 and 6) <span class="te-cite">IRC §61</span>', teFmt(ln.l7||0), 'te-sc-sub', 'te-sc-l7')}
+
+    <!-- Part II — Expenses -->
+    <div class="te-sc-section-label" style="margin-top:14px;">Part II — Expenses <span class="te-cite">IRC §162</span></div>
+
+    ${iRow('8',   'Advertising',                                                  'advertising',       exp.advertising)}
+    ${iRow('9',   'Car and truck expenses <span class="te-cite">§179; $0.70/mile (2025)</span>','carTruck', exp.carTruck,'expenses','See Part IV or Form 4562')}
+    ${iRow('10',  'Commissions and fees',                                          'commissions',       exp.commissions,       'expenses')}
+    ${iRow('11',  'Contract labor',                                                'contractLabor',     exp.contractLabor,     'expenses')}
+    ${iRow('12',  'Depletion',                                                     'depletion',         exp.depletion,         'expenses')}
+    ${iRow('13',  'Depreciation and §179 deduction <span class="te-cite">§168, §179</span>', 'depreciation', exp.depreciation, 'expenses', 'Not including Part III amounts — see Form 4562')}
+    ${iRow('14',  'Employee benefit programs <span class="te-cite">§106, §125</span>', 'employeeBenefits', exp.employeeBenefits, 'expenses', 'Other than pension/profit-sharing on line 19')}
+    ${iRow('15',  'Insurance (other than health)',                                  'insurance',         exp.insurance,         'expenses')}
+    ${iRow('16a', 'Interest — mortgage (paid to banks, etc.) <span class="te-cite">§163</span>', 'interestMortgage', exp.interestMortgage, 'expenses')}
+    ${iRow('16b', 'Interest — other <span class="te-cite">§163</span>',            'interestOther',     exp.interestOther,     'expenses')}
+    ${iRow('17',  'Legal and professional services',                               'legalProfessional', exp.legalProfessional, 'expenses')}
+    ${iRow('18',  'Office expense',                                                'officeExpense',     exp.officeExpense,     'expenses')}
+    ${iRow('19',  'Pension and profit-sharing plans <span class="te-cite">§404</span>', 'pension',     exp.pension,           'expenses')}
+    ${iRow('20a', 'Rent or lease — vehicles, machinery, and equipment',            'rentVehicles',      exp.rentVehicles,      'expenses')}
+    ${iRow('20b', 'Rent or lease — other business property',                       'rentProperty',      exp.rentProperty,      'expenses')}
+    ${iRow('21',  'Repairs and maintenance',                                       'repairs',           exp.repairs,           'expenses')}
+    ${iRow('22',  'Supplies (not included in Part III)',                            'supplies',          exp.supplies,          'expenses')}
+    ${iRow('23',  'Taxes and licenses',                                            'taxesLicenses',     exp.taxesLicenses,     'expenses')}
+    ${iRow('24a', 'Travel',                                                        'travel',            exp.travel,            'expenses')}
+    ${iRow('24b', 'Deductible meals <span class="te-cite">§274(n) — generally 50% of actual</span>', 'meals', exp.meals, 'expenses')}
+    ${iRow('25',  'Utilities',                                                     'utilities',         exp.utilities,         'expenses')}
+    ${iRow('26',  'Wages (less employment credits)',                                'wages',             exp.wages,             'expenses')}
+    ${iRow('27a', 'Energy efficient commercial buildings deduction <span class="te-cite">§179D — Form 7205</span>', 'energyBuildings', exp.energyBuildings, 'expenses')}
+    ${cRow('27b', 'Other expenses — from Part V, line 48', teFmt(ln.l27b||0), 'te-sc-sub', 'te-sc-l27b')}
+    ${cRow('28',  'Total expenses before home office (add lines 8 through 27b)', teFmt(ln.l28||0), 'te-sc-tot', 'te-sc-l28')}
+
+    <!-- Lines 29–32 — Net Profit/Loss -->
+    <div class="te-sc-section-label" style="margin-top:14px;">Net Profit or (Loss)</div>
+
+    ${cRow('29', 'Tentative profit or (loss) — line 7 minus line 28', teFmt(ln.l29||0), 'te-sc-sub', 'te-sc-l29')}
+
+    <!-- Line 30 — Home Office -->
+    <div class="te-sc-row">
+      <span class="te-sc-num">30</span>
+      <span class="te-sc-lbl">
+        Expenses for business use of home <span class="te-cite">IRC §280A(c)(1)</span>
+        <div class="te-sc-homeofc" style="margin-top:6px;">
+          <div class="te-sc-flag-row">
+            <label class="te-sc-radio-lbl">
+              <input type="radio" name="te-sc-homethod" value="simplified"
+                ${(sc.homeOfficeMethod||'simplified')==='simplified'?'checked':''}
+                onchange="teOnSchedC('homeOfficeMethod',this.value,'')"> Simplified method ($5/sq ft, max 300 sq ft)
+            </label>
+            <label class="te-sc-radio-lbl" style="margin-left:10px;">
+              <input type="radio" name="te-sc-homethod" value="form8829"
+                ${sc.homeOfficeMethod==='form8829'?'checked':''}
+                onchange="teOnSchedC('homeOfficeMethod',this.value,'')"> Form 8829 (actual expenses)
+            </label>
+          </div>
+          ${(sc.homeOfficeMethod||'simplified') !== 'form8829' ? `
+          <div class="te-frow" style="gap:10px;margin-top:6px;">
+            <div class="te-field-group" style="flex:0 0 160px;">
+              <label class="te-lbl">Business sq ft <span class="te-cite" style="font-weight:400;">(max 300)</span></label>
+              <input type="number" class="te-input te-mono" min="0" max="300" step="1"
+                value="${esc(String(sc.businessSqFt||''))}" placeholder="0"
+                oninput="teOnSchedC('businessSqFt',this.value,'')">
+            </div>
+            <div class="te-field-group" style="flex:0 0 160px;">
+              <label class="te-lbl">Total home sq ft</label>
+              <input type="number" class="te-input te-mono" min="0" step="1"
+                value="${esc(String(sc.totalHomeSqFt||''))}" placeholder="0"
+                oninput="teOnSchedC('totalHomeSqFt',this.value,'')">
+            </div>
+            <div class="te-field-group" style="flex:0 0 140px;align-self:flex-end;">
+              <label class="te-lbl">Simplified deduction</label>
+              <div class="te-input te-mono" style="background:var(--bg-surface);cursor:default;" id="te-sc-l30-simp">${teFmt(ln.l30||0)}</div>
+            </div>
+          </div>` : `
+          <div class="te-field-group" style="max-width:200px;margin-top:6px;">
+            <label class="te-lbl">Form 8829 deduction amount</label>
+            <input type="number" class="te-input te-mono" step="0.01" min="0"
+              value="${esc(String(sc.homeOffice||''))}" placeholder="0.00"
+              oninput="teOnSchedC('homeOffice',this.value,'')">
+          </div>`}
+        </div>
+      </span>
+      <span class="te-sc-val" id="te-sc-l30">${teFmt(ln.l30||0)}</span>
+    </div>
+
+    <!-- Line 31 — Net Profit -->
+    <div class="te-sc-net-bar ${profitCls}" id="te-sc-net-bar">
+      <div>
+        <span class="te-sc-net-lbl">Line 31 — ${profitLbl}</span>
+        <span class="te-sc-net-sub">Flows to Schedule 1, Line 3 &nbsp;·&nbsp; <span class="te-cite">IRC §162</span></span>
+      </div>
+      <span class="te-sc-net-amt" id="te-sc-l31">${teFmt(line31)}</span>
+    </div>
+
+    <!-- Line 32 — Investment at risk (only if loss) -->
+    ${line31 < 0 ? `
+    <div class="te-sc-row" id="te-sc-l32-row">
+      <span class="te-sc-num">32</span>
+      <span class="te-sc-lbl">
+        If you have a loss, check the box that describes your investment in this activity.
+        <div class="te-sc-flag-row" style="margin-top:6px;">
+          <label class="te-sc-radio-lbl">
+            <input type="radio" name="te-sc-risk" value="32a" ${(sc.investmentAtRisk||'32a')==='32a'?'checked':''}
+              onchange="teOnSchedC('investmentAtRisk',this.value,'')">
+            32a — All investment is at risk
+          </label>
+          <label class="te-sc-radio-lbl" style="margin-left:12px;">
+            <input type="radio" name="te-sc-risk" value="32b" ${sc.investmentAtRisk==='32b'?'checked':''}
+              onchange="teOnSchedC('investmentAtRisk',this.value,'')">
+            32b — Some investment is not at risk (Form 6198 required)
+          </label>
+        </div>
+      </span>
+    </div>` : ''}
+
+    <!-- Part III — Cost of Goods Sold (collapsible) -->
+    <div class="te-sc-collapse-hdr${p3Open?' te-sc-open':''}" id="te-sc-hdr-p3"
+      onclick="teToggleSchedCPart('p3')">
+      <span class="te-sc-collapse-title">Part III — Cost of Goods Sold <span class="te-cite">IRC §263A</span></span>
+      <span class="te-sc-collapse-note">Skip if you don't sell products or have inventory</span>
+      <span class="te-sc-chevron">&#8250;</span>
+    </div>
+    <div class="te-sc-collapse-body" id="te-sc-body-p3" style="display:${p3Open?'block':'none'};">
+      <div class="te-sc-row">
+        <span class="te-sc-num">33</span>
+        <span class="te-sc-lbl">Method used to value closing inventory:</span>
+        <span class="te-sc-val" style="min-width:auto;">
+          ${['cost','locom','other'].map(m=>`<label class="te-sc-radio-lbl">
+            <input type="radio" name="te-sc-inv" value="${m}" ${(p3.inventoryMethod||'cost')===m?'checked':''}
+              onchange="teOnSchedC('inventoryMethod',this.value,'partIII')">
+            ${{cost:'Cost',locom:'Lower of cost / market',other:'Other'}[m]}</label>`).join('')}
+        </span>
+      </div>
+      <div class="te-sc-row">
+        <span class="te-sc-num">34</span>
+        <span class="te-sc-lbl">Was there a change in determining quantities, costs, or valuations?</span>
+        <span class="te-sc-val" style="min-width:auto;">
+          <label class="te-sc-radio-lbl"><input type="radio" name="te-sc-invchg" value="yes" ${p3.inventoryChange?'checked':''}
+            onchange="teOnSchedC('inventoryChange',true,'partIII')"> Yes</label>
+          <label class="te-sc-radio-lbl" style="margin-left:8px;"><input type="radio" name="te-sc-invchg" value="no" ${!p3.inventoryChange?'checked':''}
+            onchange="teOnSchedC('inventoryChange',false,'partIII')"> No</label>
+        </span>
+      </div>
+      ${iRow('35','Inventory at beginning of year',       'inventoryBegin', p3.inventoryBegin, 'partIII')}
+      ${iRow('36','Purchases less cost of items withdrawn for personal use','purchases',p3.purchases,'partIII')}
+      ${iRow('37','Cost of labor — not including yourself','costOfLabor',   p3.costOfLabor,   'partIII')}
+      ${iRow('38','Materials and supplies',               'materials',      p3.materials,     'partIII')}
+      ${iRow('39','Other costs',                          'otherCosts',     p3.otherCosts,    'partIII')}
+      ${cRow('40','Add lines 35 through 39',              teFmt(ln.l40||0), 'te-sc-sub', 'te-sc-l40')}
+      ${iRow('41','Inventory at end of year',             'inventoryEnd',   p3.inventoryEnd,  'partIII')}
+      ${cRow('42','Cost of goods sold (line 40 minus line 41) — feeds Part I, line 4',
+                                                          teFmt(ln.l42||0), 'te-sc-tot', 'te-sc-l42')}
+    </div>
+
+    <!-- Part IV — Vehicle Information (collapsible) -->
+    <div class="te-sc-collapse-hdr${p4Open?' te-sc-open':''}" id="te-sc-hdr-p4"
+      onclick="teToggleSchedCPart('p4')">
+      <span class="te-sc-collapse-title">Part IV — Vehicle Information</span>
+      <span class="te-sc-collapse-note">Complete only if claiming car/truck expenses on line 9</span>
+      <span class="te-sc-chevron">&#8250;</span>
+    </div>
+    <div class="te-sc-collapse-body" id="te-sc-body-p4" style="display:${p4Open?'block':'none'};">
+      <div class="te-sc-row">
+        <span class="te-sc-num">43</span>
+        <span class="te-sc-lbl">Date vehicle placed in service</span>
+        <input type="date" class="te-input" style="width:150px;flex-shrink:0;"
+          value="${esc(p4.vehicleDate||'')}" onchange="teOnSchedC('vehicleDate',this.value,'partIV')">
+      </div>
+      <div class="te-sc-row">
+        <span class="te-sc-num">44</span>
+        <span class="te-sc-lbl">Miles driven — (a) Business</span>
+        <input type="number" class="te-input te-mono te-sc-inp" min="0" step="1" placeholder="0"
+          value="${esc(String(p4.businessMiles||''))}" oninput="teOnSchedC('businessMiles',this.value,'partIV')">
+      </div>
+      <div class="te-sc-row">
+        <span class="te-sc-num">44b</span>
+        <span class="te-sc-lbl">Miles driven — (b) Commuting</span>
+        <input type="number" class="te-input te-mono te-sc-inp" min="0" step="1" placeholder="0"
+          value="${esc(String(p4.commutingMiles||''))}" oninput="teOnSchedC('commutingMiles',this.value,'partIV')">
+      </div>
+      <div class="te-sc-row">
+        <span class="te-sc-num">44c</span>
+        <span class="te-sc-lbl">Miles driven — (c) Other</span>
+        <input type="number" class="te-input te-mono te-sc-inp" min="0" step="1" placeholder="0"
+          value="${esc(String(p4.otherMiles||''))}" oninput="teOnSchedC('otherMiles',this.value,'partIV')">
+      </div>
+      ${['45:Vehicle available for personal use during off hours?,personalUse',
+         '46:Another vehicle available for personal use?,anotherVehicle',
+         '47a:Do you have evidence to support your deduction?,hasEvidence'].map(s => {
+        let [numLabel, field] = s.split(':')[0].length===2 ? [s.split(':')[0], s.split(',')[1]] : [s.split(':')[0], s.split(',')[1]];
+        let parts = s.split(':'); let num = parts[0]; let rest = parts[1]; let fld = rest.split(',')[1]; let lbl = rest.split(',')[0];
+        return `<div class="te-sc-row">
+          <span class="te-sc-num">${num}</span>
+          <span class="te-sc-lbl">${lbl}</span>
+          <span class="te-sc-val" style="min-width:auto;">
+            <label class="te-sc-radio-lbl"><input type="radio" name="te-sc-${fld}" value="yes" ${p4[fld]?'checked':''}
+              onchange="teOnSchedC('${fld}',true,'partIV')"> Yes</label>
+            <label class="te-sc-radio-lbl" style="margin-left:8px;"><input type="radio" name="te-sc-${fld}" value="no" ${!p4[fld]?'checked':''}
+              onchange="teOnSchedC('${fld}',false,'partIV')"> No</label>
+          </span>
+        </div>`;}).join('')}
+      ${p4.hasEvidence ? `<div class="te-sc-row">
+        <span class="te-sc-num">47b</span>
+        <span class="te-sc-lbl">If "Yes," is the evidence written?</span>
+        <span class="te-sc-val" style="min-width:auto;">
+          <label class="te-sc-radio-lbl"><input type="radio" name="te-sc-writtenevidence" value="yes" ${p4.writtenEvidence?'checked':''}
+            onchange="teOnSchedC('writtenEvidence',true,'partIV')"> Yes</label>
+          <label class="te-sc-radio-lbl" style="margin-left:8px;"><input type="radio" name="te-sc-writtenevidence" value="no" ${!p4.writtenEvidence?'checked':''}
+            onchange="teOnSchedC('writtenEvidence',false,'partIV')"> No</label>
+        </span>
       </div>` : ''}
     </div>
-    <div class="te-ded-note" style="margin-top:4px;">
-      Enter net profit from all Schedule C businesses combined. Losses (negative values) reduce gross income and eliminate SE tax.
-      SE tax = net profit × 92.35% × 15.3% (SS limited to wage base less W-2 wages). <span class="te-cite">IRC §1401, §1402</span>
-    </div>`;
+
+    <!-- Part V — Other Expenses (collapsible) -->
+    <div class="te-sc-collapse-hdr${p5Open?' te-sc-open':''}" id="te-sc-hdr-p5"
+      onclick="teToggleSchedCPart('p5')">
+      <span class="te-sc-collapse-title">Part V — Other Expenses (Line 48)</span>
+      <span class="te-sc-collapse-note">Expenses not listed on lines 8–27a or line 30</span>
+      <span class="te-sc-chevron">&#8250;</span>
+    </div>
+    <div class="te-sc-collapse-body" id="te-sc-body-p5" style="display:${p5Open?'block':'none'};">
+      ${p5RowsHtml}
+      <div style="margin:8px 0;">
+        <button class="ghost-btn te-sm-btn" onclick="teSchedCAddOtherExp()">+ Add Expense</button>
+      </div>
+      <div class="te-sc-row te-sc-tot">
+        <span class="te-sc-num">48</span>
+        <span class="te-sc-lbl">Total other expenses — feeds Part II, line 27b</span>
+        <span class="te-sc-val" id="te-sc-l48">${teFmt(ln.l48||0)}</span>
+      </div>
+    </div>
+
+  </div>`; // .te-sch-c
 }
 
 
@@ -3799,14 +4204,92 @@ function teOnSchedSE(field, value) {
   teRecalculate();
 }
 
-// Handler — Schedule C field changes
-function teOnScheduleC() {
+// ── Schedule C handlers ──────────────────────────────────────────────
+
+// Main handler — called oninput/onchange from every field on the Schedule C form.
+// field:  the data model key (e.g. 'grossReceipts', 'advertising', 'businessName')
+// value:  raw value from the input element (string, number, or boolean)
+// subObj: '' (root sc), 'businessInfo', 'expenses', 'partIII', or 'partIV'
+function teOnSchedC(field, value, subObj) {
   if (!teCurrentReturn) return;
   teMarkDirty();
-  if (!teCurrentReturn.scheduleC) teCurrentReturn.scheduleC = {};
-  let g = id => { let el = document.getElementById(id); return el ? el.value : ''; };
-  teCurrentReturn.scheduleC.netProfit = g('te-sc-netprofit');
+  let sc = teCurrentReturn.scheduleC;
+  if (!sc) { teCurrentReturn.scheduleC = teEmptyReturn(null,null,null).scheduleC; sc = teCurrentReturn.scheduleC; }
+  if (subObj) {
+    if (!sc[subObj]) sc[subObj] = {};
+    sc[subObj][field] = value;
+  } else {
+    sc[field] = value;
+  }
+  // 150ms debounce — avoids recalculating on every keystroke while typing dollar amounts
+  clearTimeout(teSchedCTimer);
+  teSchedCTimer = setTimeout(() => teRecalculate(), 150);
+}
+
+// Part V — add a blank other-expense row
+function teSchedCAddOtherExp() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  let sc = teCurrentReturn.scheduleC;
+  if (!sc.otherExpenseRows) sc.otherExpenseRows = [];
+  sc.otherExpenseRows.push({ desc: '', amount: '' });
+  teRenderSchedCOtherExpRows();
   teRecalculate();
+}
+
+// Part V — delete an other-expense row by index
+function teSchedCDelOtherExp(idx) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  let rows = teCurrentReturn.scheduleC.otherExpenseRows;
+  if (!rows) return;
+  rows.splice(idx, 1);
+  teRenderSchedCOtherExpRows();
+  teRecalculate();
+}
+
+// Part V — update a single field (desc or amount) on an existing other-expense row
+function teOnSchedCOtherExp(idx, field, value) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  let rows = teCurrentReturn.scheduleC.otherExpenseRows;
+  if (!rows || !rows[idx]) return;
+  rows[idx][field] = value;
+  // Update the running total span immediately without re-rendering the whole list
+  let total = rows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+  let totEl = document.getElementById('te-sc-l48');
+  if (totEl) totEl.textContent = teFmt(total);
+  clearTimeout(teSchedCTimer);
+  teSchedCTimer = setTimeout(() => teRecalculate(), 150);
+}
+
+// Part V — re-render ONLY the rows list (te-sc-v-rows element).
+// Called after add/delete so the row list reflects current state without
+// destroying focus on other inputs in the form.
+function teRenderSchedCOtherExpRows() {
+  let el = document.getElementById('te-sc-v-rows');
+  if (!el) return;
+  let rows = (teCurrentReturn && teCurrentReturn.scheduleC && teCurrentReturn.scheduleC.otherExpenseRows) || [];
+  el.innerHTML = rows.map((row, i) =>
+    `<div class="te-sc-row" style="gap:8px;">
+       <span class="te-sc-num">—</span>
+       <input type="text" class="te-input te-sc-lbl-inp" style="flex:1;" placeholder="Description"
+         value="${esc(row.desc||'')}" oninput="teOnSchedCOtherExp(${i},'desc',this.value)">
+       <input type="number" class="te-input te-mono te-sc-inp" step="0.01" min="0"
+         value="${esc(String(row.amount||''))}" placeholder="0.00"
+         oninput="teOnSchedCOtherExp(${i},'amount',this.value)">
+       <button class="te-sc-del-btn" onclick="teSchedCDelOtherExp(${i})" title="Remove">✕</button>
+     </div>`).join('');
+}
+
+// Collapsible section toggle — toggles te-sc-open class on the header + shows/hides the body.
+// partId: 'p3' | 'p4' | 'p5'
+function teToggleSchedCPart(partId) {
+  let hdr  = document.getElementById('te-sc-hdr-' + partId);
+  let body = document.getElementById('te-sc-body-' + partId);
+  if (!hdr || !body) return;
+  let isOpen = hdr.classList.toggle('te-sc-open');
+  body.style.display = isOpen ? '' : 'none';
 }
 
 // ── Track 4 handlers ─────────────────────────────────────────────────
@@ -4497,7 +4980,96 @@ function teRecalculate() {
   let calc = {};
 
   // ── Step 1: Gross Income — IRC §61 ──────────────────────────────────
-  let sc            = teCurrentReturn.scheduleC || {};
+
+  // ── Step 1 pre: Compute Schedule C line-by-line from detailed form ───
+  // If the user has entered detailed income/expense data, derive netProfit from
+  // the full form (line 31). Otherwise, preserve the legacy single-field netProfit.
+  // IRC §162 — ordinary and necessary business expenses; IRC §61(a)(2) — gross income
+  let sc      = teCurrentReturn.scheduleC || {};
+  let scExp   = sc.expenses  || {};
+  let scPIII  = sc.partIII   || {};
+  let scOtherRows = sc.otherExpenseRows || [];
+
+  // Part III — Cost of Goods Sold (feeds Part I line 4)
+  let scL35 = teRound(parseFloat(scPIII.inventoryBegin) || 0);
+  let scL36 = teRound(parseFloat(scPIII.purchases)      || 0);
+  let scL37 = teRound(parseFloat(scPIII.costOfLabor)    || 0);
+  let scL38 = teRound(parseFloat(scPIII.materials)      || 0);
+  let scL39 = teRound(parseFloat(scPIII.otherCosts)     || 0);
+  let scL40 = teRound(scL35 + scL36 + scL37 + scL38 + scL39);
+  let scL41 = teRound(parseFloat(scPIII.inventoryEnd)   || 0);
+  let scL42 = teRound(Math.max(0, scL40 - scL41));  // COGS
+
+  // Part V — Other Expenses (feeds Part II line 27b)
+  let scL48 = teRound(scOtherRows.reduce((s, row) => s + (parseFloat(row.amount) || 0), 0));
+
+  // Part I — Income (IRC §61)
+  let scL1  = teRound(parseFloat(sc.grossReceipts)     || 0);
+  let scL2  = teRound(parseFloat(sc.returnsAllowances) || 0);
+  let scL3  = teRound(scL1 - scL2);
+  let scL4  = scL42;                                         // from Part III
+  let scL5  = teRound(scL3 - scL4);
+  let scL6  = teRound(parseFloat(sc.otherIncome)       || 0);
+  let scL7  = teRound(scL5 + scL6);                         // IRC §61 gross income
+
+  // Part II — Expenses (IRC §162)
+  let scL8   = teRound(parseFloat(scExp.advertising)       || 0);
+  let scL9   = teRound(parseFloat(scExp.carTruck)          || 0);
+  let scL10  = teRound(parseFloat(scExp.commissions)       || 0);
+  let scL11  = teRound(parseFloat(scExp.contractLabor)     || 0);
+  let scL12  = teRound(parseFloat(scExp.depletion)         || 0);
+  let scL13  = teRound(parseFloat(scExp.depreciation)      || 0);
+  let scL14  = teRound(parseFloat(scExp.employeeBenefits)  || 0);
+  let scL15  = teRound(parseFloat(scExp.insurance)         || 0);
+  let scL16a = teRound(parseFloat(scExp.interestMortgage)  || 0);
+  let scL16b = teRound(parseFloat(scExp.interestOther)     || 0);
+  let scL17  = teRound(parseFloat(scExp.legalProfessional) || 0);
+  let scL18  = teRound(parseFloat(scExp.officeExpense)     || 0);
+  let scL19  = teRound(parseFloat(scExp.pension)           || 0);
+  let scL20a = teRound(parseFloat(scExp.rentVehicles)      || 0);
+  let scL20b = teRound(parseFloat(scExp.rentProperty)      || 0);
+  let scL21  = teRound(parseFloat(scExp.repairs)           || 0);
+  let scL22  = teRound(parseFloat(scExp.supplies)          || 0);
+  let scL23  = teRound(parseFloat(scExp.taxesLicenses)     || 0);
+  let scL24a = teRound(parseFloat(scExp.travel)            || 0);
+  let scL24b = teRound(parseFloat(scExp.meals)             || 0);
+  let scL25  = teRound(parseFloat(scExp.utilities)         || 0);
+  let scL26  = teRound(parseFloat(scExp.wages)             || 0);
+  let scL27a = teRound(parseFloat(scExp.energyBuildings)   || 0);
+  let scL27b = scL48;                                        // from Part V
+  let scL28  = teRound(scL8+scL9+scL10+scL11+scL12+scL13+scL14+scL15+scL16a+scL16b+
+                       scL17+scL18+scL19+scL20a+scL20b+scL21+scL22+scL23+
+                       scL24a+scL24b+scL25+scL26+scL27a+scL27b);
+
+  // Lines 29–31 — Net Profit or (Loss)
+  let scL29  = teRound(scL7 - scL28);   // tentative profit
+  // Line 30 — Home office: simplified method or Form 8829
+  let scL30;
+  if (sc.homeOfficeMethod !== 'form8829') {
+    let bSqFt = parseFloat(sc.businessSqFt) || 0;
+    scL30 = teRound(Math.min(bSqFt, 300) * 5);  // §280A(c)(5): $5/sqft, max 300 sqft
+  } else {
+    scL30 = teRound(parseFloat(sc.homeOffice) || 0);
+  }
+  let scL31 = teRound(scL29 - scL30);   // IRC §162 — net profit/loss → Sch. 1 Line 3
+
+  // Persist all SC lines for the form renderer
+  calc.scLines = {
+    l1:scL1, l2:scL2, l3:scL3, l4:scL4, l5:scL5, l6:scL6, l7:scL7,
+    l8:scL8, l9:scL9, l10:scL10, l11:scL11, l12:scL12, l13:scL13,
+    l14:scL14, l15:scL15, l16a:scL16a, l16b:scL16b, l17:scL17, l18:scL18,
+    l19:scL19, l20a:scL20a, l20b:scL20b, l21:scL21, l22:scL22, l23:scL23,
+    l24a:scL24a, l24b:scL24b, l25:scL25, l26:scL26, l27a:scL27a, l27b:scL27b,
+    l28:scL28, l29:scL29, l30:scL30, l31:scL31,
+    l35:scL35, l36:scL36, l37:scL37, l38:scL38, l39:scL39, l40:scL40, l41:scL41, l42:scL42,
+    l48:scL48
+  };
+
+  // Override sc.netProfit if the user is using the detailed form
+  // (any income or expense field is non-zero = detailed form is active)
+  let scDetailedActive = scL1 > 0 || scL6 > 0 || scL42 > 0 || scL28 > 0 || scL48 > 0;
+  if (scDetailedActive) sc.netProfit = String(scL31);
+
   let seData_       = teCurrentReturn.scheduleSE || {};
   calc.w2Wages      = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.wages)||0), 0));
   // netSEIncome = Schedule C + Schedule F farm profit + CRP payments (all SE sources)
@@ -4999,23 +5571,7 @@ function teRecalculate() {
   if (teActiveSection === 'dashboard') { let db = document.getElementById('te-interview-body'); if (db) db.innerHTML = teRenderDashboard1040(); }
   if (teActiveSection === 'credits') { teRenderCTCDetail(); teFocusSafe(teRenderEduList); teRenderEICSection(); teFocusSafe(teRenderCDCCSection); teFocusSafe(teRenderSaversSection); teFocusSafe(teRenderEnergySection); }
   if (teActiveSection === 'income') {
-    let scEl = document.getElementById('te-sc-netprofit');
-    if (!scEl) { teRenderW2List(); }  // full re-render only if SC input gone
-    let scCalcEl = document.querySelector('#tab-returns .te-subsec .te-ded-note');
-    // Live-update the SE tax breakdown in the Schedule C info note
-    let scNote = document.querySelector('[id="te-sc-netprofit"]');
-    if (scNote) {
-      // Update the sibling info note if income changed
-      let parent = scNote.closest('.te-frow');
-      if (parent && parent.nextElementSibling) {
-        // refresh the inline SE tax breakdown
-        let infoDiv = parent.querySelector('.te-ded-note');
-        if (infoDiv && calc.netSEIncome > 0) {
-          infoDiv.innerHTML = 'SE Tax Base: ' + teFmt(calc.seTaxBase) + ' &nbsp;|&nbsp; SE Tax: ' + teFmt(calc.seTax) + ' (SS: ' + teFmt(calc.seSSTax) + ' + Medicare: ' + teFmt(calc.seMedicareTax) + ') &nbsp;|&nbsp; §164(f) Deduction: ' + teFmt(calc.seTaxDeduction);
-        }
-      }
-    }
-    // Live-update SS §86 summary
+    // Live-update SS §86 summary on the income menu page
     let ssSummaryEl = document.getElementById('te-ss-summary');
     if (ssSummaryEl) ssSummaryEl.innerHTML = teRenderSSSummary(calc, fs);
   }
@@ -5126,6 +5682,39 @@ function teRecalculate() {
                </div>`
             : '';
         }
+      } break;
+      case 'sched-c': {
+        // Targeted DOM updates for every computed Schedule C line — preserves input focus
+        let sl = calc.scLines || {};
+        let g  = id => document.getElementById(id);
+        if (g('te-sc-l3'))   g('te-sc-l3').textContent   = teFmt(sl.l3  || 0);
+        if (g('te-sc-l4'))   g('te-sc-l4').textContent   = teFmt(sl.l4  || 0);
+        if (g('te-sc-l5'))   g('te-sc-l5').textContent   = teFmt(sl.l5  || 0);
+        if (g('te-sc-l7'))   g('te-sc-l7').textContent   = teFmt(sl.l7  || 0);
+        if (g('te-sc-l27b')) g('te-sc-l27b').textContent = teFmt(sl.l27b|| 0);
+        if (g('te-sc-l28'))  g('te-sc-l28').textContent  = teFmt(sl.l28 || 0);
+        if (g('te-sc-l29'))  g('te-sc-l29').textContent  = teFmt(sl.l29 || 0);
+        if (g('te-sc-l30'))  g('te-sc-l30').textContent  = teFmt(sl.l30 || 0);
+        if (g('te-sc-l40'))  g('te-sc-l40').textContent  = teFmt(sl.l40 || 0);
+        if (g('te-sc-l42'))  g('te-sc-l42').textContent  = teFmt(sl.l42 || 0);
+        if (g('te-sc-l48'))  g('te-sc-l48').textContent  = teFmt(sl.l48 || 0);
+        // Net profit bar — update amount and swap profit/loss class
+        let netBar = g('te-sc-net-bar');
+        if (netBar) {
+          let net = sl.l31 || 0;
+          let netAmtEl = netBar.querySelector('.te-sc-net-amt');
+          if (netAmtEl) netAmtEl.textContent = net >= 0 ? teFmt(net) : `(${teFmt(Math.abs(net))})`;
+          netBar.classList.toggle('te-sc-profit', net >= 0);
+          netBar.classList.toggle('te-sc-loss',   net <  0);
+        }
+        // Line 31 standalone span (outside net bar if present)
+        if (g('te-sc-l31')) {
+          let net31 = sl.l31 || 0;
+          g('te-sc-l31').textContent = net31 >= 0 ? teFmt(net31) : `(${teFmt(Math.abs(net31))})`;
+        }
+        // Line 32 (at-risk checkbox row) — show only when there is a loss
+        let riskRow = g('te-sc-risk-row');
+        if (riskRow) riskRow.style.display = (sl.l31 || 0) < 0 ? '' : 'none';
       } break;
       case 'sched-e':    if (totalValEl) totalValEl.textContent = teFmt(calc.scheduleENet                                          || 0); break;
       case 'ctc':        if (totalValEl) totalValEl.textContent = teFmt((calc.ctcNonRefundable || 0) + (calc.actcRefundable        || 0)); break;
@@ -6603,6 +7192,12 @@ function teSetStatus(status) {
 // ──────────────────────────────────────────────────────────────────────
 
 function teSaveReturn() {
+  teSaveReturnThen(null);
+}
+
+// teSaveReturnThen(callback): saves the return, then runs callback() on success.
+// Used by the unsaved-changes prompt so navigation only happens after the save completes.
+function teSaveReturnThen(callback) {
   if (!teCurrentReturn || !teCurrentReturn.id) { toast('No return open.', 'warning'); return; }
   let calc = teCurrentReturn._calc || {};
   let data = teSerialize(teCurrentReturn);
@@ -6620,6 +7215,7 @@ function teSaveReturn() {
       toast('Return saved.', 'success');
       let idx = teReturns.findIndex(r => r.id === teCurrentReturn.id);
       if (idx >= 0) teReturns[idx] = { ...data, id: teCurrentReturn.id };
+      if (callback) callback();  // navigate only after confirmed save
     })
     .catch(e => toast('Save failed: ' + e.message, 'error'));
 }
@@ -6636,7 +7232,7 @@ function teSerialize(r) {
     spouse:            r.spouse            || {},
     dependents:        r.dependents        || [],
     w2:                r.w2                || [],
-    scheduleC:          r.scheduleC          || { netProfit: '' },
+    scheduleC:          r.scheduleC          || { netProfit: '', businessInfo:{}, expenses:{}, partIII:{}, partIV:{}, otherExpenseRows:[] },
     alimony:            r.alimony            || { paid: '', preAgreement: false },
     estimatedPayments:  r.estimatedPayments  || { q1: '', q2: '', q3: '', q4: '' },
     schedule1099:       r.schedule1099       || { interestIncome: '', ordinaryDividends: '', qualifiedDividends: '' },
@@ -6662,7 +7258,12 @@ function teDeserialize(data) {
   if (!r.spouse)              r.spouse              = {};
   if (!r.dependents)          r.dependents          = [];
   if (!r.w2)                  r.w2                  = [];
-  if (!r.scheduleC)           r.scheduleC           = { netProfit: '' };
+  if (!r.scheduleC)               r.scheduleC           = { netProfit: '' };
+  if (!r.scheduleC.businessInfo)  r.scheduleC.businessInfo  = {};
+  if (!r.scheduleC.expenses)      r.scheduleC.expenses      = {};
+  if (!r.scheduleC.partIII)       r.scheduleC.partIII       = {};
+  if (!r.scheduleC.partIV)        r.scheduleC.partIV        = {};
+  if (!r.scheduleC.otherExpenseRows) r.scheduleC.otherExpenseRows = [];
   if (!r.alimony)             r.alimony             = { paid: '', preAgreement: false };
   if (!r.estimatedPayments)   r.estimatedPayments   = { q1: '', q2: '', q3: '', q4: '' };
   if (!r.educationStudents)   r.educationStudents   = [];
