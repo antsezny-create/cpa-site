@@ -5209,3 +5209,264 @@ input[type="number"].te-input {
 .te-sc-lbl-inp {
   font-size: 12px;
 }
+
+/* ── Schedule D Form ── */
+.te-sch-d {
+  padding: 4px 0 16px;
+}
+
+/* QOF top question */
+.te-sd-qof-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.te-sd-qof-lbl { font-size: 12px; color: var(--text); flex: 1; }
+.te-sd-toggle-wrap { display: flex; align-items: center; }
+.te-sd-qof-note {
+  font-size: 11px;
+  color: #f0a030;
+  padding: 6px 10px;
+  background: rgba(240,160,48,0.08);
+  border: 1px solid rgba(240,160,48,0.2);
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+/* Section labels */
+.te-sd-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--accent);
+  margin: 18px 0 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.te-sd-section-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.te-sd-consolidation-note {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  background: rgba(255,255,255,0.02);
+  border-left: 2px solid var(--border);
+}
+
+/* Transaction table — shared column widths via flex */
+.te-sd-tbl-hdr,
+.te-sd-tx-cols,
+.te-sd-totals-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.te-sd-tbl-hdr {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+.te-sd-tbl-hdr span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+/* Column widths — must match in header, tx-cols, and totals-row */
+.te-sd-col-desc  { flex: 1; min-width: 120px; }
+.te-sd-col-date  { width: 120px; flex-shrink: 0; }
+.te-sd-col-amt   { width: 100px; flex-shrink: 0; }
+.te-sd-col-adj   { width: 90px;  flex-shrink: 0; }
+.te-sd-col-gain  { width: 110px; flex-shrink: 0; text-align: right; }
+.te-sd-col-del   { width: 28px;  flex-shrink: 0; }
+
+/* Transaction rows */
+.te-sd-tx-row {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.te-sd-tx-row:last-child { border-bottom: none; }
+.te-sd-tx-cols { padding: 3px 0; }
+.te-sd-tx-warn {
+  font-size: 10px;
+  color: #f0a030;
+  padding: 3px 6px 4px 32px;
+  background: rgba(240,160,48,0.06);
+  border-top: 1px solid rgba(240,160,48,0.15);
+}
+.te-sd-tx-del {
+  background: transparent;
+  border: 1px solid rgba(220,50,50,0.4);
+  border-radius: 4px;
+  color: rgba(220,50,50,0.7);
+  font-size: 10px;
+  padding: 2px 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+  width: 28px;
+}
+.te-sd-tx-del:hover { background: rgba(220,50,50,0.15); color: #dc3232; }
+
+/* Totals row */
+.te-sd-totals-row {
+  background: rgba(255,255,255,0.04);
+  border-top: 2px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
+  margin-bottom: 4px;
+}
+.te-sd-tot-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Gain / loss coloring */
+.te-sd-gain-pos { color: #00b464; }
+.te-sd-gain-neg { color: #dc3232; }
+
+/* Net summary bars (lines 7, 15, 16) */
+.te-sd-net-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03);
+  margin: 10px 0 4px;
+  transition: background 0.2s, border-color 0.2s;
+}
+.te-sd-net-line.te-sd-profit {
+  background: rgba(0,180,100,0.07);
+  border-color: rgba(0,180,100,0.25);
+}
+.te-sd-net-line.te-sd-loss {
+  background: rgba(220,50,50,0.07);
+  border-color: rgba(220,50,50,0.25);
+}
+.te-sd-net-lbl  { font-size: 12px; font-weight: 700; color: var(--text); }
+.te-sd-net-sub  { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+.te-sd-net-amt  { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.te-sd-flow-note { font-size: 11px; margin-top: 4px; font-weight: 600; }
+
+/* Part I / II additional lines (4-6, 11-14) */
+.te-sd-part-lines { margin: 8px 0 4px; }
+.te-sd-line-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  min-height: 34px;
+}
+.te-sd-line-row:last-child { border-bottom: none; }
+.te-sd-line-num {
+  font-size: 11px;
+  color: var(--text-dim);
+  min-width: 24px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.te-sd-line-lbl {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.4;
+}
+.te-sd-line-note {
+  display: block;
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
+  margin-top: 1px;
+}
+.te-sd-line-inp-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.te-sd-line-paren {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.te-sd-smry-inp { width: 120px; text-align: right; }
+
+/* Part III summary lines (17-22) */
+.te-sd-summary-lines { margin-top: 10px; }
+.te-sd-smry-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  min-height: 34px;
+}
+.te-sd-smry-row:last-child { border-bottom: none; }
+.te-sd-smry-num {
+  font-size: 11px;
+  color: var(--text-dim);
+  min-width: 24px;
+  text-align: right;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+.te-sd-smry-lbl {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.4;
+}
+.te-sd-smry-note {
+  display: block;
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
+  margin-top: 2px;
+}
+.te-sd-smry-val {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 160px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.te-sd-dimmed { opacity: 0.38; }
+.te-sd-loss-row .te-sd-smry-val { font-variant-numeric: tabular-nums; }
+
+/* Rate computation footer note */
+.te-sd-rate-note {
+  margin-top: 18px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.te-sd-rate-warn {
+  margin-top: 8px;
+  color: #f0a030;
+  font-weight: 600;
+  font-size: 11px;
+}

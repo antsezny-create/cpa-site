@@ -840,6 +840,7 @@ let teNavSource      = null;    // source section for mini-screen back button
 let teNotesPanelOpen = false;
 let teDirty          = false;  // true when return has unsaved changes
 let teSchedCTimer    = null;   // debounce timer for Schedule C inputs (150ms)
+let teSchedDTimer    = null;   // debounce timer for Schedule D inputs (150ms)
 
 function teEmptyReturn(clientId, clientName, taxYear) {
   return {
@@ -908,9 +909,31 @@ function teEmptyReturn(clientId, clientName, taxYear) {
       mfsLivedWithSpouse: false  // IRC §86(c)(2): MFS filer who lived with spouse → 85% taxable on dollar one
     },
     scheduleD: {
-      netSTCG:              '', // Net short-term capital gain/(loss) — IRC §1222(5),(6)
-      netLTCG:              '', // Net long-term capital gain/(loss) — IRC §1222(7),(8)
-      priorYearCarryforward:''  // Prior year capital loss carryforward — IRC §1212(b)
+      // Per-transaction arrays — IRC §1221, §1222
+      shortTermTransactions: [
+        { id: 'st-0', description: '', dateAcquired: '', dateSold: '', proceeds: '', cost: '', adjustments: '' }
+      ],
+      longTermTransactions: [
+        { id: 'lt-0', description: '', dateAcquired: '', dateSold: '', proceeds: '', cost: '', adjustments: '' }
+      ],
+      // Part I additional lines
+      stGainForm6252:  '',  // Line 4 — installment sales, casualties, commodities, like-kind
+      stGainK1:        '',  // Line 5 — K-1 short-term
+      stLossCarryover: '',  // Line 6 — prior year ST loss carryover (entered positive, applied negative) — IRC §1212(b)
+      // Part II additional lines
+      ltGainForm4797:  '',  // Line 11 — Form 4797 Part I, undistributed capital gains, etc.
+      ltGainK1:        '',  // Line 12 — K-1 long-term
+      capitalGainDistributions: '', // Line 13 — 1099-DIV Box 2a — IRC §852(b)(3)(C)
+      ltLossCarryover: '',  // Line 14 — prior year LT loss carryover (entered positive, applied negative)
+      // Part III special rate inputs
+      rate28Gain:       '',  // Line 18 — collectibles + §1202 — IRC §1(h)(1)(E)
+      unrecaptured1250: '',  // Line 19 — unrecaptured §1250 — IRC §1(h)(1)(D)
+      // Top-level question
+      qualifiedOpportunityFund: false, // IRC §1400Z-2(c) — dispose of QOF investment this year?
+      // Legacy aggregate fields — used when no per-transaction data present (backward compat)
+      netSTCG:               '', // Net short-term capital gain/(loss) — IRC §1222(5),(6)
+      netLTCG:               '', // Net long-term capital gain/(loss) — IRC §1222(7),(8)
+      priorYearCarryforward: ''  // Prior year combined capital loss carryforward — IRC §1212(b)
     },
     scheduleE: [],              // Array of pass-through entities — IRC §702, §1366
                                 // Each: { name:'', ein:'', incomeAmount:'', isPassive:true }
@@ -1281,8 +1304,12 @@ function teGetScheduleStatus(schedId) {
     case '1099-div': return parseFloat(s1.ordinaryDividends) > 0 ? 'entered' : 'empty';
     case '1099-int': return parseFloat(s1.interestIncome) > 0 ? 'entered' : 'empty';
     case 'sched-d': {
-      let sd = r.scheduleD || {};
-      return (sd.netSTCG || sd.netLTCG || sd.priorYearCarryforward) ? 'entered' : 'empty';
+      let sd  = r.scheduleD || {};
+      let stHas = (sd.shortTermTransactions||[]).some(tx => tx.proceeds || tx.cost || tx.description);
+      let ltHas = (sd.longTermTransactions ||[]).some(tx => tx.proceeds || tx.cost || tx.description);
+      return (sd.netSTCG || sd.netLTCG || sd.priorYearCarryforward || stHas || ltHas
+        || sd.stGainForm6252 || sd.stGainK1 || sd.stLossCarryover
+        || sd.ltGainForm4797 || sd.ltGainK1 || sd.capitalGainDistributions || sd.ltLossCarryover) ? 'entered' : 'empty';
     }
     case 'sched-c':  return parseFloat((r.scheduleC || {}).netProfit) > 0 ? 'entered' : 'empty';
     case 'sched-e':  return (r.scheduleE || []).length > 0 ? 'entered' : 'empty';
@@ -1650,7 +1677,7 @@ function teRenderMiniScreen(schedId) {
 
     case 'sched-d':
       return nav + `
-        <div class="te-sec-hdr"><h2>Schedule D — Capital Gains &amp; Losses</h2>
+        <div class="te-sec-hdr"><h2>Schedule D — Capital Gains and Losses</h2>
         <p class="te-sec-sub"><span class="te-cite">IRC §1221, §1222 &mdash; 1040 Line 7a</span></p></div>
         <div class="te-subsec">${teRenderScheduleD()}</div>`;
 
@@ -1744,6 +1771,7 @@ function teMiniPostRender(schedId) {
   switch (schedId) {
     case 'w2':         teRenderW2List();              break;
     case 'sched-c':    teRenderSchedCOtherExpRows(); break;  // re-render Part V rows after screen loads
+    case 'sched-d':    /* rows rendered inline on initial render — no post-render needed */ break;
     case 'sched-se':   /* all lines computed on render — no list post-render needed */ break;
     case 'retirement': teRender1099RList('ira'); teRender1099RList('pension'); break;
     case 'sched-e':    teRenderScheduleEList();        break;
@@ -2639,8 +2667,19 @@ function teRenderIncome() {
 
     <div class="te-subsec" style="margin-top:20px;">
       <div class="te-subsec-lbl">Schedule D — Capital Gains &amp; Losses <span class="te-cite">IRC §1221, §1222</span></div>
-      <div class="te-subsec-desc">Enter net figures by holding period. Long-term gains (held &gt;1 year) taxed at preferential rates. Net losses deductible up to $3,000/year; excess carries forward. <span class="te-cite">IRC §1211(b), §1212(b)</span></div>
-      ${teRenderScheduleD()}
+      <div class="te-subsec-desc">Per-transaction entry with auto holding period validation, loss carryover, and QDLTCG preferential rate computation. Open via the Income card above. <span class="te-cite">IRC §1211(b), §1212(b)</span></div>
+      ${(() => {
+        let calc = (teCurrentReturn && teCurrentReturn._calc) || {};
+        let net  = calc.scheduleDNet || 0;
+        let cf   = calc.capLossCarryforward || 0;
+        if (!calc.sdLines && !calc.scheduleDCombined) return '<div class="te-ded-note">No data entered yet — click the Schedule D card to open the form.</div>';
+        let sign = net >= 0 ? '' : '–';
+        return `<div class="te-ded-note">
+          Net: <strong>${net >= 0 ? teFmt(net) : '(' + teFmt(Math.abs(net)) + ')'}</strong>
+          ${net >= 0 ? '— flows to Form 1040, line 7a' : '— deductible loss ($3,000/$1,500 cap), carryforward: ' + teFmt(cf)}
+          <span class="te-cite">Line 16 / 21</span>
+        </div>`;
+      })()}
     </div>
 
     <div class="te-subsec" style="margin-top:20px;">
@@ -2945,41 +2984,260 @@ function teRender1099() {
     <div class="te-ded-note" style="margin-top:4px;">Tax-exempt interest does <strong>not</strong> affect taxable income, but is included in the Social Security provisional income calculation under IRC §86(b)(1). Enter the amount from 1099-INT Box 8 or similar tax-exempt interest statements. <span class="te-cite">IRC §86(b)(1); 1040 Line 2a</span></div>`;
 }
 
+// ── Schedule D rendering helpers ─────────────────────────────────────
+
+// Renders a single per-transaction row (ST or LT table).
+// part: 'st' | 'lt'   tx: transaction object   idx: row index
+function teSDTxRowHTML(part, tx, idx) {
+  let proceeds = parseFloat(tx.proceeds)    || 0;
+  let cost     = parseFloat(tx.cost)        || 0;
+  let adj      = parseFloat(tx.adjustments) || 0;
+  let gain     = teRound(proceeds - cost + adj);
+  let hasAmts  = tx.proceeds || tx.cost || tx.description;
+  let daysHeld = null;
+  if (tx.dateAcquired && tx.dateSold) {
+    let a = new Date(tx.dateAcquired), b = new Date(tx.dateSold);
+    if (!isNaN(a.getTime()) && !isNaN(b.getTime())) daysHeld = Math.floor((b - a) / 86400000);
+  }
+  let showWarn = daysHeld !== null && hasAmts;
+  let isWrong  = showWarn && (part === 'st' ? daysHeld > 365 : daysHeld <= 365);
+  let warnMsg  = part === 'st'
+    ? '&#9888; Held &gt; 1 year &mdash; may belong in Part II (long-term). IRC &sect;1222(3),(4)'
+    : '&#9888; Held &le; 1 year &mdash; may belong in Part I (short-term). IRC &sect;1222(1),(2)';
+  let gainDisplay = hasAmts
+    ? (gain >= 0 ? teFmt(gain) : '(' + teFmt(Math.abs(gain)) + ')')
+    : '&mdash;';
+  return `<div class="te-sd-tx-row" id="te-sd-${part}-row-${idx}">
+    <div class="te-sd-tx-cols">
+      <input type="text"   class="te-input te-sd-col-desc"    placeholder="e.g., 100 sh. AAPL"
+        value="${esc(tx.description||'')}"   oninput="teOnSchedDTx('${part}',${idx},'description',this.value)">
+      <input type="date"   class="te-input te-sd-col-date"
+        value="${esc(tx.dateAcquired||'')}"  onchange="teOnSchedDTx('${part}',${idx},'dateAcquired',this.value)">
+      <input type="date"   class="te-input te-sd-col-date"
+        value="${esc(tx.dateSold||'')}"      onchange="teOnSchedDTx('${part}',${idx},'dateSold',this.value)">
+      <input type="number" class="te-input te-mono te-sd-col-amt" step="0.01" min="0" placeholder="0.00"
+        value="${esc(String(tx.proceeds||''))}"    oninput="teOnSchedDTx('${part}',${idx},'proceeds',this.value)">
+      <input type="number" class="te-input te-mono te-sd-col-amt" step="0.01" min="0" placeholder="0.00"
+        value="${esc(String(tx.cost||''))}"        oninput="teOnSchedDTx('${part}',${idx},'cost',this.value)">
+      <input type="number" class="te-input te-mono te-sd-col-adj" step="0.01" placeholder="0.00"
+        value="${esc(String(tx.adjustments||''))}" oninput="teOnSchedDTx('${part}',${idx},'adjustments',this.value)">
+      <span class="te-sd-col-gain te-mono ${gain >= 0 ? 'te-sd-gain-pos' : 'te-sd-gain-neg'}"
+        id="te-sd-${part}-gain-${idx}">${gainDisplay}</span>
+      <button class="te-sd-tx-del" onclick="teSchedDDelTx('${part}',${idx})" title="Remove">&#10005;</button>
+    </div>
+    ${isWrong ? `<div class="te-sd-tx-warn">${warnMsg}</div>` : ''}
+  </div>`;
+}
+
+// Renders a Part I or Part II additional-line input row (lines 4–6 and 11–14).
+function teSDLineRow(lineNum, label, field, val, helper, isCarryover) {
+  let absVal = Math.abs(parseFloat(val)||0);
+  return `<div class="te-sd-line-row">
+    <span class="te-sd-line-num">${lineNum}</span>
+    <span class="te-sd-line-lbl">${label}${helper ? `<span class="te-sd-line-note">${helper}</span>` : ''}</span>
+    <div class="te-sd-line-inp-wrap">
+      ${isCarryover && absVal > 0 ? `<span class="te-sd-line-paren te-sd-gain-neg te-mono">(${teFmt(absVal)})</span>` : ''}
+      <input type="number" class="te-input te-mono te-sd-smry-inp" step="0.01" min="0"
+        placeholder="${isCarryover ? 'enter positive' : '0.00'}"
+        value="${esc(String(val||''))}" oninput="teOnSchedD('${field}',this.value)">
+    </div>
+  </div>`;
+}
+
+// Full Schedule D — Capital Gains and Losses form (mini-screen).
+// Data flow: transactions -> lines 1a/8a -> lines 7/15 -> line 16 -> Form 1040 line 7a
+// IRC §1221 (capital asset definition), §1222 (holding period + netting), §1211(b) (loss cap)
 function teRenderScheduleD() {
-  let r    = teCurrentReturn;
-  let sd   = (r && r.scheduleD) || {};
-  let calc = (r && r._calc)     || {};
-  let hasD = calc.scheduleDCombined !== 0 || calc.netSTCG !== 0 || calc.netLTCG !== 0;
-  let isLoss  = calc.scheduleDCombined < 0;
-  let isGain  = calc.scheduleDCombined > 0;
-  return `
-    <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:8px;">
-      <div class="te-field-group" style="max-width:200px;">
-        <label class="te-lbl">Net Short-Term Gain / (Loss) <span class="te-cite">IRC §1222(5),(6)</span></label>
-        <input type="number" id="te-sd-stcg" class="te-input te-mono"
-          value="${esc(String(sd.netSTCG||''))}" placeholder="0.00" step="0.01"
-          oninput="teOnScheduleD()">
+  let r     = teCurrentReturn;
+  let sd    = (r && r.scheduleD) || {};
+  let calc  = (r && r._calc)    || {};
+  let sl    = calc.sdLines      || {};
+  let qof   = sd.qualifiedOpportunityFund;
+  let stTxs = sd.shortTermTransactions || [{ id:'st-0',description:'',dateAcquired:'',dateSold:'',proceeds:'',cost:'',adjustments:'' }];
+  let ltTxs = sd.longTermTransactions  || [{ id:'lt-0',description:'',dateAcquired:'',dateSold:'',proceeds:'',cost:'',adjustments:'' }];
+  let l7    = sl.l7  || 0;
+  let l15   = sl.l15 || 0;
+  let l16   = sl.l16 || 0;
+  let l17yes = sl.l17yes || false;
+  let l21   = sl.l21 || 0;
+  let qualDivs = parseFloat((r && r.schedule1099 && r.schedule1099.qualifiedDividends) || 0);
+  let r28   = parseFloat(sd.rate28Gain||0)       || 0;
+  let r19   = parseFloat(sd.unrecaptured1250||0) || 0;
+
+  return `<div class="te-sch-d">
+    <!-- Qualified Opportunity Fund question — IRC §1400Z-2(c) -->
+    <div class="te-sd-qof-row">
+      <span class="te-sd-qof-lbl">Did you dispose of any investment(s) in a qualified opportunity fund during the tax year?</span>
+      <span class="te-sd-toggle-wrap">
+        <label class="te-sc-radio-lbl"><input type="radio" name="te-sd-qof" value="no" ${!qof?'checked':''}
+          onchange="teOnSchedD('qualifiedOpportunityFund',false)"> No</label>
+        <label class="te-sc-radio-lbl" style="margin-left:10px;"><input type="radio" name="te-sd-qof" value="yes" ${qof?'checked':''}
+          onchange="teOnSchedD('qualifiedOpportunityFund',true)"> Yes</label>
+      </span>
+    </div>
+    ${qof ? `<div class="te-sd-qof-note">Attach Form 8949 &mdash; additional reporting required for QOF dispositions. <span class="te-cite">IRC &sect;1400Z-2(c)</span></div>` : ''}
+
+    <!-- ═══ PART I — SHORT-TERM ═══════════════════════════════════════ -->
+    <div class="te-sd-section-label">Part I &mdash; Short-Term Capital Gains and Losses</div>
+    <div class="te-sd-section-sub">Generally assets held one year or less &middot; <span class="te-cite">IRC &sect;1222(1)&ndash;(4)</span></div>
+    <div class="te-sd-consolidation-note">Lines 1a, 1b, 2, and 3 are consolidated into one transaction table. All short-term transactions sum together regardless of Form 8949 box type.</div>
+
+    <div class="te-sd-tbl-hdr">
+      <span class="te-sd-col-desc">Description of Property</span>
+      <span class="te-sd-col-date">Acquired</span>
+      <span class="te-sd-col-date">Sold</span>
+      <span class="te-sd-col-amt">Proceeds (d)</span>
+      <span class="te-sd-col-amt">Cost/Basis (e)</span>
+      <span class="te-sd-col-adj">Adj. (f)</span>
+      <span class="te-sd-col-gain">Gain/(Loss) (g)</span>
+      <span class="te-sd-col-del"></span>
+    </div>
+    <div id="te-sd-st-rows">${stTxs.map((tx,i) => teSDTxRowHTML('st',tx,i)).join('')}</div>
+    <div class="te-sd-totals-row">
+      <span class="te-sd-col-desc te-sd-tot-lbl">Line 1a Totals:</span>
+      <span class="te-sd-col-date"></span><span class="te-sd-col-date"></span>
+      <span class="te-sd-col-amt te-mono" id="te-sd-l1a-p">${teFmt(sl.line1aProc||0)}</span>
+      <span class="te-sd-col-amt te-mono" id="te-sd-l1a-c">${teFmt(sl.line1aCost||0)}</span>
+      <span class="te-sd-col-adj"></span>
+      <span class="te-sd-col-gain te-mono ${(sl.line1aGain||0)>=0?'te-sd-gain-pos':'te-sd-gain-neg'}"
+        id="te-sd-l1a-g">${(sl.line1aGain||0)>=0?teFmt(sl.line1aGain||0):'('+teFmt(Math.abs(sl.line1aGain||0))+')'}</span>
+      <span class="te-sd-col-del"></span>
+    </div>
+    <button class="ghost-btn te-sm-btn" onclick="teSchedDAddTx('st')" style="margin:4px 0 14px;">+ Add Short-Term Transaction</button>
+
+    <div class="te-sd-part-lines">
+      ${teSDLineRow('4','Short-term gain from Form 6252; gain or (loss) from Forms 4684, 6781, and 8824','stGainForm6252',sd.stGainForm6252,'Installment sales, casualties, commodities, like-kind exchanges')}
+      ${teSDLineRow('5','Net short-term gain or (loss) from Schedule(s) K-1','stGainK1',sd.stGainK1,'From Schedule K-1, Box 8 or equivalent')}
+      ${teSDLineRow('6','Short-term capital loss carryover','stLossCarryover',sd.stLossCarryover,'From prior year Capital Loss Carryover Worksheet &mdash; <span class="te-cite">IRC &sect;1212(b)</span>',true)}
+    </div>
+
+    <div class="te-sd-net-line ${l7>=0?'te-sd-profit':'te-sd-loss'}" id="te-sd-l7-bar">
+      <div>
+        <div class="te-sd-net-lbl">Line 7 &mdash; Net Short-Term Capital Gain or (Loss)</div>
+        <div class="te-sd-net-sub">Line 1a + lines 4 + 5 &minus; line 6 &middot; <span class="te-cite">IRC &sect;1222(5),(6)</span></div>
       </div>
-      <div class="te-field-group" style="max-width:200px;">
-        <label class="te-lbl">Net Long-Term Gain / (Loss) <span class="te-cite">IRC §1222(7),(8)</span></label>
-        <input type="number" id="te-sd-ltcg" class="te-input te-mono"
-          value="${esc(String(sd.netLTCG||''))}" placeholder="0.00" step="0.01"
-          oninput="teOnScheduleD()">
-      </div>
-      <div class="te-field-group" style="max-width:200px;">
-        <label class="te-lbl">Prior Year Loss Carryforward <span class="te-cite">IRC §1212(b)</span></label>
-        <input type="number" id="te-sd-cf" class="te-input te-mono"
-          value="${esc(String(sd.priorYearCarryforward||''))}" placeholder="0.00" step="0.01" min="0"
-          oninput="teOnScheduleD()">
+      <div class="te-sd-net-amt ${l7>=0?'te-sd-gain-pos':'te-sd-gain-neg'}" id="te-sd-l7">
+        ${l7>=0?teFmt(l7):'('+teFmt(Math.abs(l7))+')'}
       </div>
     </div>
-    ${hasD ? `
-    <div class="te-ded-note" style="margin-top:6px;">
-      Combined net: <strong>${calc.scheduleDCombined >= 0 ? teFmt(calc.scheduleDCombined) : '(' + teFmt(Math.abs(calc.scheduleDCombined)) + ')'}</strong>
-      ${isGain ? ' — gain flows to gross income; LTCG portion of ' + teFmt(Math.max(0, calc.netLTCG - calc.priorCapLossCF)) + ' taxed at preferential rates.' : ''}
-      ${isLoss ? ' — deductible loss capped at ($3,000); carryforward to next year: ' + teFmt(calc.capLossCarryforward) + '. <span class="te-cite">IRC §1211(b)</span>' : ''}
-    </div>` : ''}
-    <div class="te-ded-note" style="margin-top:4px;">Enter net after netting all transactions by holding period. Enter losses as negative numbers. Short-term = held ≤ 1 year (ordinary rates). Long-term = held &gt; 1 year (preferential rates). <span class="te-cite">IRC §1222</span></div>`;
+
+    <!-- ═══ PART II — LONG-TERM ════════════════════════════════════════ -->
+    <div class="te-sd-section-label" style="margin-top:28px;">Part II &mdash; Long-Term Capital Gains and Losses</div>
+    <div class="te-sd-section-sub">Generally assets held more than one year &middot; <span class="te-cite">IRC &sect;1222(5)&ndash;(8)</span></div>
+    <div class="te-sd-consolidation-note">Lines 8a, 8b, 9, and 10 are consolidated into one transaction table.</div>
+
+    <div class="te-sd-tbl-hdr">
+      <span class="te-sd-col-desc">Description of Property</span>
+      <span class="te-sd-col-date">Acquired</span>
+      <span class="te-sd-col-date">Sold</span>
+      <span class="te-sd-col-amt">Proceeds (d)</span>
+      <span class="te-sd-col-amt">Cost/Basis (e)</span>
+      <span class="te-sd-col-adj">Adj. (f)</span>
+      <span class="te-sd-col-gain">Gain/(Loss) (g)</span>
+      <span class="te-sd-col-del"></span>
+    </div>
+    <div id="te-sd-lt-rows">${ltTxs.map((tx,i) => teSDTxRowHTML('lt',tx,i)).join('')}</div>
+    <div class="te-sd-totals-row">
+      <span class="te-sd-col-desc te-sd-tot-lbl">Line 8a Totals:</span>
+      <span class="te-sd-col-date"></span><span class="te-sd-col-date"></span>
+      <span class="te-sd-col-amt te-mono" id="te-sd-l8a-p">${teFmt(sl.line8aProc||0)}</span>
+      <span class="te-sd-col-amt te-mono" id="te-sd-l8a-c">${teFmt(sl.line8aCost||0)}</span>
+      <span class="te-sd-col-adj"></span>
+      <span class="te-sd-col-gain te-mono ${(sl.line8aGain||0)>=0?'te-sd-gain-pos':'te-sd-gain-neg'}"
+        id="te-sd-l8a-g">${(sl.line8aGain||0)>=0?teFmt(sl.line8aGain||0):'('+teFmt(Math.abs(sl.line8aGain||0))+')'}</span>
+      <span class="te-sd-col-del"></span>
+    </div>
+    <button class="ghost-btn te-sm-btn" onclick="teSchedDAddTx('lt')" style="margin:4px 0 14px;">+ Add Long-Term Transaction</button>
+
+    <div class="te-sd-part-lines">
+      ${teSDLineRow('11','Gain from Form 4797 Part I; long-term gain from Forms 2439 and 6252; gain or (loss) from Forms 4684, 6781, and 8824','ltGainForm4797',sd.ltGainForm4797,'Business property sales, undistributed capital gains, installment sales, casualties, commodities, like-kind exchanges')}
+      ${teSDLineRow('12','Net long-term gain or (loss) from Schedule(s) K-1','ltGainK1',sd.ltGainK1,'From Schedule K-1, Box 9a or equivalent')}
+      ${teSDLineRow('13','Capital gain distributions','capitalGainDistributions',sd.capitalGainDistributions,'From Form 1099-DIV, Box 2a &mdash; mutual fund distributions &mdash; <span class="te-cite">IRC &sect;852(b)(3)(C)</span>')}
+      ${teSDLineRow('14','Long-term capital loss carryover','ltLossCarryover',sd.ltLossCarryover,'From prior year Capital Loss Carryover Worksheet &mdash; <span class="te-cite">IRC &sect;1212(b)</span>',true)}
+    </div>
+
+    <div class="te-sd-net-line ${l15>=0?'te-sd-profit':'te-sd-loss'}" id="te-sd-l15-bar">
+      <div>
+        <div class="te-sd-net-lbl">Line 15 &mdash; Net Long-Term Capital Gain or (Loss)</div>
+        <div class="te-sd-net-sub">Line 8a + lines 11 + 12 + 13 &minus; line 14 &middot; <span class="te-cite">IRC &sect;1222(7),(8)</span></div>
+      </div>
+      <div class="te-sd-net-amt ${l15>=0?'te-sd-gain-pos':'te-sd-gain-neg'}" id="te-sd-l15">
+        ${l15>=0?teFmt(l15):'('+teFmt(Math.abs(l15))+')'}
+      </div>
+    </div>
+
+    <!-- ═══ PART III — SUMMARY ═════════════════════════════════════════ -->
+    <div class="te-sd-section-label" style="margin-top:28px;">Part III &mdash; Summary</div>
+
+    <div class="te-sd-net-line ${l16>=0?'te-sd-profit':'te-sd-loss'}" id="te-sd-l16-bar" style="margin-top:8px;">
+      <div>
+        <div class="te-sd-net-lbl" style="font-size:14px;">Line 16 &mdash; Net Capital Gain or (Loss)</div>
+        <div class="te-sd-net-sub">Line 7 + Line 15 &middot; <span class="te-cite">IRC &sect;1222</span></div>
+        ${l16 > 0 ? `<div class="te-sd-flow-note te-sd-gain-pos">&#10003; Gain flows to Form 1040, line 7a</div>` : ''}
+        ${l16 < 0 ? `<div class="te-sd-flow-note te-sd-gain-neg">See line 21 for deductible loss limit &mdash; <span class="te-cite">IRC &sect;1211(b)</span></div>` : ''}
+      </div>
+      <div class="te-sd-net-amt ${l16>=0?'te-sd-gain-pos':'te-sd-gain-neg'}" style="font-size:20px;" id="te-sd-l16">
+        ${l16>=0?teFmt(l16):'('+teFmt(Math.abs(l16))+')'}
+      </div>
+    </div>
+
+    <div class="te-sd-summary-lines">
+      <div class="te-sd-smry-row">
+        <span class="te-sd-smry-num">17</span>
+        <span class="te-sd-smry-lbl">Are lines 15 and 16 both gains?</span>
+        <span class="te-sd-smry-val ${l17yes?'te-sd-gain-pos':'te-sd-dimmed'}" id="te-sd-l17">
+          ${l17yes ? 'Yes &mdash; complete lines 18 and 19 below' : 'No &mdash; skip to line 21'}
+        </span>
+      </div>
+
+      <div class="te-sd-smry-row ${!l17yes?'te-sd-dimmed':''}" id="te-sd-l18-row">
+        <span class="te-sd-smry-num">18</span>
+        <span class="te-sd-smry-lbl">28% Rate Gain <span class="te-cite">IRC &sect;1(h)(1)(E)</span>
+          <span class="te-sd-smry-note">Collectibles gains (art, antiques, coins, stamps) and &sect;1202 exclusion amounts</span></span>
+        <input type="number" class="te-input te-mono te-sd-smry-inp" step="0.01" min="0" placeholder="0.00"
+          value="${esc(String(sd.rate28Gain||''))}" ${!l17yes?'disabled':''} oninput="teOnSchedD('rate28Gain',this.value)">
+      </div>
+
+      <div class="te-sd-smry-row ${!l17yes?'te-sd-dimmed':''}" id="te-sd-l19-row">
+        <span class="te-sd-smry-num">19</span>
+        <span class="te-sd-smry-lbl">Unrecaptured Section 1250 Gain <span class="te-cite">IRC &sect;1(h)(1)(D)</span>
+          <span class="te-sd-smry-note">Straight-line depreciation recapture on real property &mdash; max 25% rate. Not yet in engine (future track).</span></span>
+        <input type="number" class="te-input te-mono te-sd-smry-inp" step="0.01" min="0" placeholder="0.00"
+          value="${esc(String(sd.unrecaptured1250||''))}" ${!l17yes?'disabled':''} oninput="teOnSchedD('unrecaptured1250',this.value)">
+      </div>
+
+      <div class="te-sd-smry-row ${!l17yes?'te-sd-dimmed':''}" id="te-sd-l20-row">
+        <span class="te-sd-smry-num">20</span>
+        <span class="te-sd-smry-lbl">Are lines 18 and 19 both zero or blank?</span>
+        <span class="te-sd-smry-val" id="te-sd-l20">
+          ${(r28===0&&r19===0) ? 'Yes &mdash; use Qualified Dividends and Capital Gain Tax Worksheet' : 'No &mdash; use Schedule D Tax Worksheet'}
+        </span>
+      </div>
+
+      <div class="te-sd-smry-row te-sd-loss-row" id="te-sd-l21-row" style="${l16>=0?'display:none':''}">
+        <span class="te-sd-smry-num">21</span>
+        <span class="te-sd-smry-lbl">Capital loss deduction <span class="te-cite">IRC &sect;1211(b)(1)</span>
+          <span class="te-sd-smry-note">Max: ($3,000) or ($1,500) MFS &mdash; unused losses carry forward</span></span>
+        <span class="te-sd-smry-val te-sd-gain-neg te-mono" id="te-sd-l21">(${teFmt(Math.abs(l21))})</span>
+      </div>
+
+      <div class="te-sd-smry-row" id="te-sd-l22-row">
+        <span class="te-sd-smry-num">22</span>
+        <span class="te-sd-smry-lbl">Do you have qualified dividends?</span>
+        <span class="te-sd-smry-val" id="te-sd-l22">
+          ${qualDivs>0 ? 'Yes &mdash; use Qualified Dividends and Capital Gain Tax Worksheet' : 'No &mdash; complete the rest of Form 1040'}
+        </span>
+      </div>
+    </div>
+
+    <div class="te-sd-rate-note">
+      <strong>Preferential Rate Computation</strong> &mdash; <span class="te-cite">IRC &sect;1(h)</span><br>
+      Engine applies the QDLTCG Tax Worksheet automatically when LTCG or qualified dividends are present.
+      Preferential pool taxed at 0% / 15% / 20% using <em>zeroRateCeiling</em> / <em>fifteenRateCeiling</em> breakpoints
+      from TAX_CONSTANTS (verified via Rev. Proc. 2024-40 / Rev. Proc. 2025-32).
+      ${(r28>0||r19>0) ? `<div class="te-sd-rate-warn">&#9888; Lines 18 or 19 are present. The 28% and 25% rate buckets require the Schedule D Tax Worksheet, which is not yet in the engine. Do not file until those buckets are computed separately.</div>` : ''}
+    </div>
+  </div>`;
 }
 
 function teRenderScheduleEList() {
@@ -4306,15 +4564,116 @@ function teOn1099() {
   teRecalculate();
 }
 
-function teOnScheduleD() {
+// ── Schedule D handlers ──────────────────────────────────────────────
+
+// Update a non-transaction field on scheduleD (lines 4–6, 11–14, 18, 19, QOF flag, etc.)
+function teOnSchedD(field, value) {
   if (!teCurrentReturn) return;
   teMarkDirty();
   if (!teCurrentReturn.scheduleD) teCurrentReturn.scheduleD = {};
-  let g = id => { let el = document.getElementById(id); return el ? el.value : ''; };
-  teCurrentReturn.scheduleD.netSTCG               = g('te-sd-stcg');
-  teCurrentReturn.scheduleD.netLTCG               = g('te-sd-ltcg');
-  teCurrentReturn.scheduleD.priorYearCarryforward = g('te-sd-cf');
+  teCurrentReturn.scheduleD[field] = value;
+  clearTimeout(teSchedDTimer);
+  teSchedDTimer = setTimeout(() => teRecalculate(), 150);
+}
+
+// Add a new transaction row to the ST or LT table.
+// part: 'st' | 'lt'
+function teSchedDAddTx(part) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  let sd  = teCurrentReturn.scheduleD;
+  let key = part === 'st' ? 'shortTermTransactions' : 'longTermTransactions';
+  if (!sd[key]) sd[key] = [];
+  let idx = sd[key].length;
+  sd[key].push({ id: part + '-' + idx, description: '', dateAcquired: '', dateSold: '', proceeds: '', cost: '', adjustments: '' });
+  // Append the new row to the DOM without full re-render (preserves existing row inputs)
+  let container = document.getElementById('te-sd-' + part + '-rows');
+  if (container) {
+    let div = document.createElement('div');
+    div.innerHTML = teSDTxRowHTML(part, sd[key][idx], idx);
+    container.appendChild(div.firstElementChild);
+    // Focus the description input of the new row
+    let descInput = document.getElementById('te-sd-' + part + '-row-' + idx);
+    if (descInput) { let inp = descInput.querySelector('input[type="text"]'); if (inp) inp.focus(); }
+  }
   teRecalculate();
+}
+
+// Delete a transaction row by index.
+// Keeps at least one empty row in the table.
+function teSchedDDelTx(part, idx) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  let sd  = teCurrentReturn.scheduleD;
+  let key = part === 'st' ? 'shortTermTransactions' : 'longTermTransactions';
+  if (!sd[key] || sd[key].length <= 1) {
+    // Keep minimum one row — clear it instead of removing
+    sd[key] = [{ id: part + '-0', description: '', dateAcquired: '', dateSold: '', proceeds: '', cost: '', adjustments: '' }];
+  } else {
+    sd[key].splice(idx, 1);
+  }
+  // Re-render all rows (indexes shift after splice)
+  teRenderSDTxRows(part);
+  teRecalculate();
+}
+
+// Update a single field on an existing transaction row.
+// Recalculates just that row's gain cell + table totals without re-rendering other rows.
+function teOnSchedDTx(part, idx, field, value) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  let sd  = teCurrentReturn.scheduleD;
+  let key = part === 'st' ? 'shortTermTransactions' : 'longTermTransactions';
+  if (!sd[key] || !sd[key][idx]) return;
+  sd[key][idx][field] = value;
+
+  // Immediate gain cell update (proceeds/cost/adj change only — no debounce needed)
+  if (field === 'proceeds' || field === 'cost' || field === 'adjustments') {
+    let tx   = sd[key][idx];
+    let gain = teRound((parseFloat(tx.proceeds)||0) - (parseFloat(tx.cost)||0) + (parseFloat(tx.adjustments)||0));
+    let hasAmts = tx.proceeds || tx.cost || tx.description;
+    let gainEl  = document.getElementById('te-sd-' + part + '-gain-' + idx);
+    if (gainEl) {
+      gainEl.textContent  = hasAmts ? (gain >= 0 ? teFmt(gain) : '(' + teFmt(Math.abs(gain)) + ')') : '\u2014';
+      gainEl.className    = 'te-sd-col-gain te-mono ' + (gain >= 0 ? 'te-sd-gain-pos' : 'te-sd-gain-neg');
+    }
+  }
+
+  // Holding period warning update for date fields
+  if (field === 'dateAcquired' || field === 'dateSold') {
+    let tx = sd[key][idx];
+    let row = document.getElementById('te-sd-' + part + '-row-' + idx);
+    if (row) {
+      let existing = row.querySelector('.te-sd-tx-warn');
+      let warn = '';
+      if (tx.dateAcquired && tx.dateSold && (tx.proceeds || tx.cost || tx.description)) {
+        let a = new Date(tx.dateAcquired), b = new Date(tx.dateSold);
+        if (!isNaN(a.getTime()) && !isNaN(b.getTime())) {
+          let days = Math.floor((b - a) / 86400000);
+          let isWrong = part === 'st' ? days > 365 : days <= 365;
+          if (isWrong) warn = part === 'st'
+            ? '&#9888; Held &gt; 1 year &mdash; may belong in Part II (long-term). IRC &sect;1222(3),(4)'
+            : '&#9888; Held &le; 1 year &mdash; may belong in Part I (short-term). IRC &sect;1222(1),(2)';
+        }
+      }
+      if (existing) existing.remove();
+      if (warn) { let d = document.createElement('div'); d.className = 'te-sd-tx-warn'; d.innerHTML = warn; row.appendChild(d); }
+    }
+  }
+
+  clearTimeout(teSchedDTimer);
+  teSchedDTimer = setTimeout(() => teRecalculate(), 150);
+}
+
+// Re-render the entire tx rows container for a given part.
+// Called after add/delete when row indexes have shifted.
+function teRenderSDTxRows(part) {
+  let container = document.getElementById('te-sd-' + part + '-rows');
+  if (!container) return;
+  let sd  = (teCurrentReturn && teCurrentReturn.scheduleD) || {};
+  let key = part === 'st' ? 'shortTermTransactions' : 'longTermTransactions';
+  let txs = sd[key] || [];
+  container.innerHTML = txs.map((tx, i) => teSDTxRowHTML(part, tx, i)).join('');
 }
 
 function teAddScheduleE() {
@@ -5096,21 +5455,82 @@ function teRecalculate() {
   ));
 
   // Schedule D — IRC §1221, §1222
-  let sd = teCurrentReturn.scheduleD || {};
-  calc.netSTCG         = teRound(parseFloat(sd.netSTCG)               || 0);
-  calc.netLTCG         = teRound(parseFloat(sd.netLTCG)               || 0);
-  calc.priorCapLossCF  = teRound(Math.max(0, parseFloat(sd.priorYearCarryforward) || 0));
-  // Combined net before loss cap
-  calc.scheduleDCombined = teRound(calc.netSTCG + calc.netLTCG - calc.priorCapLossCF);
+  let sd    = teCurrentReturn.scheduleD || {};
+  let stTxArr = sd.shortTermTransactions || [];
+  let ltTxArr = sd.longTermTransactions  || [];
+
+  // Per-transaction gain/loss: g = proceeds (d) - cost (e) + adjustments (f) — IRC §1001
+  let stTxGains = stTxArr.map(tx => teRound((parseFloat(tx.proceeds)||0) - (parseFloat(tx.cost)||0) + (parseFloat(tx.adjustments)||0)));
+  let ltTxGains = ltTxArr.map(tx => teRound((parseFloat(tx.proceeds)||0) - (parseFloat(tx.cost)||0) + (parseFloat(tx.adjustments)||0)));
+
+  // Line 1a / 8a: aggregate totals across all transactions
+  let sdL1aProc = teRound(stTxArr.reduce((s,tx) => s + (parseFloat(tx.proceeds)||0), 0));
+  let sdL1aCost = teRound(stTxArr.reduce((s,tx) => s + (parseFloat(tx.cost)||0),     0));
+  let sdL1aGain = teRound(stTxGains.reduce((s,g) => s + g, 0));
+  let sdL8aProc = teRound(ltTxArr.reduce((s,tx) => s + (parseFloat(tx.proceeds)||0), 0));
+  let sdL8aCost = teRound(ltTxArr.reduce((s,tx) => s + (parseFloat(tx.cost)||0),     0));
+  let sdL8aGain = teRound(ltTxGains.reduce((s,g) => s + g, 0));
+
+  // Part I additional lines
+  let sdL4 = teRound(parseFloat(sd.stGainForm6252)  || 0);
+  let sdL5 = teRound(parseFloat(sd.stGainK1)        || 0);
+  let sdL6 = teRound(Math.abs(parseFloat(sd.stLossCarryover) || 0));  // always positive input → negative
+  // Line 7 — Net short-term: §1222(5),(6)
+  let sdL7 = teRound(sdL1aGain + sdL4 + sdL5 - sdL6);
+
+  // Part II additional lines
+  let sdL11 = teRound(parseFloat(sd.ltGainForm4797)          || 0);
+  let sdL12 = teRound(parseFloat(sd.ltGainK1)                || 0);
+  let sdL13 = teRound(parseFloat(sd.capitalGainDistributions) || 0);
+  let sdL14 = teRound(Math.abs(parseFloat(sd.ltLossCarryover) || 0));  // always positive input → negative
+  // Line 15 — Net long-term: §1222(7),(8)
+  let sdL15 = teRound(sdL8aGain + sdL11 + sdL12 + sdL13 - sdL14);
+
+  // Line 16 — combined net
+  let sdL16 = teRound(sdL7 + sdL15);
+
+  // Detailed mode: any transaction with data OR any additional line has a value
+  let sdDetailedActive = stTxArr.some(tx => tx.proceeds || tx.cost || tx.description)
+    || ltTxArr.some(tx => tx.proceeds || tx.cost || tx.description)
+    || sdL4 || sdL5 || sdL6 || sdL11 || sdL12 || sdL13 || sdL14;
+
+  if (sdDetailedActive) {
+    // Use computed lines — stLossCarryover/ltLossCarryover already factored into lines 7 and 15
+    calc.netSTCG           = sdL7;
+    calc.netLTCG           = sdL15;
+    calc.priorCapLossCF    = 0;
+    calc.scheduleDCombined = sdL16;
+  } else {
+    // Legacy path: read aggregate net fields (backward compat for old returns)
+    calc.netSTCG        = teRound(parseFloat(sd.netSTCG)               || 0);
+    calc.netLTCG        = teRound(parseFloat(sd.netLTCG)               || 0);
+    calc.priorCapLossCF = teRound(Math.max(0, parseFloat(sd.priorYearCarryforward) || 0));
+    calc.scheduleDCombined = teRound(calc.netSTCG + calc.netLTCG - calc.priorCapLossCF);
+  }
+
+  // IRC §1211(b)(1): max deductible capital loss = $3,000 ($1,500 if MFS)
+  let sdLossCap = (fs === 'mfs') ? 1500 : K.capitalGains.netLossDeductionCap;
   if (calc.scheduleDCombined >= 0) {
     calc.scheduleDNet        = calc.scheduleDCombined;
     calc.capLossCarryforward = 0;
   } else {
-    // IRC §1211(b): net capital loss deductible up to $3,000; excess carries forward
-    calc.scheduleDNet        = teRound(Math.max(-K.capitalGains.netLossDeductionCap, calc.scheduleDCombined));
-    calc.capLossCarryforward = teRound(Math.abs(calc.scheduleDCombined) - K.capitalGains.netLossDeductionCap);
+    calc.scheduleDNet        = teRound(Math.max(-sdLossCap, calc.scheduleDCombined));
+    calc.capLossCarryforward = teRound(Math.abs(calc.scheduleDCombined) - sdLossCap);
     if (calc.capLossCarryforward < 0) calc.capLossCarryforward = 0;
   }
+
+  // Part III summary values (stored for form display — no additional IRC computation needed)
+  let sdL17yes = sdL15 > 0 && sdL16 > 0;
+  let sdL21    = calc.scheduleDCombined < 0 ? teRound(Math.max(-sdLossCap, calc.scheduleDCombined)) : 0;
+  calc.sdLines = {
+    line1aProc: sdL1aProc, line1aCost: sdL1aCost, line1aGain: sdL1aGain,
+    line8aProc: sdL8aProc, line8aCost: sdL8aCost, line8aGain: sdL8aGain,
+    l4: sdL4, l5: sdL5, l6: sdL6, l7: sdL7,
+    l11: sdL11, l12: sdL12, l13: sdL13, l14: sdL14, l15: sdL15,
+    l16: sdL16, l17yes: sdL17yes, l21: sdL21,
+    stTxGains, ltTxGains,
+    capLossCarryforward: calc.capLossCarryforward
+  };
 
   // Schedule E — pass-through income/loss — IRC §702 (partnerships), §1366 (S-corps)
   // IRC §469(a): passive activity losses can only offset passive activity income — excess suspended
@@ -5682,6 +6102,58 @@ function teRecalculate() {
                </div>`
             : '';
         }
+      } break;
+      case 'sched-d': {
+        // Targeted DOM updates for every computed Schedule D line — preserves input focus in transaction rows
+        let sl = calc.sdLines || {};
+        let gd = id => document.getElementById(id);
+        let fmtGL = v => v >= 0 ? teFmt(v) : '(' + teFmt(Math.abs(v)) + ')';
+        let glCls = v => 'te-sd-col-gain te-mono ' + (v >= 0 ? 'te-sd-gain-pos' : 'te-sd-gain-neg');
+
+        // Per-row gain cells
+        (sl.stTxGains||[]).forEach((g,i) => {
+          let el = gd('te-sd-st-gain-'+i);
+          if (el) { el.textContent = fmtGL(g); el.className = glCls(g); }
+        });
+        (sl.ltTxGains||[]).forEach((g,i) => {
+          let el = gd('te-sd-lt-gain-'+i);
+          if (el) { el.textContent = fmtGL(g); el.className = glCls(g); }
+        });
+
+        // Totals rows
+        let setT = (id, v) => { let e = gd(id); if (e) e.textContent = teFmt(v||0); };
+        setT('te-sd-l1a-p', sl.line1aProc);  setT('te-sd-l1a-c', sl.line1aCost);
+        setT('te-sd-l8a-p', sl.line8aProc);  setT('te-sd-l8a-c', sl.line8aCost);
+        let l1aGEl = gd('te-sd-l1a-g'), l8aGEl = gd('te-sd-l8a-g');
+        if (l1aGEl) { l1aGEl.textContent = fmtGL(sl.line1aGain||0); l1aGEl.className = glCls(sl.line1aGain||0); }
+        if (l8aGEl) { l8aGEl.textContent = fmtGL(sl.line8aGain||0); l8aGEl.className = glCls(sl.line8aGain||0); }
+
+        // Net-line bars (line 7, 15, 16)
+        let updateNetBar = (barId, amtId, val) => {
+          let bar = gd(barId), amtEl = gd(amtId);
+          if (bar)   { bar.classList.toggle('te-sd-profit', val>=0); bar.classList.toggle('te-sd-loss', val<0); }
+          if (amtEl) { amtEl.textContent = fmtGL(val); amtEl.className = (val>=0?'te-sd-gain-pos':'te-sd-gain-neg') + (barId==='te-sd-l16-bar'?' te-sd-net-amt':' te-sd-net-amt'); }
+        };
+        updateNetBar('te-sd-l7-bar',  'te-sd-l7',  sl.l7 ||0);
+        updateNetBar('te-sd-l15-bar', 'te-sd-l15', sl.l15||0);
+        updateNetBar('te-sd-l16-bar', 'te-sd-l16', sl.l16||0);
+
+        // Line 17
+        let l17el = gd('te-sd-l17');
+        if (l17el) {
+          l17el.textContent = sl.l17yes ? 'Yes \u2014 complete lines 18 and 19 below' : 'No \u2014 skip to line 21';
+          l17el.className = 'te-sd-smry-val ' + (sl.l17yes ? 'te-sd-gain-pos' : 'te-sd-dimmed');
+        }
+        // Line 18/19 row — enable/disable based on l17yes
+        ['te-sd-l18-row','te-sd-l19-row','te-sd-l20-row'].forEach(id => {
+          let row = gd(id);
+          if (row) { row.classList.toggle('te-sd-dimmed', !sl.l17yes); let inp = row.querySelector('input'); if (inp) inp.disabled = !sl.l17yes; }
+        });
+
+        // Line 21 — show only when line 16 is a loss
+        let l21row = gd('te-sd-l21-row'), l21el = gd('te-sd-l21');
+        if (l21row) l21row.style.display = (sl.l16||0) < 0 ? '' : 'none';
+        if (l21el)  l21el.textContent = '(' + teFmt(Math.abs(sl.l21||0)) + ')';
       } break;
       case 'sched-c': {
         // Targeted DOM updates for every computed Schedule C line — preserves input focus
@@ -7236,7 +7708,7 @@ function teSerialize(r) {
     alimony:            r.alimony            || { paid: '', preAgreement: false },
     estimatedPayments:  r.estimatedPayments  || { q1: '', q2: '', q3: '', q4: '' },
     schedule1099:       r.schedule1099       || { interestIncome: '', ordinaryDividends: '', qualifiedDividends: '' },
-    scheduleD:          r.scheduleD          || { netSTCG: '', netLTCG: '', priorYearCarryforward: '' },
+    scheduleD:          r.scheduleD          || { shortTermTransactions:[{id:'st-0',description:'',dateAcquired:'',dateSold:'',proceeds:'',cost:'',adjustments:''}], longTermTransactions:[{id:'lt-0',description:'',dateAcquired:'',dateSold:'',proceeds:'',cost:'',adjustments:''}], stGainForm6252:'',stGainK1:'',stLossCarryover:'',ltGainForm4797:'',ltGainK1:'',capitalGainDistributions:'',ltLossCarryover:'',rate28Gain:'',unrecaptured1250:'',qualifiedOpportunityFund:false,netSTCG:'',netLTCG:'',priorYearCarryforward:'' },
     scheduleE:          r.scheduleE          || [],
     investmentInterest: r.investmentInterest || { expense: '', priorYearCarryforward: '', includeQDinNII: false },
     deductionType:      r.deductionType      || 'standard',
@@ -7274,7 +7746,23 @@ function teDeserialize(data) {
   if (r.scheduleA.mfsSpouseItemizes === undefined) r.scheduleA.mfsSpouseItemizes = false;
   // Track 4 backfill
   if (!r.schedule1099)       r.schedule1099       = { interestIncome: '', ordinaryDividends: '', qualifiedDividends: '' };
-  if (!r.scheduleD)          r.scheduleD          = { netSTCG: '', netLTCG: '', priorYearCarryforward: '' };
+  if (!r.scheduleD) r.scheduleD = {};
+  // Backfill new per-transaction arrays on old returns (had only netSTCG/netLTCG/priorYearCarryforward)
+  if (!r.scheduleD.shortTermTransactions) r.scheduleD.shortTermTransactions = [{ id:'st-0',description:'',dateAcquired:'',dateSold:'',proceeds:'',cost:'',adjustments:'' }];
+  if (!r.scheduleD.longTermTransactions)  r.scheduleD.longTermTransactions  = [{ id:'lt-0',description:'',dateAcquired:'',dateSold:'',proceeds:'',cost:'',adjustments:'' }];
+  if (r.scheduleD.stGainForm6252          === undefined) r.scheduleD.stGainForm6252          = '';
+  if (r.scheduleD.stGainK1               === undefined) r.scheduleD.stGainK1               = '';
+  if (r.scheduleD.stLossCarryover        === undefined) r.scheduleD.stLossCarryover        = '';
+  if (r.scheduleD.ltGainForm4797         === undefined) r.scheduleD.ltGainForm4797         = '';
+  if (r.scheduleD.ltGainK1              === undefined) r.scheduleD.ltGainK1              = '';
+  if (r.scheduleD.capitalGainDistributions === undefined) r.scheduleD.capitalGainDistributions = '';
+  if (r.scheduleD.ltLossCarryover        === undefined) r.scheduleD.ltLossCarryover        = '';
+  if (r.scheduleD.rate28Gain             === undefined) r.scheduleD.rate28Gain             = '';
+  if (r.scheduleD.unrecaptured1250       === undefined) r.scheduleD.unrecaptured1250       = '';
+  if (r.scheduleD.qualifiedOpportunityFund === undefined) r.scheduleD.qualifiedOpportunityFund = false;
+  if (r.scheduleD.netSTCG               === undefined) r.scheduleD.netSTCG               = '';
+  if (r.scheduleD.netLTCG               === undefined) r.scheduleD.netLTCG               = '';
+  if (r.scheduleD.priorYearCarryforward  === undefined) r.scheduleD.priorYearCarryforward  = '';
   if (!r.scheduleE)          r.scheduleE          = [];
   if (!r.investmentInterest) r.investmentInterest = { expense: '', priorYearCarryforward: '', includeQDinNII: false };
   if (!r.annotations)        r.annotations        = [];
