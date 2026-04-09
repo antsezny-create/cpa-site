@@ -878,6 +878,12 @@ function teEmptyReturn(clientId, clientName, taxYear) {
       heatPumpWH:     '',   // heat pump water heaters — Pool B
       biomass:        ''    // biomass stoves/boilers — Pool B
     },
+    // ── Step 2: IRA & Pension/Annuity Distributions — IRC §72; 1040 Lines 4a/4b, 5a/5b ─
+    // Each entry: { payerName, grossDist, taxableDist, age, penaltyException }
+    // taxableDist auto-syncs to grossDist on input; user can override (basis, Roth, partial rollover)
+    ira1099r:     [],   // IRA distributions — IRC §408, §72; 1040 Lines 4a/4b
+    pension1099r: [],   // Pension & annuity distributions — IRC §72; 1040 Lines 5a/5b
+
     // ── Track 6 — Alternative Minimum Tax — IRC §55 ──────────────────────
     // ISO exercise spread: spread at exercise of incentive stock options — IRC §56(b)(3)
     // This is the ONLY AMT preference item requiring user input; all other AMT adjustments
@@ -1176,6 +1182,8 @@ function teSwitchSection(section) {
   } else if (section === 'income') {
     body.innerHTML = teRenderIncome();
     teRenderW2List();
+    teRender1099RList('ira');
+    teRender1099RList('pension');
     teRenderScheduleEList();
   } else if (section === 'deductions') {
     body.innerHTML = teRenderDeductions();
@@ -1411,6 +1419,36 @@ function teRenderIncome() {
     </div>
 
     <div class="te-subsec" style="margin-top:20px;">
+      <div class="te-subsec-row">
+        <div>
+          <div class="te-subsec-lbl">IRA Distributions (1099-R) <span class="te-cite">IRC §72, §408; 1040 Lines 4a/4b</span></div>
+          <div class="te-subsec-desc">Distributions from traditional IRAs, SEP-IRAs, and SIMPLE IRAs. Taxable amount defaults to the full gross distribution — adjust if you have after-tax basis (nondeductible contributions), Roth conversions, or a partial rollover (1099-R Box 2a).</div>
+        </div>
+        <button class="ghost-btn te-sm-btn" onclick="teAdd1099R('ira')">+ Add 1099-R (IRA)</button>
+      </div>
+      <div id="te-ira-list"></div>
+      <div class="te-total-bar" id="te-ira-total-bar" style="display:none;">
+        <span>Total IRA Taxable Amount <span class="te-cite">1040 Line 4b</span></span>
+        <span class="te-total-val" id="te-ira-total-val">$0</span>
+      </div>
+    </div>
+
+    <div class="te-subsec" style="margin-top:20px;">
+      <div class="te-subsec-row">
+        <div>
+          <div class="te-subsec-lbl">Pensions &amp; Annuities (1099-R) <span class="te-cite">IRC §72; 1040 Lines 5a/5b</span></div>
+          <div class="te-subsec-desc">Distributions from employer pension plans, 401(k)/403(b)/457(b), profit-sharing plans, and commercial annuities. Taxable amount defaults to the full gross distribution — adjust if the plan has after-tax basis (1099-R Box 2a vs. Box 1).</div>
+        </div>
+        <button class="ghost-btn te-sm-btn" onclick="teAdd1099R('pension')">+ Add 1099-R (Pension)</button>
+      </div>
+      <div id="te-pension-list"></div>
+      <div class="te-total-bar" id="te-pension-total-bar" style="display:none;">
+        <span>Total Pension Taxable Amount <span class="te-cite">1040 Line 5b</span></span>
+        <span class="te-total-val" id="te-pension-total-val">$0</span>
+      </div>
+    </div>
+
+    <div class="te-subsec" style="margin-top:20px;">
       <div class="te-subsec-lbl">1099-INT &amp; 1099-DIV — Interest &amp; Dividend Income <span class="te-cite">IRC §61(a)(4),(7)</span></div>
       <div class="te-subsec-desc">Interest income (1099-INT) and dividends (1099-DIV). Qualified dividends receive preferential 0%/15%/20% rates. <span class="te-cite">IRC §1(h)(11)</span></div>
       ${teRender1099()}
@@ -1504,6 +1542,107 @@ function teRmW2(i) {
   teMarkDirty();
   teCurrentReturn.w2.splice(i, 1);
   teRenderW2List();
+  teRecalculate();
+}
+
+// ── 1099-R: IRA & Pension Distributions ──────────────────────────────────
+// IRC §72, §408; 1040 Lines 4a/4b (IRA) and 5a/5b (Pension)
+function teRender1099RList(type) {
+  let listId   = type === 'ira' ? 'te-ira-list'       : 'te-pension-list';
+  let barId    = type === 'ira' ? 'te-ira-total-bar'  : 'te-pension-total-bar';
+  let totId    = type === 'ira' ? 'te-ira-total-val'  : 'te-pension-total-val';
+  let emptyMsg = type === 'ira'
+    ? 'No IRA distributions added. Click &quot;+ Add 1099-R (IRA)&quot; to add.'
+    : 'No pension distributions added. Click &quot;+ Add 1099-R (Pension)&quot; to add.';
+
+  let c   = document.getElementById(listId);
+  let bar = document.getElementById(barId);
+  if (!c) return;
+
+  let key     = type === 'ira' ? 'ira1099r' : 'pension1099r';
+  let entries = teCurrentReturn[key] || [];
+  if (entries.length === 0) {
+    c.innerHTML = '<div class="te-empty">' + emptyMsg + '</div>';
+    if (bar) bar.style.display = 'none';
+    return;
+  }
+  if (bar) bar.style.display = 'flex';
+
+  c.innerHTML = `
+    <div class="te-w2-tbl">
+      <div class="te-w2-hdr">
+        <span>Payer Name</span><span>Gross Distribution</span><span>Taxable Amount</span><span>Age</span><span>§72(t) Exc.</span><span></span>
+      </div>
+      ${entries.map((e, i) => `
+        <div class="te-w2-row">
+          <input type="text"   class="te-input"          value="${esc(e.payerName||'')}"  placeholder="Payer name"
+            oninput="teUpd1099R('${type}',${i},'payerName',this.value)">
+          <input type="number" class="te-input te-mono"  value="${e.grossDist||''}"        placeholder="0.00" step="0.01" min="0"
+            oninput="teUpd1099R('${type}',${i},'grossDist',this.value)">
+          <input type="number" class="te-input te-mono"  value="${e.taxableDist||''}"      placeholder="0.00" step="0.01" min="0"
+            id="te-1099r-${type}-${i}-td"
+            title="Defaults to gross distribution. Adjust if 1099-R Box 2a shows a lower taxable amount (basis, after-tax contributions, partial rollover)."
+            oninput="teUpd1099R('${type}',${i},'taxableDist',this.value)">
+          <input type="number" class="te-input te-mono"  value="${e.age||''}"              placeholder="Age" step="1" min="0" max="130" style="max-width:64px;"
+            oninput="teUpd1099R('${type}',${i},'age',this.value)">
+          <label class="te-chk-lbl" style="justify-content:center;" title="Check if a §72(t)(2) exception applies (disability, SEPP, death, medical expenses, etc.)">
+            <input type="checkbox" ${e.penaltyException ? 'checked' : ''}
+              onchange="teUpd1099R('${type}',${i},'penaltyException',this.checked)"> Exc.
+          </label>
+          <button class="te-rm-btn" onclick="teRm1099R('${type}',${i})">✕</button>
+        </div>`).join('')}
+    </div>
+    <div class="te-ded-note" style="margin-top:6px;">
+      <strong>Taxable Amount</strong> defaults to full gross distribution. Adjust if 1099-R Box 2a is lower due to after-tax basis, Roth conversions, or a partial rollover. <span class="te-cite">IRC §72(e)</span> &nbsp;|&nbsp;
+      <strong>Early Withdrawal Penalty (IRC §72(t)):</strong> 10% applies when Age &lt; 59½ and no §72(t)(2) exception applies. Check &quot;Exc.&quot; for: disability, SEPP/72(t) plan, death, medical expenses &gt;7.5% AGI, health insurance premiums while unemployed, higher education, first-home purchase (IRA only, $10K lifetime).
+    </div>`;
+
+  // Update total bar
+  let tot = entries.reduce((s, e) => s + (parseFloat(e.taxableDist) || 0), 0);
+  let tv  = document.getElementById(totId);
+  if (tv) tv.textContent = teFmt(tot);
+}
+
+function teAdd1099R(type) {
+  let key = type === 'ira' ? 'ira1099r' : 'pension1099r';
+  teMarkDirty();
+  teCurrentReturn[key].push({ payerName: '', grossDist: '', taxableDist: '', age: '', penaltyException: false });
+  teRender1099RList(type);
+  teRecalculate();
+}
+
+function teUpd1099R(type, i, field, val) {
+  let key     = type === 'ira' ? 'ira1099r' : 'pension1099r';
+  let entries = teCurrentReturn[key];
+  if (!entries || !entries[i]) return;
+  teMarkDirty();
+  let oldGross = entries[i].grossDist;
+  entries[i][field] = val;
+  // Auto-sync: when grossDist changes, update taxableDist if it was blank or matched the old grossDist
+  if (field === 'grossDist') {
+    if (!entries[i].taxableDist || entries[i].taxableDist === oldGross) {
+      entries[i].taxableDist = val;
+      let tdEl = document.getElementById('te-1099r-' + type + '-' + i + '-td');
+      if (tdEl) tdEl.value = val;
+    }
+    // Live-update total bar
+    let tot = entries.reduce((s, e) => s + (parseFloat(e.taxableDist) || 0), 0);
+    let totEl = document.getElementById(type === 'ira' ? 'te-ira-total-val' : 'te-pension-total-val');
+    if (totEl) totEl.textContent = teFmt(tot);
+  }
+  if (field === 'taxableDist') {
+    let tot = entries.reduce((s, e) => s + (parseFloat(e.taxableDist) || 0), 0);
+    let totEl = document.getElementById(type === 'ira' ? 'te-ira-total-val' : 'te-pension-total-val');
+    if (totEl) totEl.textContent = teFmt(tot);
+  }
+  teRecalculate();
+}
+
+function teRm1099R(type, i) {
+  let key = type === 'ira' ? 'ira1099r' : 'pension1099r';
+  teMarkDirty();
+  teCurrentReturn[key].splice(i, 1);
+  teRender1099RList(type);
   teRecalculate();
 }
 
@@ -2681,7 +2820,8 @@ function teRenderAddlTaxes() {
         ${niitHtml}
       </div>
     </div>
-    ${teRenderAMTAccordion(calc, K, fs)}`;
+    ${teRenderAMTAccordion(calc, K, fs)}
+    ${teRenderPenaltyAccordion(calc)}`;
 }
 
 // AMT accordion — rendered as part of teRenderAddlTaxes
@@ -2747,6 +2887,57 @@ function teRenderAMTAccordion(calc, K, fs) {
     </div>`;
 }
 
+// Early withdrawal penalty accordion — IRC §72(t); rendered as part of teRenderAddlTaxes
+function teRenderPenaltyAccordion(calc) {
+  let penTriggered  = (calc.earlyWithdrawalPenalty || 0) > 0;
+  let hasAnyDist    = (calc.iraGross || 0) > 0 || (calc.pensionGross || 0) > 0;
+  if (!penTriggered && !hasAnyDist) return '';
+
+  let row = (label, val, cls='') =>
+    `<div class="te-ctc-row${cls ? ' ' + cls : ''}"><span>${label}</span><span>${val}</span></div>`;
+
+  let iraEntries = teCurrentReturn.ira1099r     || [];
+  let penEntries = teCurrentReturn.pension1099r || [];
+  let penaltySubjects = [...iraEntries, ...penEntries]
+    .filter(e => (parseFloat(e.age) || 0) < 59.5 && !e.penaltyException);
+
+  let penHtml = `
+    <div class="te-ctc-tbl" style="margin-top:8px;">
+      ${(calc.iraGross    || 0) > 0 ? row('Total IRA Gross Distributions <span class="te-cite">1040 Line 4a</span>',      teFmt(calc.iraGross))      : ''}
+      ${(calc.iraTaxable  || 0) > 0 ? row('IRA Taxable Amount <span class="te-cite">1040 Line 4b</span>',                 teFmt(calc.iraTaxable),  'te-ctc-sub') : ''}
+      ${(calc.pensionGross || 0) > 0 ? row('Total Pension Gross Distributions <span class="te-cite">1040 Line 5a</span>', teFmt(calc.pensionGross))  : ''}
+      ${(calc.pensionTaxable || 0) > 0 ? row('Pension Taxable Amount <span class="te-cite">1040 Line 5b</span>',          teFmt(calc.pensionTaxable), 'te-ctc-sub') : ''}
+      <div class="te-ctc-row" style="margin-top:6px;"></div>
+      ${penaltySubjects.length > 0
+        ? penaltySubjects.map(e =>
+            row((esc(e.payerName) || 'Distribution') + ' — taxable amount, Age ' + (e.age || '?'),
+                teFmt(parseFloat(e.taxableDist) || 0), 'te-ctc-sub')
+          ).join('')
+          + row('× Rate <span class="te-cite">IRC §72(t)(1)</span>', '10%', 'te-ctc-sub')
+          + row('= Early Withdrawal Penalty <span class="te-cite">IRC §72(t)</span>', teFmt(calc.earlyWithdrawalPenalty || 0), 'te-ctc-tot')
+        : row('Early Withdrawal Penalty', '$0 — no distributions before age 59½, or §72(t)(2) exception applies', 'te-ctc-ok')}
+    </div>
+    <div class="te-ded-note" style="margin-top:4px;">
+      10% penalty applies when age at distribution is under 59½ and no IRC §72(t)(2) exception applies.
+      Exceptions: disability §72(t)(2)(A)(ii), SEPP/72(t) plan §72(t)(2)(A)(iv), death, medical expenses &gt;7.5% AGI,
+      health insurance premiums while unemployed, higher education expenses, first-home purchase (IRA only, $10K lifetime §72(t)(2)(F)).
+      Mark the &quot;Exc.&quot; checkbox in the Income section for each qualifying distribution.
+      <span class="te-cite">IRC §72(t); Schedule 2 Line 8</span>
+    </div>`;
+
+  return `
+    <div class="te-adj-row${penTriggered ? ' te-adj-open' : ''}" id="te-adj-row-penalty">
+      <div class="te-adj-row-hdr" onclick="teToggleAdj('penalty')">
+        <span class="te-adj-row-label">Early Withdrawal Penalty <span class="te-cite">IRC §72(t)</span></span>
+        <span class="te-adj-row-val ${penTriggered ? '' : 'te-adj-val-zero'}">${teFmt(calc.earlyWithdrawalPenalty || 0)}</span>
+        <span class="te-adj-chevron">&#8250;</span>
+      </div>
+      <div class="te-adj-body" id="te-adj-body-penalty" style="display:${penTriggered ? 'block' : 'none'};">
+        ${penHtml}
+      </div>
+    </div>`;
+}
+
 function teRenderPayments() {
   let w2s   = teCurrentReturn.w2 || [];
   let total = w2s.reduce((s, w) => s + (parseFloat(w.federalWithheld)||0), 0);
@@ -2774,7 +2965,7 @@ function teRenderPayments() {
     </div>
 
     <div class="te-subsec" style="margin-top:20px;">
-      <div class="te-subsec-lbl">Additional Taxes <span class="te-cite">IRC §55, §1401, §3101(b)(2), §1411</span></div>
+      <div class="te-subsec-lbl">Additional Taxes <span class="te-cite">IRC §55, §72(t), §1401, §3101(b)(2), §1411</span></div>
       <div class="te-subsec-desc">Surtaxes computed automatically from income entries. Expand each to verify the calculation.</div>
       <div id="te-addl-taxes-panel">${teRenderAddlTaxes()}</div>
     </div>
@@ -2848,10 +3039,29 @@ function teRecalculate() {
   // Non-passive losses flow through without restriction (e.g., general partner, material participation)
   calc.scheduleENet = teRound(calc.scheduleEPassiveDeductible + calc.scheduleENonPassive);
 
+  // IRA distributions — IRC §72, §408; 1040 Lines 4a/4b
+  let iraEntries = teCurrentReturn.ira1099r || [];
+  calc.iraGross   = teRound(iraEntries.reduce((s, e) => s + (parseFloat(e.grossDist)   || 0), 0));
+  calc.iraTaxable = teRound(iraEntries.reduce((s, e) => s + (parseFloat(e.taxableDist) || 0), 0));
+
+  // Pension & annuity distributions — IRC §72; 1040 Lines 5a/5b
+  let penEntries     = teCurrentReturn.pension1099r || [];
+  calc.pensionGross   = teRound(penEntries.reduce((s, e) => s + (parseFloat(e.grossDist)   || 0), 0));
+  calc.pensionTaxable = teRound(penEntries.reduce((s, e) => s + (parseFloat(e.taxableDist) || 0), 0));
+
+  // Early withdrawal penalty — IRC §72(t)(1): 10% on taxable amount for distributions before age 59½
+  // Exceptions under IRC §72(t)(2): disability, SEPP, death, medical >7.5% AGI, health ins., education, first-home (IRA)
+  calc.earlyWithdrawalPenalty = teRound(
+    [...iraEntries, ...penEntries]
+      .filter(e => (parseFloat(e.age) || 0) < 59.5 && !e.penaltyException)
+      .reduce((s, e) => s + (parseFloat(e.taxableDist) || 0) * 0.10, 0)
+  );
+
   // Gross income: all sources — IRC §61
   // Note: ordinaryDividends includes qualifiedDividends (QDs are a subset, not additive)
   calc.grossIncome = teRound(
     calc.w2Wages + calc.netSEIncome
+    + calc.iraTaxable + calc.pensionTaxable
     + calc.interestIncome + calc.ordinaryDividends
     + calc.scheduleDNet + calc.scheduleENet
   );
@@ -3075,7 +3285,7 @@ function teRecalculate() {
   let niitExcess    = teRound(Math.max(0, calc.agi - niitThreshold));
   calc.niit         = teRound(Math.min(calc.netInvestmentIncome, niitExcess) * K.niit.rate);
 
-  calc.taxAfterCredits = teRound(calc.taxAfterNRCredits + calc.seTax + calc.addlMedicareTax + calc.niit);
+  calc.taxAfterCredits = teRound(calc.taxAfterNRCredits + calc.seTax + calc.addlMedicareTax + calc.niit + calc.earlyWithdrawalPenalty);
   calc.totalTax        = calc.taxAfterCredits;  // alias — used by meter and flags
 
   // ── Step 11: Payments — IRC §3402, §6654 ────────────────────────────
@@ -4163,6 +4373,10 @@ function teUpdateMeter(calc, K, fs) {
   // AMT row — hidden when $0
   let amtMRow = document.getElementById('te-m-amt-row');
   if (amtMRow) { amtMRow.style.display = calc.amt > 0 ? 'flex' : 'none'; teM('te-m-amt', teFmt(calc.amt || 0)); }
+
+  // Early withdrawal penalty row — hidden when $0
+  let penaltyMRow = document.getElementById('te-m-penalty-row');
+  if (penaltyMRow) { penaltyMRow.style.display = calc.earlyWithdrawalPenalty > 0 ? 'flex' : 'none'; teM('te-m-penalty', teFmt(calc.earlyWithdrawalPenalty || 0)); }
 
   teM('te-m-wh',      '(' + teFmt(calc.w2Withholding) + ')');
 
