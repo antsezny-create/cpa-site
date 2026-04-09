@@ -1843,30 +1843,53 @@ function teRenderScheduleEList() {
     c.innerHTML = '<div class="te-empty">No entities added. Click "+ Add Entity" to add K-1 income.</div>';
     return;
   }
+  let etLabels = { partnership: 'Partnership', scorp: 'S-Corporation', trust: 'Trust/Estate', ccorp: 'C-Corporation' };
+  let colStyle = 'display:grid;grid-template-columns:2fr 100px 150px 100px 110px auto 28px;gap:8px;align-items:center;';
   c.innerHTML = `
     <div class="te-w2-tbl" style="margin-top:8px;">
-      <div class="te-w2-hdr">
-        <span>Entity Name</span><span>EIN (optional)</span><span>Income / (Loss)</span><span>Passive?</span><span></span>
+      <div style="${colStyle}padding:0 4px 7px;font-size:9px;font-weight:800;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;border-bottom:1px solid var(--border);">
+        <span>Entity Name</span><span>EIN</span><span>Entity Type</span><span>Income/(Loss)</span><span>§199A QBI</span><span>Passive?</span><span></span>
       </div>
-      ${entities.map((e, i) => `
-        <div class="te-w2-row">
-          <input type="text"   class="te-input" value="${esc(e.name||'')}"        placeholder="Partner / S-Corp name"  oninput="teOnScheduleE(${i},'name',this.value)">
-          <input type="text"   class="te-input" value="${esc(e.ein||'')}"         placeholder="XX-XXXXXXX"             oninput="teOnScheduleE(${i},'ein',this.value)" style="max-width:130px;">
-          <input type="number" class="te-input te-mono" value="${e.incomeAmount||''}" placeholder="0.00" step="0.01"   oninput="teOnScheduleE(${i},'incomeAmount',this.value)">
+      ${entities.map((e, i) => {
+        let isCCorp = (e.entityType || 'partnership') === 'ccorp';
+        return `
+        <div style="${colStyle}padding:5px 4px;border-bottom:1px solid rgba(30,45,69,0.4);">
+          <input type="text" class="te-input" value="${esc(e.name||'')}" placeholder="Entity name"
+            oninput="teOnScheduleE(${i},'name',this.value)">
+          <input type="text" class="te-input" value="${esc(e.ein||'')}" placeholder="XX-XXXXXXX"
+            oninput="teOnScheduleE(${i},'ein',this.value)">
+          <select class="te-input" onchange="teOnScheduleE(${i},'entityType',this.value)"
+            title="Entity type determines K-1 box mapping and §199A eligibility. C-Corporation income is not eligible for the §199A QBI deduction.">
+            ${['partnership','scorp','trust','ccorp'].map(t =>
+              `<option value="${t}"${(e.entityType||'partnership')===t?' selected':''}>${etLabels[t]}</option>`
+            ).join('')}
+          </select>
+          <input type="number" class="te-input te-mono" value="${e.incomeAmount||''}" placeholder="0.00" step="0.01"
+            oninput="teOnScheduleE(${i},'incomeAmount',this.value)">
+          <input type="number" class="te-input te-mono" value="${isCCorp ? '' : (e.qbiAmount||'')}"
+            placeholder="${isCCorp ? 'N/A' : '0.00'}" step="0.01"
+            ${isCCorp ? 'disabled title="C-Corporation income is not eligible for the §199A QBI deduction."' : `title="Enter the §199A QBI amount from K-1 (Partnership Box 20 Code Z / S-Corp Box 17 Code V). May differ from income/(loss) above."`}
+            style="${isCCorp ? 'opacity:0.35;' : ''}"
+            oninput="teOnScheduleE(${i},'qbiAmount',this.value)">
           <label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap;">
-            <input type="checkbox" ${e.isPassive ? 'checked' : ''} onchange="teOnScheduleE(${i},'isPassive',this.checked)"> Passive <span class="te-cite" style="font-size:10px;">§469</span>
+            <input type="checkbox" ${e.isPassive ? 'checked' : ''} onchange="teOnScheduleE(${i},'isPassive',this.checked)">
+            Passive <span class="te-cite" style="font-size:10px;">§469</span>
           </label>
           <button class="te-rm-btn" onclick="teRmScheduleE(${i})">✕</button>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
     </div>
     ${calc.passiveLossSuspended > 0 ? `
     <div class="te-ded-note" style="margin-top:6px;color:#f5a623;">
       ⚠ Suspended passive loss: ${teFmt(calc.passiveLossSuspended)} — not currently deductible. Passive losses can only offset passive income. <span class="te-cite">IRC §469(a)</span>
     </div>` : ''}
-    ${(entities.length > 0) ? `
     <div class="te-ded-note" style="margin-top:4px;">
       Passive: ${teFmt(calc.scheduleEPassive)} &nbsp;|&nbsp; Non-passive: ${teFmt(calc.scheduleENonPassive)} &nbsp;|&nbsp; Net flowing to gross income: ${teFmt(calc.scheduleENet)}
-    </div>` : ''}`;
+      &nbsp;|&nbsp; <strong>§199A QBI from entities: ${teFmt(calc.schedEQBI || 0)}</strong>
+    </div>
+    <div class="te-ded-note" style="margin-top:4px;">
+      §199A QBI: Enter the amount reported on K-1 (Partnership Box 20 Code Z; S-Corp Box 17 Code V). This may differ from the income/(loss) above — the entity applies its own deductions before reporting QBI. C-Corporation income is never eligible. <span class="te-cite">IRC §199A(c); IRC §199A(f)(1)</span>
+    </div>`;
 }
 
 function teRenderScheduleC() {
@@ -1962,8 +1985,12 @@ function teRenderQBIPanel(calc, K, fs) {
   let qbiDed    = calc.qbiDeduction || 0;
   let above     = calc.qbiAboveThreshold || false;
 
-  if (qbiBase === 0) {
-    return `<div class="te-ded-note">No qualified business income — §199A deduction not applicable. Enter Schedule C net profit in the Income section to generate a QBI deduction. <span class="te-cite">IRC §199A(c)(1)</span></div>`;
+  let schedCQBI = calc.schedCQBI || 0;
+  let schedEQBI = calc.schedEQBI || 0;
+  let hasSchedE = (teCurrentReturn.scheduleE || []).some(e => (e.entityType || 'partnership') !== 'ccorp' && (parseFloat(e.qbiAmount) || 0) !== 0);
+
+  if (qbiBase === 0 && !hasSchedE && (calc.netSEIncome || 0) === 0) {
+    return `<div class="te-ded-note">No qualified business income — §199A deduction not applicable. Enter Schedule C net profit or Schedule E §199A QBI amounts in the Income section. <span class="te-cite">IRC §199A(c)(1)</span></div>`;
   }
   if (above) {
     return `
@@ -1973,15 +2000,21 @@ function teRenderQBIPanel(calc, K, fs) {
         <span class="te-cite">IRC §199A(b)(2),(e)(2)</span>
       </div>`;
   }
+  let row = (label, val, cls='') => `<div class="te-ctc-row${cls?' '+cls:''}"><span>${label}</span><span>${val}</span></div>`;
   return `
     <div class="te-ctc-tbl" style="margin-top:4px;">
-      <div class="te-ctc-row"><span>Schedule C Net Profit (QBI) <span class="te-cite">IRC §199A(c)</span></span><span>${teFmt(calc.netSEIncome || 0)}</span></div>
-      <div class="te-ctc-row te-ctc-sub"><span>− 50% of SE Tax (§164(f) deduction reduces QBI)</span><span>(${teFmt(calc.seTaxDeduction || 0)})</span></div>
-      <div class="te-ctc-row te-ctc-sub"><span>= Qualified Business Income</span><span>${teFmt(qbiBase)}</span></div>
+      ${(calc.netSEIncome || 0) > 0 || schedCQBI !== 0 ? `
+        ${row('Schedule C Net Profit <span class="te-cite">IRC §199A(c)</span>', teFmt(calc.netSEIncome || 0))}
+        ${row('− §164(f) SE Tax Deduction (reduces QBI per Form 8995)', '(' + teFmt(calc.seTaxDeduction || 0) + ')', 'te-ctc-sub')}
+        ${row('= Schedule C QBI', teFmt(schedCQBI), 'te-ctc-sub')}` : ''}
+      ${hasSchedE ? `
+        ${row('Schedule E §199A QBI (from qualifying pass-through entities)', teFmt(schedEQBI), schedCQBI !== 0 ? 'te-ctc-sub' : '')}` : ''}
+      ${(calc.netSEIncome || 0) > 0 && hasSchedE ?
+        row('= Combined QBI', teFmt(qbiBase), 'te-ctc-sub') : ''}
       <div class="te-ctc-row" style="margin-top:6px;"></div>
-      <div class="te-ctc-row"><span>20% × QBI</span><span>${teFmt(teRound(qbiBase * 0.20))}</span></div>
-      <div class="te-ctc-row"><span>20% × Taxable Income Before QBI</span><span>${teFmt(teRound((calc.taxableIncomeBeforeQBI || 0) * 0.20))}</span></div>
-      <div class="te-ctc-row te-ctc-tot"><span>QBI Deduction (lesser of above) <span class="te-cite">IRC §199A(a),(b)(1)</span></span><span>${teFmt(qbiDed)}</span></div>
+      ${row('20% × QBI', teFmt(teRound(qbiBase * 0.20)))}
+      ${row('20% × Taxable Income Before QBI', teFmt(teRound((calc.taxableIncomeBeforeQBI || 0) * 0.20)))}
+      ${row('QBI Deduction — lesser of above <span class="te-cite">IRC §199A(a),(b)(1)</span>', teFmt(qbiDed), 'te-ctc-tot')}
     </div>
     <div class="te-ded-note" style="margin-top:4px;">Simplified method (Form 8995) applies — taxable income ${teFmt(calc.taxableIncomeBeforeQBI || 0)} is below the ${teFmt(threshold)} threshold. <span class="te-cite">IRC §199A(e)(2); Form 8995</span></div>`;
 }
@@ -2674,7 +2707,7 @@ function teAddScheduleE() {
   if (!teCurrentReturn) return;
   teMarkDirty();
   if (!teCurrentReturn.scheduleE) teCurrentReturn.scheduleE = [];
-  teCurrentReturn.scheduleE.push({ name: '', ein: '', incomeAmount: '', isPassive: true });
+  teCurrentReturn.scheduleE.push({ name: '', ein: '', entityType: 'partnership', incomeAmount: '', isPassive: true, qbiAmount: '' });
   teRenderScheduleEList();
   teRecalculate();
 }
@@ -2691,11 +2724,16 @@ function teOnScheduleE(i, field, val) {
   if (!teCurrentReturn || !teCurrentReturn.scheduleE[i]) return;
   teMarkDirty();
   teCurrentReturn.scheduleE[i][field] = val;
+  // Clear qbiAmount when switching to C-Corp — C-corp income never qualifies for §199A
+  if (field === 'entityType' && val === 'ccorp') {
+    teCurrentReturn.scheduleE[i].qbiAmount = '';
+  }
   teRecalculate();
-  // Update passive loss note live without full re-render
   let calc = teCurrentReturn._calc || {};
-  let c    = document.getElementById('te-sche-list');
-  if (c && calc.passiveLossSuspended > 0) teRenderScheduleEList();
+  // Re-render on structural changes (entityType changes QBI field visibility; passive changes loss note)
+  if (field === 'entityType' || field === 'isPassive' || calc.passiveLossSuspended > 0) {
+    teRenderScheduleEList();
+  }
 }
 
 function teOnInvestmentInterest() {
@@ -3385,10 +3423,19 @@ function teRecalculate() {
   calc.taxableIncomeBeforeQBI = teRound(Math.max(0, calc.agi - calc.deductionUsed));
 
   // ── Step 5b: QBI Deduction — IRC §199A (Form 8995 simplified method) ──
-  // QBI = Schedule C net profit reduced by 50% of SE tax (§164(f) deduction per Form 8995 instructions)
-  // Only applies when QBI > 0 (losses do not create a deduction — IRC §199A(c)(1))
+  // QBI sources: Schedule C + qualifying Schedule E pass-through entities (not C-Corps)
   // TODO: SSTB limitation applies above threshold — future Form 8995-A build
-  calc.qbiBase = teRound(Math.max(0, calc.netSEIncome - calc.seTaxDeduction));
+  // Schedule C QBI: net profit reduced by §164(f) SE tax deduction per Form 8995 instructions
+  calc.schedCQBI = teRound(calc.netSEIncome - calc.seTaxDeduction);  // can be negative (loss)
+  // Schedule E QBI: user-entered K-1 §199A QBI per entity; C-Corps excluded — IRC §199A(f)(1)
+  // Partnership: K-1 Box 20 Code Z | S-Corp: K-1 Box 17 Code V | Trust/Estate: K-1 Box 14 Code I
+  calc.schedEQBI = teRound(
+    (teCurrentReturn.scheduleE || [])
+      .filter(e => (e.entityType || 'partnership') !== 'ccorp')
+      .reduce((s, e) => s + (parseFloat(e.qbiAmount) || 0), 0)
+  );
+  // Combined QBI base — floored at $0 (negative net QBI → $0 deduction; carryforward not tracked v1)
+  calc.qbiBase = teRound(Math.max(0, calc.schedCQBI + calc.schedEQBI));
   let qbiThreshold = (K.qbi && K.qbi.threshold) ? (K.qbi.threshold[fs] || K.qbi.threshold.single) : 0;
   if (calc.qbiBase === 0 || !K.qbi) {
     // No qualified business income — deduction is $0
