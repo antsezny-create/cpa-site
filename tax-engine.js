@@ -3038,7 +3038,7 @@ function teSDLineRow(lineNum, label, field, val, helper, isCarryover) {
     <div class="te-sd-line-inp-wrap">
       ${isCarryover && absVal > 0 ? `<span class="te-sd-line-paren te-sd-gain-neg te-mono">(${teFmt(absVal)})</span>` : ''}
       <input type="number" class="te-input te-mono te-sd-smry-inp" step="0.01" min="0"
-        placeholder="${isCarryover ? 'enter positive' : '0.00'}"
+        placeholder="0.00"
         value="${esc(String(val||''))}" oninput="teOnSchedD('${field}',this.value)">
     </div>
   </div>`;
@@ -3167,6 +3167,7 @@ function teRenderScheduleD() {
     </div>
 
     <!-- ═══ PART III — SUMMARY ═════════════════════════════════════════ -->
+    <div id="te-sd-p3-wrap" style="transition:opacity 0.2s;${!sl.detailedActive?'opacity:0.35;pointer-events:none;':''}">
     <div class="te-sd-section-label" style="margin-top:28px;">Part III &mdash; Summary</div>
 
     <div class="te-sd-net-line ${l16>=0?'te-sd-profit':'te-sd-loss'}" id="te-sd-l16-bar" style="margin-top:8px;">
@@ -3237,6 +3238,7 @@ function teRenderScheduleD() {
       from TAX_CONSTANTS (verified via Rev. Proc. 2024-40 / Rev. Proc. 2025-32).
       ${(r28>0||r19>0) ? `<div class="te-sd-rate-warn">&#9888; Lines 18 or 19 are present. The 28% and 25% rate buckets require the Schedule D Tax Worksheet, which is not yet in the engine. Do not file until those buckets are computed separately.</div>` : ''}
     </div>
+    </div><!-- /te-sd-p3-wrap -->
   </div>`;
 }
 
@@ -5529,7 +5531,8 @@ function teRecalculate() {
     l11: sdL11, l12: sdL12, l13: sdL13, l14: sdL14, l15: sdL15,
     l16: sdL16, l17yes: sdL17yes, l21: sdL21,
     stTxGains, ltTxGains,
-    capLossCarryforward: calc.capLossCarryforward
+    capLossCarryforward: calc.capLossCarryforward,
+    detailedActive: sdDetailedActive
   };
 
   // Schedule E — pass-through income/loss — IRC §702 (partnerships), §1366 (S-corps)
@@ -6154,6 +6157,13 @@ function teRecalculate() {
         let l21row = gd('te-sd-l21-row'), l21el = gd('te-sd-l21');
         if (l21row) l21row.style.display = (sl.l16||0) < 0 ? '' : 'none';
         if (l21el)  l21el.textContent = '(' + teFmt(Math.abs(sl.l21||0)) + ')';
+
+        // Part III grayout — dim entire Part III + rate note when no Part I/II data yet
+        let p3wrap = gd('te-sd-p3-wrap');
+        if (p3wrap) {
+          p3wrap.style.opacity      = sl.detailedActive ? '' : '0.35';
+          p3wrap.style.pointerEvents = sl.detailedActive ? '' : 'none';
+        }
       } break;
       case 'sched-c': {
         // Targeted DOM updates for every computed Schedule C line — preserves input focus

@@ -5289,10 +5289,10 @@ input[type="number"].te-input {
 }
 /* Column widths — must match in header, tx-cols, and totals-row */
 .te-sd-col-desc  { flex: 1; min-width: 120px; }
-.te-sd-col-date  { width: 120px; flex-shrink: 0; }
-.te-sd-col-amt   { width: 100px; flex-shrink: 0; }
-.te-sd-col-adj   { width: 90px;  flex-shrink: 0; }
-.te-sd-col-gain  { width: 110px; flex-shrink: 0; text-align: right; }
+.te-sd-col-date  { width: 106px; flex-shrink: 0; }
+.te-sd-col-amt   { width: 124px; flex-shrink: 0; }
+.te-sd-col-adj   { width: 104px; flex-shrink: 0; }
+.te-sd-col-gain  { width: 124px; flex-shrink: 0; text-align: right; }
 .te-sd-col-del   { width: 28px;  flex-shrink: 0; }
 
 /* Transaction rows */
