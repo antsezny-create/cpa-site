@@ -1606,6 +1606,7 @@ function teRender1099RList(type) {
 function teAdd1099R(type) {
   let key = type === 'ira' ? 'ira1099r' : 'pension1099r';
   teMarkDirty();
+  if (!teCurrentReturn[key]) teCurrentReturn[key] = [];
   teCurrentReturn[key].push({ payerName: '', grossDist: '', taxableDist: '', age: '', penaltyException: false });
   teRender1099RList(type);
   teRecalculate();
