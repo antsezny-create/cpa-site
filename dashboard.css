@@ -4738,6 +4738,23 @@ input[type="number"].te-input {
   opacity: 1;
 }
 
+/* Auto-calculated card — read-only, non-clickable */
+.te-menu-card.te-menu-card-auto {
+  cursor: default;
+  border-style: dashed;
+  opacity: 0.85;
+  pointer-events: none;
+}
+.te-card-auto-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent);
+  opacity: 0.7;
+  margin-top: 6px;
+}
+
 /* MFS unavailable card */
 .te-menu-card.te-menu-card-mfs {
   opacity: 0.45;

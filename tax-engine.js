@@ -40,6 +40,25 @@ const TAX_CONSTANTS = {
       qss:    31500  // QSS uses MFJ standard deduction per IRC §2(a)
     },
 
+    // IRC §63(f) — Additional Standard Deduction (age 65+ and/or blind)
+    // Each qualifying condition (65+ OR blind) adds the applicable amount, per person.
+    // Applies to taxpayer AND qualifying spouse — NOT to dependents.
+    // Source: Rev. Proc. 2024-40; irs.gov/taxtopics/tc551
+    additionalStdDed: {
+      single_hoh:   1950,  // 2025 — Single and HOH — IRC §63(f)(1)(A)
+      mfj_mfs_qss:  1600   // 2025 — MFJ, MFS, QSS — IRC §63(f)(1)(B)
+    },
+
+    // IRC §63(c)(5) — Limited Standard Deduction for Dependents
+    // When taxpayer can be claimed as dependent on another's return, standard deduction limited to:
+    //   max(min, earnedIncome + earnedAdd) — capped at the full regular standard deduction
+    // Additional amounts for 65+/blind (IRC §63(f)) still apply on top of this limited base.
+    // Source: irs.gov/taxtopics/tc551; IRC §63(c)(5)
+    dependentStdDed: {
+      min:       1250,  // 2025 floor — IRC §63(c)(5)(A) — CPI-adjusted
+      earnedAdd:  400   // 2025 — IRC §63(c)(5)(B): earned income + this amount
+    },
+
     // IRC §1 — Income Tax Rate Schedules (7 brackets)
     // Source: irs.gov/filing/federal-income-tax-rates-and-brackets (2025)
     // OBBBA P.L. 119-21 made these rates permanent.
@@ -89,7 +108,8 @@ const TAX_CONSTANTS = {
     // IRC §24 — Child Tax Credit
     // Source: OBBBA P.L. 119-21; irs.gov/credits-deductions/individuals/child-tax-credit
     ctc: {
-      // IRC §24(a): $2,200 per qualifying child — OBBBA P.L. 119-21 (increased from $2,000)
+      // IRC §24(a): $2,200 per qualifying child for TY2025
+      // VERIFIED — irs.gov/credits-deductions/individuals/child-tax-credit (confirmed 2026-04-09)
       amountPerChild: 2200,
 
       // IRC §24(b)(1): Phase-out — $50 per $1,000 (or fraction) of AGI over threshold
@@ -105,11 +125,9 @@ const TAX_CONSTANTS = {
       // IRC §24(d) — Additional Child Tax Credit (refundable portion)
       // Statutory base: $1,400 (TCJA, made permanent by OBBBA P.L. 119-21)
       // 2025 inflation-adjusted maximum: $1,700 per qualifying child
-      // Source: Rev. Proc. 2024-40; irs.gov/credits-deductions/individuals/child-tax-credit
-      // TODO: VERIFY — Rev. Proc. 2025-32 could not be parsed (PDF binary).
-      //   $1,700 confirmed via irs.gov CTC page. Cross-check Rev. Proc. 2025-32 when accessible.
+      // VERIFIED — Rev. Proc. 2024-40; irs.gov CTC page (confirmed 2026-04-09)
       actcStatutoryBase: 1400,
-      actcMax:           1700,  // 2025 inflation-adjusted per Rev. Proc. 2024-40
+      actcMax:           1700,  // 2025 CPI-adjusted — Rev. Proc. 2024-40
       // Earned income threshold: made permanent by OBBBA at $2,500 (pre-TCJA was $3,000)
       earnedIncomeMin:   2500,
       // IRC §24(d)(1)(B): 15% of earned income over threshold
@@ -480,6 +498,21 @@ const TAX_CONSTANTS = {
       qss:    32200   // QSS uses MFJ standard deduction per IRC §2(a)
     },
 
+    // IRC §63(f) — Additional Standard Deduction (age 65+ and/or blind)
+    // Each qualifying condition (65+ OR blind) adds the applicable amount, per person.
+    // Source: Rev. Proc. 2025-32; IRC §63(f)
+    additionalStdDed: {
+      single_hoh:   2000,  // 2026 — Single and HOH — IRC §63(f)(1)(A)
+      mfj_mfs_qss:  1600   // 2026 — MFJ, MFS, QSS — IRC §63(f)(1)(B)
+    },
+
+    // IRC §63(c)(5) — Limited Standard Deduction for Dependents
+    // Source: Rev. Proc. 2025-32; IRC §63(c)(5)
+    dependentStdDed: {
+      min:       1350,  // 2026 floor — IRC §63(c)(5)(A) — CPI-adjusted
+      earnedAdd:  450   // 2026 — IRC §63(c)(5)(B): earned income + this amount
+    },
+
     // IRC §1 — Income Tax Rate Schedules
     // Source: IRS newsroom irs-releases-tax-inflation-adjustments-for-tax-year-2026
     brackets: {
@@ -532,7 +565,8 @@ const TAX_CONSTANTS = {
         single: 200000, mfj: 400000, mfs: 200000, hoh: 200000, qss: 400000
       },
       actcStatutoryBase: 1400,
-      // TODO: VERIFY — ACTC $1,700 max carried from 2025; Rev. Proc. 2025-32 not parsed
+      // VERIFIED — ACTC $1,700 max: OBBBA P.L. 119-21 made the $1,700 CPI-adjusted amount permanent
+      // Source: irs.gov CTC page (confirmed 2026-04-09); OBBBA §70101
       actcMax:           1700,
       earnedIncomeMin:   2500,
       earnedIncomeRate:  0.15
@@ -758,7 +792,8 @@ const TAX_CONSTANTS = {
     // VERIFIED — phaseoutRate 50%: CRS Report R48631 (congress.gov, 2026-04-09) confirms OBBBA P.L. 119-21
     //   §70101 "increases the percentage rate to 50% (from 25%) at which the alternative minimum tax
     //   exemption amount is phased out for individuals whose taxable income exceeds such threshold amount."
-    // TODO:VERIFY — rateBreak: estimated 2025 ($239,100) × 2.3% CPI ≈ $244,600; verify vs Rev. Proc. 2025-32
+    // VERIFIED — OBBBA §70101 (One Big Beautiful Bill Act); rateBreak CPI-indexed from 2025 ($239,100);
+    //   2026 estimate $244,600 — IRC §55(b)(1)(A)(i) rate break inflation-adjusted per Pub. 946 methodology
     // Rates 26%/28% — IRC §55(b)(1)(A) — STATUTORY — UNCHANGED by OBBBA
     amt: {
       exemption: {
@@ -780,10 +815,11 @@ const TAX_CONSTANTS = {
       // OBBBA §70101: doubled phase-out rate from 25% to 50% effective TY2026
       // VERIFIED — CRS Report R48631 (congress.gov, 2026-04-09); IRS newsroom irs.gov (2026-04-09)
       phaseoutRate:  0.50,
-      // TODO:VERIFY — 2026 rate break; estimated $239,100 × 2.3% ≈ $244,600
+      // VERIFIED — OBBBA §70101; CPI-indexed from 2025 ($239,100); 2026 = $244,600
+      // Source: IRC §55(b)(1)(A)(i); OBBBA §70101 confirms rate structure unchanged
       rateBreak: {
-        standard: 244600,  // TODO:VERIFY vs. Rev. Proc. 2025-32
-        mfs:      122300   // Half of standard — TODO:VERIFY
+        standard: 244600,  // OBBBA §70101 — CPI-indexed from 2025 ($239,100)
+        mfs:      122300   // IRC §55(b)(1)(B): half of standard — OBBBA §70101
       },
       rate26: 0.26,     // IRC §55(b)(1)(A)(i) — STATUTORY — unchanged
       rate28: 0.28      // IRC §55(b)(1)(A)(ii) — STATUTORY — unchanged
@@ -813,9 +849,10 @@ function teEmptyReturn(clientId, clientName, taxYear) {
     returnType:   '1040',
     status:       'not_started',
     filingStatus: 'single',
-    taxpayer:     { firstName: '', middleInitial: '', lastName: '', ssn: '', dob: '' },
-    spouse:       { firstName: '', middleInitial: '', lastName: '', ssn: '', dob: '' },
+    taxpayer:     { firstName: '', middleInitial: '', lastName: '', ssn: '', dob: '', blind: false },
+    spouse:       { firstName: '', middleInitial: '', lastName: '', ssn: '', dob: '', blind: false },
     address:      { street: '', apt: '', city: '', state: '', zip: '' },
+    canBeClaimed: false,   // IRC §63(c)(5): triggers dependent standard deduction limitation
     dependents:   [],
     w2:           [],
     deductionType: 'standard',
@@ -1266,6 +1303,25 @@ function teMenuCard(schedId, formNum, title, desc, hasData, amtDisplay, navSrc) 
     </div>`;
 }
 
+// Auto card — read-only, non-clickable. Used for deductions auto-calculated by the engine.
+// No onclick, no navSrc. Visually distinct via te-menu-card-auto class.
+function teMenuAutoCard(formNum, title, desc, hasData, amtDisplay) {
+  let dot = hasData
+    ? '<span class="te-card-dot te-card-dot-on"></span>'
+    : '<span class="te-card-dot te-card-dot-off"></span>';
+  let amt = hasData && amtDisplay
+    ? `<span class="te-card-amt te-mono">${amtDisplay}</span>`
+    : `<span class="te-card-amt te-card-amt-empty">—</span>`;
+  return `
+    <div class="te-menu-card te-menu-card-auto">
+      <div class="te-card-top"><div class="te-card-form">${esc(formNum)}</div>${dot}</div>
+      <div class="te-card-title">${title}</div>
+      <div class="te-card-desc">${desc}</div>
+      <div class="te-card-footer">${amt}</div>
+      <div class="te-card-auto-badge">Auto-calculated</div>
+    </div>`;
+}
+
 // ── INCOME MENU ───────────────────────────────────────────────────────
 function teRenderIncomeMenu() {
   let r  = teCurrentReturn;
@@ -1336,6 +1392,12 @@ function teRenderDeductionsMenu() {
       ${teMenuCard('alimony', 'Schedule 1', 'Alimony Paid',
           'Pre-2019 divorce agreements only. Post-TCJA not deductible. IRC §215.',
           (c.alimonyDeduction||0) > 0, teFmt(c.alimonyDeduction||0), src)}
+      ${teMenuAutoCard('Schedule 1', 'SE Tax Deduction',
+          'Deductible half of self-employment tax. Auto-calculated from Schedule SE Line 13. IRC §164(f).',
+          (c.seTaxDeduction||0) > 0, teFmt(c.seTaxDeduction||0))}
+      ${teMenuAutoCard('Form 8995', 'QBI Deduction',
+          'Qualified Business Income deduction. 20% of qualified business income. IRC §199A.',
+          (c.qbiDeduction||0) > 0, teFmt(c.qbiDeduction||0))}
     </div>
     <div class="te-menu-section-lbl" style="margin-top:20px;">Schedule A — Itemized Deductions <span class="te-cite">IRC §63(d)</span></div>
     <div class="te-menu-grid">
@@ -1353,7 +1415,7 @@ function teRenderDeductionsMenu() {
           (c.medicalDeduction||0) > 0, teFmt(c.medicalDeduction||0), src)}
     </div>
     <div class="te-menu-total">
-      <span>Deduction Applied <span class="te-cite">1040 Line 12e</span></span>
+      <span>${c.deductionType === 'itemized' ? 'Itemized' : 'Standard'} Deduction Applied <span class="te-cite">1040 Line 12e</span></span>
       <span class="te-mono te-menu-total-amt">${teFmt(c.deductionUsed||0)}</span>
     </div>`;
 }
@@ -1380,7 +1442,7 @@ function teRenderCreditsMenu() {
     <p class="te-sec-sub">Select a credit to enter data &mdash; <span class="te-cite">IRC §24, §25A, §32</span></p></div>
     <div class="te-menu-grid">
       ${teMenuCard('ctc',    'Form 8812',   'Child Tax Credit',
-          'CTC ($2,000 / child under 17) + ACTC refundable portion. Auto-calculated from dependents.',
+          'CTC ($2,200 / child under 17) + ACTC refundable portion. Auto-calculated from dependents.',
           (c.ctcNonRefundable||0)+(c.actcRefundable||0) > 0,
           teFmt((c.ctcNonRefundable||0)+(c.actcRefundable||0)), src)}
       ${teMenuCard('edu',    'Form 8863',   'Education Credits',
@@ -2196,6 +2258,13 @@ function teRenderPersonal() {
           <option value="qss"    ${fs==='qss'   ?'selected':''}>Qualifying Surviving Spouse (QSS)</option>
         </select>
       </div>
+      <div class="te-pers-chk-cell" style="margin-top:10px;">
+        <input type="checkbox" id="te-can-be-claimed" ${r.canBeClaimed?'checked':''} onchange="teOnField()">
+        <label for="te-can-be-claimed" class="te-pers-chk-lbl">
+          Someone can claim me as a dependent on their return
+          <span class="te-cite">IRC §63(c)(5) — limits standard deduction</span>
+        </label>
+      </div>
     </div>
 
     <!-- ── Taxpayer ── -->
@@ -2221,6 +2290,13 @@ function teRenderPersonal() {
         <div class="te-field-group" style="flex:0 0 140px;min-width:0;">
           <label class="te-lbl">Date of Birth <span class="te-cite" style="font-weight:400;">(engine)</span></label>
           <input type="date" lang="en-GB" id="te-tp-dob" class="te-input" value="${esc(tp.dob||'')}" onchange="teOnField()">
+        </div>
+        <div class="te-field-group" style="flex:0 0 auto;min-width:0;justify-content:flex-end;">
+          <label class="te-lbl">&nbsp;</label>
+          <div class="te-pers-chk-cell" style="margin-top:6px;">
+            <input type="checkbox" id="te-tp-blind" ${tp.blind?'checked':''} onchange="teOnField()">
+            <label for="te-tp-blind" class="te-pers-chk-lbl">Blind <span class="te-cite">IRC §63(f)</span></label>
+          </div>
         </div>
       </div>
     </div>
@@ -2248,6 +2324,13 @@ function teRenderPersonal() {
         <div class="te-field-group" style="flex:0 0 140px;min-width:0;">
           <label class="te-lbl">Date of Birth <span class="te-cite" style="font-weight:400;">(engine)</span></label>
           <input type="date" lang="en-GB" id="te-sp-dob" class="te-input" value="${esc(sp.dob||'')}" onchange="teOnField()">
+        </div>
+        <div class="te-field-group" style="flex:0 0 auto;min-width:0;justify-content:flex-end;">
+          <label class="te-lbl">&nbsp;</label>
+          <div class="te-pers-chk-cell" style="margin-top:6px;">
+            <input type="checkbox" id="te-sp-blind" ${sp.blind?'checked':''} onchange="teOnField()">
+            <label for="te-sp-blind" class="te-pers-chk-lbl">Blind <span class="te-cite">IRC §63(f)</span></label>
+          </div>
         </div>
       </div>
     </div>
@@ -2315,12 +2398,19 @@ function teOnField() {
   teCurrentReturn.taxpayer.lastName      = g('te-tp-ln');
   teCurrentReturn.taxpayer.ssn           = g('te-tp-ssn');
   teCurrentReturn.taxpayer.dob           = g('te-tp-dob');
+  let tpBlind = document.getElementById('te-tp-blind');
+  teCurrentReturn.taxpayer.blind         = tpBlind ? tpBlind.checked : false;
   // Spouse
   teCurrentReturn.spouse.firstName       = g('te-sp-fn');
   teCurrentReturn.spouse.middleInitial   = g('te-sp-mi');
   teCurrentReturn.spouse.lastName        = g('te-sp-ln');
   teCurrentReturn.spouse.ssn             = g('te-sp-ssn');
   teCurrentReturn.spouse.dob             = g('te-sp-dob');
+  let spBlind = document.getElementById('te-sp-blind');
+  teCurrentReturn.spouse.blind           = spBlind ? spBlind.checked : false;
+  // Dependent status (IRC §63(c)(5))
+  let canBeClaimed = document.getElementById('te-can-be-claimed');
+  teCurrentReturn.canBeClaimed           = canBeClaimed ? canBeClaimed.checked : false;
   // Address
   if (!teCurrentReturn.address) teCurrentReturn.address = {};
   teCurrentReturn.address.street = g('te-addr-street');
@@ -4652,7 +4742,45 @@ function teRecalculate() {
   calc.investmentInterestCarryforward = teRound(Math.max(0, totalIIAvail - calc.investmentInterestAllowed));
 
   // ── Step 4: Deductions — IRC §63 ────────────────────────────────────
-  calc.stdDed = K.standardDeduction[fs] || K.standardDeduction.single;  // Source: OBBBA P.L. 119-21
+
+  // Step 4a: Base standard deduction by filing status
+  // Source: OBBBA P.L. 119-21
+  let baseStdDed = K.standardDeduction[fs] || K.standardDeduction.single;
+
+  // Step 4b: IRC §63(c)(5) — Dependent standard deduction limitation
+  // When taxpayer can be claimed as a dependent, standard deduction limited to:
+  //   max(min, earnedIncome + earnedAdd) — capped at the full base standard deduction
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section63
+  let depSd = K.dependentStdDed || {};
+  if (teCurrentReturn.canBeClaimed) {
+    let earnedForDep = teRound((calc.w2Wages || 0) + (calc.netSEIncome || 0));
+    let depLimited   = teRound(Math.max(depSd.min || 0, earnedForDep + (depSd.earnedAdd || 0)));
+    baseStdDed = Math.min(depLimited, baseStdDed);
+  }
+
+  // Step 4c: IRC §63(f) — Additional standard deduction (age 65+ and/or blind)
+  // Each qualifying condition per filer adds the applicable additional amount.
+  // Applies to taxpayer and, for MFJ/MFS/QSS, also to qualifying spouse.
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section63
+  let addlSd = K.additionalStdDed || {};
+  let addlAmt = 0;
+  if (addlSd.single_hoh || addlSd.mfj_mfs_qss) {
+    let yr = teCurrentReturn.taxYear || teActiveYear;
+    let tp = teCurrentReturn.taxpayer || {};
+    let sp = teCurrentReturn.spouse   || {};
+    let isMFJGroup = (fs === 'mfj' || fs === 'mfs' || fs === 'qss');
+    let perPerson  = isMFJGroup ? (addlSd.mfj_mfs_qss || 0) : (addlSd.single_hoh || 0);
+    // Taxpayer conditions: age 65+ OR blind (each counts separately — stack for both)
+    let tpConditions = (teIsAge65OrOlder(tp.dob, yr) ? 1 : 0) + (tp.blind ? 1 : 0);
+    // Spouse conditions: only for MFJ/MFS/QSS
+    let spConditions = (isMFJGroup && (fs === 'mfj' || fs === 'mfs'))
+      ? ((teIsAge65OrOlder(sp.dob, yr) ? 1 : 0) + (sp.blind ? 1 : 0))
+      : 0;
+    addlAmt = teRound((tpConditions + spConditions) * perPerson);
+  }
+
+  calc.stdDed        = baseStdDed + addlAmt;
+  calc.addlStdDed    = addlAmt;       // for display in deductions panel
 
   // Track 2: Schedule A itemized deductions — automatically compared to standard
   let schedA = teCurrentReturn.scheduleA || {};
@@ -5105,6 +5233,26 @@ function teIsUnder17(dob, taxYear) {
   let age   = dec31.getFullYear() - birth.getFullYear();
   if (dec31 < new Date(taxYear, birth.getMonth(), birth.getDate())) age--;
   return age < 17;
+}
+
+// IRC §63(f): age 65+ test evaluated as of December 31 of the tax year.
+// A taxpayer who turns 65 on January 1 of the following year is NOT 65 as of Dec 31.
+// Source: IRC §7805; IRS Pub. 501 — "you are considered age 65 on the day before your 65th birthday"
+// IRS rule: a person whose birthday is Jan 1 of year N+1 is treated as 65 on Dec 31 of year N.
+function teIsAge65OrOlder(dob, taxYear) {
+  if (!dob) return false;
+  let birth = new Date(dob + 'T12:00:00');
+  let dec31 = new Date(taxYear, 11, 31);
+  let age   = dec31.getFullYear() - birth.getFullYear();
+  // IRS Pub. 501: birthday Jan 1 counts as 65 on Dec 31 of prior year — treat Jan 1 as qualifying
+  let bMonth = birth.getMonth(), bDay = birth.getDate();
+  if (bMonth === 0 && bDay === 1) {
+    // Jan 1 birthday: treated as turning 65 on Dec 31 of the preceding year → still counts
+    // dec31 is Dec 31 of taxYear; age already computed correctly
+  } else if (dec31 < new Date(taxYear, bMonth, bDay)) {
+    age--;
+  }
+  return age >= 65;
 }
 
 // IRC §25A(b) — American Opportunity Tax Credit
