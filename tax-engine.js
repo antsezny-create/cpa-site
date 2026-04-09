@@ -1298,6 +1298,9 @@ function teRenderIncomeMenu() {
       ${teMenuCard('sched-c',    'Schedule C',    'Self-Employment Income',
           'Net profit from business. Drives SE tax and QBI deduction. IRC §162.',
           parseFloat((r.scheduleC||{}).netProfit) > 0, teFmt(c.netSEIncome||0), src)}
+      ${teMenuCard('sched-se',   'Schedule SE',   'Self-Employment Tax',
+          'SS (12.4%) + Medicare (2.9%) on 92.35% of net SE earnings. IRC §1401.',
+          (c.seTax || 0) > 0, (c.seTax || 0) > 0 ? teFmt(c.seTax) : null, src)}
       ${teMenuCard('sched-d',    'Schedule D',    'Capital Gains &amp; Losses',
           'Net short-term and long-term gains. $3,000 annual loss cap. IRC §1221.',
           hasSd, hasSd ? teFmt(Math.abs(sdNet)) : null, src)}
@@ -1549,6 +1552,12 @@ function teRenderMiniScreen(schedId) {
         <p class="te-sec-sub"><span class="te-cite">IRC §162, §61(a)(2) &mdash; Sch. 1 Line 3</span></p></div>
         <div class="te-subsec">${teRenderScheduleC()}</div>`;
 
+    case 'sched-se':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Schedule SE — Self-Employment Tax</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §1401, §1402 &mdash; Schedule 2, Line 4</span></p></div>
+        <div class="te-subsec">${teRenderScheduleSE()}</div>`;
+
     case 'sched-d':
       return nav + `
         <div class="te-sec-hdr"><h2>Schedule D — Capital Gains &amp; Losses</h2>
@@ -1644,6 +1653,7 @@ function teRenderMiniScreen(schedId) {
 function teMiniPostRender(schedId) {
   switch (schedId) {
     case 'w2':         teRenderW2List();              break;
+    case 'sched-se':   /* all lines computed on render — no list post-render needed */ break;
     case 'retirement': teRender1099RList('ira'); teRender1099RList('pension'); break;
     case 'sched-e':    teRenderScheduleEList();        break;
     case 'ctc':        teRenderCTCDetail();            break;
@@ -3687,6 +3697,18 @@ function teCalcAlimony(alimony) {
   return teRound(Math.max(0, parseFloat(alimony.paid) || 0));
 }
 
+// Handler — Schedule SE field changes
+// Called oninput from any user-editable line on the Schedule SE form screen.
+// field: data model key (farmProfit | crpPayments | optionalMethods | ssWagesOverride | unreportedTips)
+// value: raw string from the input element
+function teOnSchedSE(field, value) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.scheduleSE) teCurrentReturn.scheduleSE = {};
+  teCurrentReturn.scheduleSE[field] = value;
+  teRecalculate();
+}
+
 // Handler — Schedule C field changes
 function teOnScheduleC() {
   if (!teCurrentReturn) return;
@@ -3916,6 +3938,139 @@ function teRenderEstimatedPayments() {
     </div>`;
 }
 
+function teRenderScheduleSE() {
+  let r    = teCurrentReturn;
+  let calc = (r && r._calc) || {};
+  let ln   = calc.seLines || {};
+  let se   = (r && r.scheduleSE) || {};
+  let yr   = r ? (r.taxYear || teActiveYear) : teActiveYear;
+  let K    = TAX_CONSTANTS[yr];
+  if (!K) return '<div class="te-empty">No tax constants loaded.</div>';
+
+  // cRow: computed/read-only display line. valId: optional id on the value span for live DOM updates.
+  let cRow = (num, label, val, cls='', valId='') =>
+    `<div class="te-se-row${cls ? ' ' + cls : ''}">
+       <span class="te-se-num">${num}</span>
+       <span class="te-se-lbl">${label}</span>
+       <span class="te-se-val"${valId ? ` id="${valId}"` : ''}>${val}</span>
+     </div>`;
+
+  // iRow: user-input line. field: scheduleSE data model key.
+  let iRow = (num, label, field, val) =>
+    `<div class="te-se-row">
+       <span class="te-se-num">${num}</span>
+       <span class="te-se-lbl">${label}</span>
+       <input type="number" class="te-input te-mono te-se-inp" step="0.01" min="0"
+         value="${esc(String(val || ''))}" placeholder="0.00"
+         oninput="teOnSchedSE('${field}', this.value)">
+     </div>`;
+
+  let floorOk = ln.aboveFloor;
+
+  return `
+    <div class="te-sch-se">
+
+      <div class="te-se-header-bar">
+        <div class="te-se-title">Schedule SE — Self-Employment Tax</div>
+        <div class="te-se-subtitle">Attach to Form 1040 &nbsp;·&nbsp; IRC §1401 / §1402 &nbsp;·&nbsp; Tax Year ${yr}</div>
+      </div>
+
+      <div class="te-se-section-label">Part I — Net Self-Employment Income</div>
+
+      ${cRow('1a',
+        'Net profit (loss) from Schedule C — trade or business <span class="te-cite">IRC §1402(a)</span>',
+        teFmt(ln.line1a || 0),
+        (ln.line1a || 0) === 0 ? 'te-se-zero' : '',
+        'te-se-1a')}
+
+      ${iRow('1b',
+        'Net profit (loss) from Schedule F — farm income <span class="te-cite">IRC §1402(a)(1)</span>',
+        'farmProfit', se.farmProfit)}
+
+      ${iRow('2',
+        'Conservation Reserve Program (CRP) payments from Schedule F <span class="te-cite">IRC §1402(a)</span>',
+        'crpPayments', se.crpPayments)}
+
+      ${cRow('3',
+        'Combined net profit — sum of lines 1a, 1b, and 2',
+        teFmt(ln.line3 || 0), 'te-se-sub', 'te-se-3')}
+
+      <div class="te-se-section-label" style="margin-top:12px;">Part II — Self-Employment Tax Computation</div>
+
+      ${cRow('4a',
+        'Net earnings from SE: line 3 × 92.35% (net earnings rate) <span class="te-cite">IRC §1402(a)</span>',
+        teFmt(ln.line4a || 0), 'te-se-sub', 'te-se-4a')}
+
+      ${iRow('4b',
+        'Optional SE method — if electing nonfarm or farm optional method <span class="te-cite">IRC §1402(a)</span>',
+        'optionalMethods', se.optionalMethods)}
+
+      ${cRow('4c',
+        'Net SE earnings subject to SE tax (line 4a + line 4b)',
+        teFmt(ln.line4c || 0), 'te-se-sub', 'te-se-4c')}
+
+      <div id="te-se-floor">${!floorOk && (ln.line5b || 0) === 0
+        ? `<div class="te-se-floor-note">
+             Line 4c is ${teFmt(ln.line4c || 0)} — below the $400 minimum threshold.
+             No SE tax applies to regular SE income. Enter church employee income (line 5a) if applicable.
+             <span class="te-cite">IRC §1402(b)(2)</span>
+           </div>`
+        : ''}</div>
+
+      ${iRow('5a',
+        'Church employee income from Form W-2 — church employees not subject to FICA <span class="te-cite">IRC §3121(b)(8)</span>',
+        'ssWagesOverride', se.ssWagesOverride)}
+
+      ${cRow('5b',
+        'Church employee income × 92.35%',
+        teFmt(ln.line5b || 0), 'te-se-sub', 'te-se-5b')}
+
+      ${cRow('6',
+        'Total net SE earnings subject to tax (line 4c [if ≥ $400] + line 5b)',
+        teFmt(ln.line6 || 0), 'te-se-sub', 'te-se-6')}
+
+      <div class="te-se-divider"></div>
+
+      ${cRow('7',
+        `Maximum SS earnings — ${yr} annual wage base <span class="te-cite">IRC §1402(b)</span>`,
+        teFmt(ln.line7 || 0))}
+
+      ${cRow('8a',
+        'W-2 Social Security wages already subject to FICA — reduces remaining wage base',
+        teFmt(ln.line8a || 0), '', 'te-se-8a')}
+
+      ${iRow('8b',
+        'Unreported tips subject to SS tax (from Form 4137) <span class="te-cite">IRC §3102(c)</span>',
+        'unreportedTips', se.unreportedTips)}
+
+      ${cRow('9',
+        'Remaining SS wage base capacity: line 7 − line 8a − line 8b',
+        teFmt(ln.line9 || 0), 'te-se-sub', 'te-se-9')}
+
+      <div class="te-se-divider"></div>
+
+      ${cRow('10',
+        'Social Security tax: lesser of (line 6, line 9) × 12.4% <span class="te-cite">IRC §1401(a)</span>',
+        teFmt(ln.line10 || 0), 'te-se-tax', 'te-se-10')}
+
+      ${cRow('11',
+        'Medicare tax: line 6 × 2.9% — no wage base cap <span class="te-cite">IRC §1401(b)(1)</span>',
+        teFmt(ln.line11 || 0), 'te-se-tax', 'te-se-11')}
+
+      <div class="te-se-total-bar">
+        <span>Line 12 — Total SE Tax &nbsp;<span class="te-cite" style="font-weight:400;">flows to Schedule 2, Line 4 · IRC §1401</span></span>
+        <span id="te-se-total-val" class="te-total-val">${teFmt(ln.line12 || 0)}</span>
+      </div>
+
+      <div class="te-se-ded-row">
+        <span class="te-se-num">13</span>
+        <span class="te-se-lbl">§164(f) Deduction — 50% of SE tax; deductible above-the-line (reduces AGI) <span class="te-cite">IRC §164(f)</span></span>
+        <span id="te-se-ded-val" class="te-se-val te-se-ded">(${teFmt(ln.line13 || 0)})</span>
+      </div>
+
+    </div>`;
+}
+
 function teRenderAddlTaxes() {
   let r    = teCurrentReturn;
   let calc = (r && r._calc) || {};
@@ -3981,7 +4136,7 @@ function teRenderAddlTaxes() {
   let seTriggered = (calc.seTax || 0) > 0;
   let seHtml = `
     <div class="te-ctc-tbl" style="margin-top:8px;">
-      ${row('Schedule C Net Profit', teFmt(calc.netSEIncome || 0))}
+      ${row('Net SE Income (Sch. C + Farm + CRP)', teFmt(calc.netSEIncome || 0))}
       ${row('× Net Earnings Rate (92.35%) <span class="te-cite">IRC §1402(a)</span>', '', 'te-ctc-sub')}
       ${row('= SE Tax Base', teFmt(calc.seTaxBase || 0), 'te-ctc-sub')}
       <div class="te-ctc-row" style="margin-top:6px;"></div>
@@ -4253,8 +4408,15 @@ function teRecalculate() {
 
   // ── Step 1: Gross Income — IRC §61 ──────────────────────────────────
   let sc            = teCurrentReturn.scheduleC || {};
+  let seData_       = teCurrentReturn.scheduleSE || {};
   calc.w2Wages      = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.wages)||0), 0));
-  calc.netSEIncome  = teRound(Math.max(0, parseFloat(sc.netProfit) || 0));
+  // netSEIncome = Schedule C + Schedule F farm profit + CRP payments (all SE sources)
+  // IRC §1402(a): net earnings from self-employment includes all trade/business net income
+  calc.netSEIncome  = teRound(Math.max(0,
+    (parseFloat(sc.netProfit)          || 0)
+    + (parseFloat(seData_.farmProfit)  || 0)
+    + (parseFloat(seData_.crpPayments) || 0)
+  ));
 
   // Track 4: Investment income — IRC §61(a)(4),(7); §1221
   let inv = teCurrentReturn.schedule1099 || {};
@@ -4326,24 +4488,105 @@ function teRecalculate() {
     + calc.scheduleDNet + calc.scheduleENet
   );
 
-  // ── Step 2a: SE Tax — computed BEFORE above-the-line deductions ─────
+  // ── Step 2a: SE Tax — Schedule SE line-by-line ──────────────────────
   // SE tax does not depend on AGI (it depends only on net SE income), so
   // it can be computed here — enabling §164(f) deduction to reduce MAGI
   // for SLI and IRA phase-outs without circularity.
   // IRC §1401 rates; IRC §1402(a) net earnings factor.
   // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section1401
   let SE = K.selfEmployment;
-  calc.seTaxBase      = teRound(calc.netSEIncome * SE.netEarningsRate);     // × 92.35%
-  // SS applies only up to wage base, reduced by W-2 wages already subject to SS
-  // IRC §1402(b): SS component of SE tax limited to excess of wage base over wages
-  let ssRemaining     = Math.max(0, SE.ssTaxWageBase - calc.w2Wages);
-  calc.seSSBase       = teRound(Math.min(calc.seTaxBase, ssRemaining));
-  calc.seSSTax        = teRound(calc.seSSBase       * SE.ssTaxRate);        // 12.4%
-  calc.seMedicareTax  = teRound(calc.seTaxBase      * SE.medicareTaxRate);  // 2.9%
-  calc.seTax          = teRound(calc.seSSTax + calc.seMedicareTax);         // → Step 7b
-  // §164(f): 50% of SE tax deductible above-the-line
+
+  // Line 1a — Net profit/(loss) from Schedule C (trade or business)
+  // IRC §1402(a): net earnings from self-employment includes all trade/business income
+  let seLine1a = teRound(Math.max(0, parseFloat(sc.netProfit) || 0));
+
+  // Line 1b — Net profit/(loss) from Schedule F (farm income)
+  // IRC §1402(a)(1): farm income included in net earnings from SE
+  let seLine1b = teRound(Math.max(0, parseFloat(seData_.farmProfit) || 0));
+
+  // Line 2 — Conservation Reserve Program (CRP) payments from Schedule F
+  // IRC §1402(a): CRP rental payments to farmers treated as SE income
+  let seLine2  = teRound(Math.max(0, parseFloat(seData_.crpPayments) || 0));
+
+  // Line 3 — Combined SE income
+  let seLine3  = teRound(seLine1a + seLine1b + seLine2);
+
+  // Line 4a — Net earnings from SE: line 3 × 92.35%
+  // IRC §1402(a): net earnings factor applied to arrive at taxable SE base
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section1402
+  let seLine4a = seLine3 > 0 ? teRound(seLine3 * SE.netEarningsRate) : 0;
+
+  // Line 4b — Optional SE method amount (rare; user override for social security credits)
+  // IRC §1402(a): optional farm/nonfarm methods can increase SE earnings below actual
+  let seLine4b = teRound(parseFloat(seData_.optionalMethods) || 0);
+
+  // Line 4c — Net SE earnings (sum of regular + optional method)
+  let seLine4c = teRound(seLine4a + seLine4b);
+
+  // $400 floor — IRC §1402(b)(2): SE tax not imposed if net earnings from SE < $400
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section1402
+  let seAboveFloor = seLine4c >= 400;
+
+  // Line 5a — Church employee income from W-2 (wages not subject to FICA at church level)
+  // IRC §3121(b)(8): church employees opted out of FICA; SE tax applies via Schedule SE
+  let seLine5a = teRound(parseFloat(seData_.ssWagesOverride) || 0);
+
+  // Line 5b — Church employee income × 92.35% (same net earnings factor applies)
+  let seLine5b = teRound(seLine5a * SE.netEarningsRate);
+
+  // Line 6 — Total SE earnings subject to SS and Medicare tax
+  // If below $400 floor, regular SE excluded; church employee portion still applies
+  let seLine6  = seAboveFloor
+    ? teRound(seLine4c + seLine5b)
+    : teRound(seLine5b);
+
+  // Line 7 — SS wage base for the active tax year
+  // IRC §1402(b): SS component of SE tax limited to excess of annual wage base
+  let seLine7  = SE.ssTaxWageBase;
+
+  // Line 8a — W-2 Social Security wages and tips already subject to FICA SS tax
+  let seLine8a = calc.w2Wages;
+
+  // Line 8b — Unreported tips subject to SS (from Form 4137; tip income not reported to employer)
+  // IRC §3102(c): employee must pay SE-equivalent SS on unreported tips
+  let seLine8b = teRound(parseFloat(seData_.unreportedTips) || 0);
+
+  // Line 9 — Remaining SS wage base capacity after W-2 wages and unreported tips
+  let seLine9  = teRound(Math.max(0, seLine7 - seLine8a - seLine8b));
+
+  // Line 10 — SS tax: min(line 6, line 9) × 12.4%
+  // IRC §1401(a): 12.4% SS rate applied only up to remaining wage base room
+  let seLine10 = teRound(Math.min(seLine6, seLine9) * SE.ssTaxRate);
+
+  // Line 11 — Medicare tax: line 6 × 2.9%
+  // IRC §1401(b)(1): 2.9% Medicare rate — no wage base cap
+  let seLine11 = teRound(seLine6 * SE.medicareTaxRate);
+
+  // Line 12 — Total SE tax (SS + Medicare); Additional Medicare Tax (0.9%) computed separately
+  // IRC §1401: line 12 = line 10 + line 11; flows to Form 1040 Schedule 2 line 4
+  let seLine12 = teRound(seLine10 + seLine11);
+
+  // Line 13 — §164(f) deduction: 50% of SE tax deductible above-the-line
   // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section164
-  calc.seTaxDeduction = teRound(calc.seTax * 0.50);
+  let seLine13 = teRound(seLine12 * 0.50);
+
+  // Map to existing calc fields (all downstream code uses these)
+  calc.seTaxBase      = seLine4c;
+  calc.seSSBase       = teRound(Math.min(seLine6, seLine9));
+  calc.seSSTax        = seLine10;
+  calc.seMedicareTax  = seLine11;
+  calc.seTax          = seLine12;
+  calc.seTaxDeduction = seLine13;
+
+  // Persist all Schedule SE lines for form rendering
+  calc.seLines = {
+    line1a: seLine1a, line1b: seLine1b, line2: seLine2, line3: seLine3,
+    line4a: seLine4a, line4b: seLine4b, line4c: seLine4c,
+    aboveFloor: seAboveFloor,
+    line5a: seLine5a, line5b: seLine5b, line6: seLine6,
+    line7: seLine7, line8a: seLine8a, line8b: seLine8b, line9: seLine9,
+    line10: seLine10, line11: seLine11, line12: seLine12, line13: seLine13
+  };
 
   // ── Step 2b: Above-the-Line Adjustments — IRC §62 ───────────────────
   let adj = teCurrentReturn.agiAdjustments || {};
@@ -4727,6 +4970,35 @@ function teRecalculate() {
         let ssSel = document.getElementById('te-ss-summary');
         if (ssSel) ssSel.innerHTML = teRenderSSSummary(calc, fs);
       }                                                                                                                                   break;
+      case 'sched-se': {
+        // Targeted updates for every computed line on Schedule SE — no full re-render (preserves input focus)
+        let ln = calc.seLines || {};
+        let g  = id => document.getElementById(id);
+        if (g('te-se-1a'))        g('te-se-1a').textContent        = teFmt(ln.line1a  || 0);
+        if (g('te-se-3'))         g('te-se-3').textContent         = teFmt(ln.line3   || 0);
+        if (g('te-se-4a'))        g('te-se-4a').textContent        = teFmt(ln.line4a  || 0);
+        if (g('te-se-4c'))        g('te-se-4c').textContent        = teFmt(ln.line4c  || 0);
+        if (g('te-se-5b'))        g('te-se-5b').textContent        = teFmt(ln.line5b  || 0);
+        if (g('te-se-6'))         g('te-se-6').textContent         = teFmt(ln.line6   || 0);
+        if (g('te-se-8a'))        g('te-se-8a').textContent        = teFmt(ln.line8a  || 0);
+        if (g('te-se-9'))         g('te-se-9').textContent         = teFmt(ln.line9   || 0);
+        if (g('te-se-10'))        g('te-se-10').textContent        = teFmt(ln.line10  || 0);
+        if (g('te-se-11'))        g('te-se-11').textContent        = teFmt(ln.line11  || 0);
+        if (g('te-se-total-val')) g('te-se-total-val').textContent = teFmt(ln.line12  || 0);
+        if (g('te-se-ded-val'))   g('te-se-ded-val').textContent   = '(' + teFmt(ln.line13 || 0) + ')';
+        // Update $400 floor note (display-only div, no inputs inside — safe to re-render)
+        let floorEl = g('te-se-floor');
+        if (floorEl) {
+          let floorOk = ln.aboveFloor;
+          floorEl.innerHTML = (!floorOk && (ln.line5b || 0) === 0)
+            ? `<div class="te-se-floor-note">
+                 Line 4c is ${teFmt(ln.line4c || 0)} — below the $400 minimum threshold.
+                 No SE tax applies to regular SE income. Enter church employee income (line 5a) if applicable.
+                 <span class="te-cite">IRC §1402(b)(2)</span>
+               </div>`
+            : '';
+        }
+      } break;
       case 'sched-e':    if (totalValEl) totalValEl.textContent = teFmt(calc.scheduleENet                                          || 0); break;
       case 'ctc':        if (totalValEl) totalValEl.textContent = teFmt((calc.ctcNonRefundable || 0) + (calc.actcRefundable        || 0)); break;
       case 'eic':        if (totalValEl) totalValEl.textContent = teFmt(calc.eicCredit                                             || 0); break;
