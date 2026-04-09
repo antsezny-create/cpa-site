@@ -804,7 +804,13 @@ function teEmptyReturn(clientId, clientName, taxYear) {
     schedule1099: {
       interestIncome:    '',   // 1099-INT — IRC §61(a)(4)
       ordinaryDividends: '',   // 1099-DIV Box 1a — IRC §61(a)(7)
-      qualifiedDividends:''    // 1099-DIV Box 1b — IRC §1(h)(11); must be ≤ ordinaryDividends
+      qualifiedDividends:'',   // 1099-DIV Box 1b — IRC §1(h)(11); must be ≤ ordinaryDividends
+      taxExemptInterest: ''    // 1099-INT Box 8 — not taxable, but required for §86 provisional income calc
+    },
+    // ── Social Security Benefits — IRC §86 — 1040 Lines 6a/6b ────────────
+    socialSecurity: {
+      benefits:           '',    // SSA-1099 Box 5 — total benefits received → 1040 Line 6a
+      mfsLivedWithSpouse: false  // IRC §86(c)(2): MFS filer who lived with spouse → 85% taxable on dollar one
     },
     scheduleD: {
       netSTCG:              '', // Net short-term capital gain/(loss) — IRC §1222(5),(6)
@@ -1448,6 +1454,8 @@ function teRenderIncome() {
       </div>
     </div>
 
+    ${teRenderSSSection()}
+
     <div class="te-subsec" style="margin-top:20px;">
       <div class="te-subsec-lbl">1099-INT &amp; 1099-DIV — Interest &amp; Dividend Income <span class="te-cite">IRC §61(a)(4),(7)</span></div>
       <div class="te-subsec-desc">Interest income (1099-INT) and dividends (1099-DIV). Qualified dividends receive preferential 0%/15%/20% rates. <span class="te-cite">IRC §1(h)(11)</span></div>
@@ -1542,6 +1550,71 @@ function teRmW2(i) {
   teMarkDirty();
   teCurrentReturn.w2.splice(i, 1);
   teRenderW2List();
+  teRecalculate();
+}
+
+// ── Social Security Benefits — IRC §86 — 1040 Lines 6a/6b ────────────────
+function teRenderSSSection() {
+  let r  = teCurrentReturn;
+  let ss = (r && r.socialSecurity) || {};
+  let fs = (r && r.filingStatus)   || 'single';
+  let calc = (r && r._calc)        || {};
+  let isMFS = fs === 'mfs';
+
+  let summaryHtml = '';
+  if (calc.ssBenefitsGross > 0) {
+    summaryHtml = teRenderSSSummary(calc, fs);
+  }
+
+  return `
+    <div class="te-subsec" style="margin-top:20px;">
+      <div class="te-subsec-lbl">Social Security Benefits (SSA-1099) <span class="te-cite">IRC §86; 1040 Lines 6a/6b</span></div>
+      <div class="te-subsec-desc">Enter the total benefits received from SSA-1099 Box 5 (1040 Line 6a). The taxable portion (Line 6b) is computed using the IRC §86 provisional income formula — up to 85% of benefits may be taxable depending on total income.</div>
+      <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:8px;">
+        <div class="te-field-group" style="max-width:220px;">
+          <label class="te-lbl">Total SS Benefits Received <span class="te-cite">SSA-1099 Box 5; 1040 Line 6a</span></label>
+          <input type="number" id="te-ss-benefits" class="te-input te-mono"
+            value="${esc(String(ss.benefits||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnSSField()">
+        </div>
+        ${isMFS ? `
+        <div class="te-field-group" style="align-self:center;margin-top:16px;">
+          <label class="te-chk-lbl" title="IRC §86(c)(2): MFS filers who lived with their spouse at any time during the year are taxed at 85% on dollar one, regardless of income.">
+            <input type="checkbox" id="te-ss-mfs-lived" ${ss.mfsLivedWithSpouse ? 'checked' : ''}
+              onchange="teOnSSField()">
+            Lived with spouse at any time during the year
+          </label>
+        </div>` : ''}
+      </div>
+      ${isMFS && !ss.mfsLivedWithSpouse ? '' : (isMFS ? `
+      <div class="te-ded-note" style="margin-top:6px;color:var(--warning,#f59e0b);">
+        MFS filers who lived with their spouse at any time during the year: 85% of benefits are taxable on dollar one — no thresholds apply. <span class="te-cite">IRC §86(c)(2)</span>
+      </div>` : '')}
+      <div id="te-ss-summary" style="margin-top:8px;">${summaryHtml}</div>
+    </div>`;
+}
+
+function teRenderSSSummary(calc, fs) {
+  if (!calc || (calc.ssBenefitsGross || 0) === 0) return '';
+  let pct   = Math.round((calc.ssTaxablePct || 0) * 100);
+  let piStr = calc.ssMfsPenalty ? 'N/A (MFS penalty rate)' : teFmt(calc.ssProvisionalIncome || 0);
+  return `
+    <div class="te-ded-note">
+      <strong>Provisional Income:</strong> ${piStr} &nbsp;|&nbsp;
+      <strong>1040 Line 6a (Gross):</strong> ${teFmt(calc.ssBenefitsGross || 0)} &nbsp;|&nbsp;
+      <strong>1040 Line 6b (Taxable):</strong> ${teFmt(calc.ssBenefitsTaxable || 0)} (${pct}% of benefits)
+      <span class="te-cite">IRC §86(a),(b)</span>
+    </div>`;
+}
+
+function teOnSSField() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.socialSecurity) teCurrentReturn.socialSecurity = {};
+  let benEl  = document.getElementById('te-ss-benefits');
+  let mfsEl  = document.getElementById('te-ss-mfs-lived');
+  if (benEl)  teCurrentReturn.socialSecurity.benefits           = benEl.value;
+  if (mfsEl)  teCurrentReturn.socialSecurity.mfsLivedWithSpouse = mfsEl.checked;
   teRecalculate();
 }
 
@@ -1685,7 +1758,16 @@ function teRender1099() {
         + teFmt(calc.ordinaryDividends - calc.qualifiedDividends) + ' non-qualified (ordinary rate)' : ''}
       ${calc.qdltcg > 0 ? ' &nbsp;|&nbsp; <strong>' + teFmt(calc.qdltcg) + '</strong> total in preferential rate pool' : ''}
     </div>` : ''}
-    <div class="te-ded-note" style="margin-top:4px;">Qualified dividends must not exceed ordinary dividends (Box 1b ≤ Box 1a). The engine enforces this automatically. <span class="te-cite">IRC §1(h)(11)(B)</span></div>`;
+    <div class="te-ded-note" style="margin-top:4px;">Qualified dividends must not exceed ordinary dividends (Box 1b ≤ Box 1a). The engine enforces this automatically. <span class="te-cite">IRC §1(h)(11)(B)</span></div>
+    <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:12px;">
+      <div class="te-field-group" style="max-width:200px;">
+        <label class="te-lbl">Tax-Exempt Interest (Box 8) <span class="te-cite">1040 Line 2a</span></label>
+        <input type="number" id="te-1099-tex" class="te-input te-mono"
+          value="${esc(String(inv.taxExemptInterest||''))}" placeholder="0.00" step="0.01" min="0"
+          oninput="teOn1099()">
+      </div>
+    </div>
+    <div class="te-ded-note" style="margin-top:4px;">Tax-exempt interest does <strong>not</strong> affect taxable income, but is included in the Social Security provisional income calculation under IRC §86(b)(1). Enter the amount from 1099-INT Box 8 or similar tax-exempt interest statements. <span class="te-cite">IRC §86(b)(1); 1040 Line 2a</span></div>`;
 }
 
 function teRenderScheduleD() {
@@ -2508,6 +2590,7 @@ function teOn1099() {
   teCurrentReturn.schedule1099.interestIncome    = g('te-1099-int');
   teCurrentReturn.schedule1099.ordinaryDividends = g('te-1099-div-ord');
   teCurrentReturn.schedule1099.qualifiedDividends= g('te-1099-div-qual');
+  teCurrentReturn.schedule1099.taxExemptInterest = g('te-1099-tex');
   teRecalculate();
 }
 
@@ -2984,6 +3067,54 @@ function teRenderPayments() {
 }
 
 
+// ── Social Security Taxable Amount — IRC §86 ─────────────────────────────
+// Thresholds: IRC §86(c) — STATUTORY, hardcoded since 1993, never inflation-adjusted.
+// Same values for every tax year; do NOT put in TAX_CONSTANTS.
+function teCalcSS86(benefits, prelimAGI, taxExemptInterest, fs, mfsLivedWithSpouse) {
+  benefits = teRound(Math.max(0, parseFloat(benefits) || 0));
+  if (benefits === 0) return { gross: 0, taxable: 0, provisionalIncome: 0, taxablePct: 0 };
+
+  // MFS filer who lived with spouse at any time during the year: 85% taxable on dollar one
+  // No provisional income test — IRC §86(c)(2)
+  if (fs === 'mfs' && mfsLivedWithSpouse) {
+    let taxable = teRound(benefits * 0.85);
+    return { gross: benefits, taxable, provisionalIncome: null, taxablePct: 0.85, mfsPenalty: true };
+  }
+
+  // Provisional income = AGI (without SS) + tax-exempt interest + 50% of benefits
+  // IRC §86(b)(1)
+  let pi = teRound(prelimAGI + (parseFloat(taxExemptInterest) || 0) + benefits * 0.50);
+
+  // Thresholds — IRC §86(c) — statutory, not inflation-adjusted since 1993
+  let t1, t2, tier1Cap;
+  if (fs === 'mfj') {
+    t1 = 32000; t2 = 44000;  // IRC §86(c)(1)(B)
+    tier1Cap = teRound((t2 - t1) * 0.50);  // $6,000
+  } else {
+    // Single, HOH, QSS, MFS lived-apart-all-year — IRC §86(c)(1)(A)
+    t1 = 25000; t2 = 34000;
+    tier1Cap = teRound((t2 - t1) * 0.50);  // $4,500
+  }
+
+  let taxable;
+  if (pi <= t1) {
+    // Below base amount — 0% taxable — IRC §86(a)(1)
+    taxable = 0;
+  } else if (pi <= t2) {
+    // Tier 1: lesser of 50% of benefits OR 50% of (PI − t1) — IRC §86(a)(1)
+    taxable = teRound(Math.min(benefits * 0.50, (pi - t1) * 0.50));
+  } else {
+    // Tier 2: lesser of 85% of benefits OR 85% of (PI − t2) + tier1Cap — IRC §86(a)(2)
+    taxable = teRound(Math.min(benefits * 0.85, (pi - t2) * 0.85 + tier1Cap));
+  }
+
+  // Hard ceiling: taxable cannot exceed 85% of benefits — IRC §86(a)(2)(A) / §86(a)(1)(A)
+  taxable = teRound(Math.min(taxable, benefits * 0.85));
+  let taxablePct = benefits > 0 ? taxable / benefits : 0;
+  return { gross: benefits, taxable, provisionalIncome: pi, taxablePct, mfsPenalty: false };
+}
+
+
 // ──────────────────────────────────────────────────────────────────────
 //  CALCULATION ENGINE
 //  IRC §1 flow: Gross Income → AGI → Taxable Income → Tax → Credits → Payments → Refund/Due
@@ -3007,6 +3138,11 @@ function teRecalculate() {
   let inv = teCurrentReturn.schedule1099 || {};
   calc.interestIncome    = teRound(Math.max(0, parseFloat(inv.interestIncome)    || 0));
   calc.ordinaryDividends = teRound(Math.max(0, parseFloat(inv.ordinaryDividends) || 0));
+  // Tax-exempt interest: not taxable, but required for §86 provisional income formula
+  calc.taxExemptInterest = teRound(Math.max(0, parseFloat(inv.taxExemptInterest) || 0));
+  // Social Security — read early; taxable amount computed after preliminary AGI
+  let ss = teCurrentReturn.socialSecurity || {};
+  calc.ssBenefitsGross = teRound(Math.max(0, parseFloat(ss.benefits) || 0));
   // Qualified dividends must be ≤ ordinary dividends — IRC §1(h)(11)(B)
   calc.qualifiedDividends = teRound(Math.min(
     Math.max(0, parseFloat(inv.qualifiedDividends) || 0),
@@ -3113,6 +3249,22 @@ function teRecalculate() {
 
   // ── Step 3: Adjusted Gross Income — IRC §62 ─────────────────────────
   calc.agi = teRound(calc.grossIncome - calc.adjustments);
+
+  // ── Step 3c: Social Security — IRC §86 ──────────────────────────────
+  // Circular dependency resolved: §86 provisional income uses AGI without SS.
+  // We use the preliminary AGI (above) as the base, run §86, then add SS taxable
+  // back into grossIncome and AGI. Adjustments (SLI, HSA, IRA) are not recomputed
+  // because none depend on SS income — the increment is clean.
+  let ssCalc              = teCalcSS86(calc.ssBenefitsGross, calc.agi, calc.taxExemptInterest, fs, ss.mfsLivedWithSpouse);
+  calc.ssBenefitsTaxable  = ssCalc.taxable;
+  calc.ssProvisionalIncome = ssCalc.provisionalIncome;
+  calc.ssTaxablePct        = ssCalc.taxablePct;
+  calc.ssMfsPenalty        = ssCalc.mfsPenalty || false;
+  // Add SS taxable to both grossIncome and AGI — adjustments are unchanged
+  if (calc.ssBenefitsTaxable > 0) {
+    calc.grossIncome = teRound(calc.grossIncome + calc.ssBenefitsTaxable);
+    calc.agi         = teRound(calc.agi         + calc.ssBenefitsTaxable);
+  }
 
   // ── Step 3b: Investment Interest Expense — IRC §163(d) ───────────────
   // Deductible as Schedule A itemized deduction limited to net investment income.
@@ -3330,6 +3482,9 @@ function teRecalculate() {
         }
       }
     }
+    // Live-update SS §86 summary
+    let ssSummaryEl = document.getElementById('te-ss-summary');
+    if (ssSummaryEl) ssSummaryEl.innerHTML = teRenderSSSummary(calc, fs);
   }
   if (teActiveSection === 'payments') {
     teM('te-ep-total', teFmt(calc.estPayments));
@@ -4306,6 +4461,10 @@ function teUpdateMeter(calc, K, fs) {
   // SE income row
   let seIncRow = document.getElementById('te-m-se-inc-row');
   if (seIncRow) { seIncRow.style.display = calc.netSEIncome > 0 ? 'flex' : 'none'; teM('te-m-se-inc', teFmt(calc.netSEIncome)); }
+
+  // SS taxable — hidden when $0
+  let ssMRow = document.getElementById('te-m-ss-row');
+  if (ssMRow) { ssMRow.style.display = (calc.ssBenefitsTaxable || 0) > 0 ? 'flex' : 'none'; teM('te-m-ss', teFmt(calc.ssBenefitsTaxable || 0)); }
 
   // Track 4 income rows
   let intRow = document.getElementById('te-m-int-row');
