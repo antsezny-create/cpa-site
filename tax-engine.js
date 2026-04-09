@@ -1288,12 +1288,10 @@ function teRenderIncomeMenu() {
       ${teMenuCard('1099-intdiv','1099-INT / DIV','Interest &amp; Dividend Income',
           'Taxable interest, ordinary dividends, and qualified dividends.',
           hasINTDIV, teFmt(intDivAmt), src)}
-      ${teMenuCard('ira',        '1099-R',        'IRA Distributions',
-          'Traditional IRA, SEP-IRA, SIMPLE IRA — Lines 4a / 4b.',
-          (r.ira1099r||[]).length > 0, teFmt(c.iraTaxable||0), src)}
-      ${teMenuCard('pension',    '1099-R',        'Pensions &amp; Annuities',
-          '401(k), 403(b), pension plans, annuities — Lines 5a / 5b.',
-          (r.pension1099r||[]).length > 0, teFmt(c.pensionTaxable||0), src)}
+      ${teMenuCard('retirement',  '1099-R',        'Retirement Distributions',
+          'IRA, pension, 401(k), 403(b), and annuity distributions — Lines 4a/4b and 5a/5b.',
+          (r.ira1099r||[]).length > 0 || (r.pension1099r||[]).length > 0,
+          teFmt((c.iraGross||0) + (c.pensionGross||0)), src)}
       ${teMenuCard('ss',         'SSA-1099',      'Social Security Benefits',
           'Benefits from SSA. Taxability: 0%, 50%, or 85% of gross. IRC §86.',
           parseFloat((r.socialSecurity||{}).benefits) > 0, teFmt(c.ssBenefitsTaxable||0), src)}
@@ -1502,12 +1500,16 @@ function teRenderMiniScreen(schedId) {
         <p class="te-sec-sub"><span class="te-cite">IRC §61(a)(4),(7) &mdash; 1040 Lines 2b, 3a, 3b</span></p></div>
         <div class="te-subsec">${teRender1099()}</div>`;
 
-    case 'ira':
+    case 'retirement':
       return nav + `
-        <div class="te-sec-hdr"><h2>1099-R — IRA Distributions</h2>
-        <p class="te-sec-sub"><span class="te-cite">IRC §72, §408 &mdash; 1040 Lines 4a / 4b</span></p></div>
+        <div class="te-sec-hdr"><h2>1099-R — Retirement Distributions</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §72 &mdash; 1040 Lines 4a/4b and 5a/5b</span></p></div>
+
         <div class="te-subsec">
-          <div class="te-subsec-desc">Taxable amount defaults to full gross distribution. Adjust if basis (after-tax contributions) or rollover applies (Box 2a).</div>
+          <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:8px;">
+            IRA Distributions &nbsp;&mdash;&nbsp; <span class="te-cite">IRC §72, §408 &nbsp;|&nbsp; Lines 4a / 4b</span>
+          </div>
+          <div class="te-subsec-desc">Traditional IRA, SEP-IRA, SIMPLE IRA. Taxable amount defaults to gross — adjust if after-tax basis or rollover applies (Box 2a).</div>
           <div class="te-subsec-row" style="margin-top:8px;">
             <div></div>
             <button class="ghost-btn te-sm-btn" onclick="teAdd1099R('ira')">+ Add 1099-R (IRA)</button>
@@ -1517,14 +1519,13 @@ function teRenderMiniScreen(schedId) {
             <span>Total IRA Taxable Amount <span class="te-cite">1040 Line 4b</span></span>
             <span class="te-total-val" id="te-ira-total-val">$0</span>
           </div>
-        </div>`;
+        </div>
 
-    case 'pension':
-      return nav + `
-        <div class="te-sec-hdr"><h2>1099-R — Pensions &amp; Annuities</h2>
-        <p class="te-sec-sub"><span class="te-cite">IRC §72 &mdash; 1040 Lines 5a / 5b</span></p></div>
-        <div class="te-subsec">
-          <div class="te-subsec-desc">Distributions from 401(k), 403(b), 457(b), pension plans, annuities. Taxable amount defaults to full gross — adjust if after-tax basis applies.</div>
+        <div class="te-subsec" style="margin-top:20px;">
+          <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:8px;">
+            Pensions &amp; Annuities &nbsp;&mdash;&nbsp; <span class="te-cite">IRC §72 &nbsp;|&nbsp; Lines 5a / 5b</span>
+          </div>
+          <div class="te-subsec-desc">401(k), 403(b), 457(b), pension plans, annuities. Taxable amount defaults to gross — adjust if after-tax basis applies.</div>
           <div class="te-subsec-row" style="margin-top:8px;">
             <div></div>
             <button class="ghost-btn te-sm-btn" onclick="teAdd1099R('pension')">+ Add 1099-R (Pension)</button>
@@ -1643,8 +1644,7 @@ function teRenderMiniScreen(schedId) {
 function teMiniPostRender(schedId) {
   switch (schedId) {
     case 'w2':         teRenderW2List();              break;
-    case 'ira':        teRender1099RList('ira');       break;
-    case 'pension':    teRender1099RList('pension');   break;
+    case 'retirement': teRender1099RList('ira'); teRender1099RList('pension'); break;
     case 'sched-e':    teRenderScheduleEList();        break;
     case 'ctc':        teRenderCTCDetail();            break;
     case 'edu':        teRenderEduList();              break;
@@ -4711,8 +4711,17 @@ function teRecalculate() {
     let totalValEl = document.getElementById('te-mini-total-val');
     switch (miniId) {
       case 'w2':         if (totalValEl) totalValEl.textContent = teFmt(calc.w2Wages                                              || 0); break;
-      case 'ira':        if (totalValEl) totalValEl.textContent = teFmt(calc.iraTaxable                                            || 0); break;
-      case 'pension':    if (totalValEl) totalValEl.textContent = teFmt(calc.pensionTaxable                                        || 0); break;
+      case 'retirement': {
+        // Two independent total bars — update each by specific ID (no te-mini-total-val on this screen)
+        let iraTV = document.getElementById('te-ira-total-val');
+        let penTV = document.getElementById('te-pension-total-val');
+        let iraBar = document.getElementById('te-ira-total-bar');
+        let penBar = document.getElementById('te-pension-total-bar');
+        if (iraTV)  iraTV.textContent  = teFmt(calc.iraTaxable    || 0);
+        if (penTV)  penTV.textContent  = teFmt(calc.pensionTaxable || 0);
+        if (iraBar) iraBar.style.display = (teCurrentReturn.ira1099r    || []).length > 0 ? 'flex' : 'none';
+        if (penBar) penBar.style.display = (teCurrentReturn.pension1099r|| []).length > 0 ? 'flex' : 'none';
+      } break;
       case 'ss': {
         // SS summary is display-only (no inputs) — safe to update innerHTML directly
         let ssSel = document.getElementById('te-ss-summary');
