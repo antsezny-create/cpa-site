@@ -4653,7 +4653,8 @@ function teRecalculate() {
     let epTotal = document.querySelector('.te-total-val');
     if (epTotal) epTotal.textContent = teFmt(calc.estPayments);
     let addlPanel = document.getElementById('te-addl-taxes-panel');
-    if (addlPanel) addlPanel.innerHTML = teRenderAddlTaxes();
+    // Guard: don't rebuild while user is typing inside the panel (would destroy active input)
+    if (addlPanel && !addlPanel.contains(document.activeElement)) addlPanel.innerHTML = teRenderAddlTaxes();
   }
   if (teActiveSection === 'deductions') {
     teM('te-ded-std-amt',      teFmt(calc.stdDed));
@@ -4702,37 +4703,35 @@ function teRecalculate() {
     if (qbiPanel) qbiPanel.innerHTML = teRenderQBIPanel(calc, K, fs);
   }
   // ── Mini-screen live updates ─────────────────────────────────────────
+  // IMPORTANT: Never call full render functions here (teRenderScheduleEList, teRenderCTCDetail, etc.)
+  // Full renders rebuild innerHTML which destroys the active input element and kicks the cursor out.
+  // Only update the total-bar display value (te-mini-total-val) and display-only summary elements.
   if (teActiveSection.startsWith('mini:')) {
     let miniId = teActiveSection.slice(5);
-    // Update the deduction total-val bar without re-rendering the form fields
     let totalValEl = document.getElementById('te-mini-total-val');
     switch (miniId) {
-      case 'w2':          teRenderW2List();             break;
-      case 'ira':         teRender1099RList('ira');     break;
-      case 'pension':     teRender1099RList('pension'); break;
+      case 'w2':         if (totalValEl) totalValEl.textContent = teFmt(calc.w2Wages                                              || 0); break;
+      case 'ira':        if (totalValEl) totalValEl.textContent = teFmt(calc.iraTaxable                                            || 0); break;
+      case 'pension':    if (totalValEl) totalValEl.textContent = teFmt(calc.pensionTaxable                                        || 0); break;
       case 'ss': {
+        // SS summary is display-only (no inputs) — safe to update innerHTML directly
         let ssSel = document.getElementById('te-ss-summary');
         if (ssSel) ssSel.innerHTML = teRenderSSSummary(calc, fs);
-      }                                                  break;
-      case 'sched-e':     teRenderScheduleEList();      break;
-      case 'ctc':         teRenderCTCDetail();           break;
-      case 'eic':         teRenderEICSection();          break;
-      case 'cdcc':        teFocusSafe(teRenderCDCCSection);   break;
-      case 'savers':      teFocusSafe(teRenderSaversSection); break;
-      case 'energy':      teRenderEnergySection();       break;
-      case 'sli':         if (totalValEl) totalValEl.textContent = teFmt(calc.sliDeduction        || 0); break;
-      case 'hsa':         if (totalValEl) totalValEl.textContent = teFmt(calc.hsaDeduction        || 0); break;
-      case 'ira-ded':     if (totalValEl) totalValEl.textContent = teFmt(calc.iraDeduction        || 0); break;
-      case 'alimony':     if (totalValEl) totalValEl.textContent = teFmt(calc.alimonyDeduction    || 0); break;
-      case 'salt':        if (totalValEl) totalValEl.textContent = teFmt(calc.saltDeduction       || 0); break;
-      case 'mortgage':    if (totalValEl) totalValEl.textContent = teFmt(calc.mortgageDeduction   || 0); break;
-      case 'charitable':  if (totalValEl) totalValEl.textContent = teFmt(calc.charitableDeduction || 0); break;
-      case 'medical':     if (totalValEl) totalValEl.textContent = teFmt(calc.medicalDeduction    || 0); break;
-    }
-    // Menu totals: update the total bar in the menu that opened this mini-screen
-    let menuTot = document.querySelector('.te-menu-total-amt');
-    if (menuTot) {
-      // not applicable — menu pages are replaced by mini-screens; total bars are in mini-screens only
+      }                                                                                                                                   break;
+      case 'sched-e':    if (totalValEl) totalValEl.textContent = teFmt(calc.scheduleENet                                          || 0); break;
+      case 'ctc':        if (totalValEl) totalValEl.textContent = teFmt((calc.ctcNonRefundable || 0) + (calc.actcRefundable        || 0)); break;
+      case 'eic':        if (totalValEl) totalValEl.textContent = teFmt(calc.eicCredit                                             || 0); break;
+      case 'cdcc':       if (totalValEl) totalValEl.textContent = teFmt(calc.cdccCredit                                            || 0); break;
+      case 'savers':     if (totalValEl) totalValEl.textContent = teFmt(calc.saversCredit                                          || 0); break;
+      case 'energy':     if (totalValEl) totalValEl.textContent = teFmt(calc.energyCredit                                          || 0); break;
+      case 'sli':        if (totalValEl) totalValEl.textContent = teFmt(calc.sliDeduction                                          || 0); break;
+      case 'hsa':        if (totalValEl) totalValEl.textContent = teFmt(calc.hsaDeduction                                          || 0); break;
+      case 'ira-ded':    if (totalValEl) totalValEl.textContent = teFmt(calc.iraDeduction                                          || 0); break;
+      case 'alimony':    if (totalValEl) totalValEl.textContent = teFmt(calc.alimonyDeduction                                      || 0); break;
+      case 'salt':       if (totalValEl) totalValEl.textContent = teFmt(calc.saltDeduction                                         || 0); break;
+      case 'mortgage':   if (totalValEl) totalValEl.textContent = teFmt(calc.mortgageDeduction                                     || 0); break;
+      case 'charitable': if (totalValEl) totalValEl.textContent = teFmt(calc.charitableDeduction                                   || 0); break;
+      case 'medical':    if (totalValEl) totalValEl.textContent = teFmt(calc.medicalDeduction                                      || 0); break;
     }
   }
   // ── Menu page live updates (recalc while on a menu page) ─────────────
