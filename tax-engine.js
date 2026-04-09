@@ -444,6 +444,20 @@ const TAX_CONSTANTS = {
       },
       rate26: 0.26,     // IRC §55(b)(1)(A)(i) — STATUTORY
       rate28: 0.28      // IRC §55(b)(1)(A)(ii) — STATUTORY
+    },
+
+    // ── TRACK 5e: QBI Deduction — IRC §199A (Simplified Method — Form 8995) ─
+    // Threshold below which Form 8995 simplified method applies.
+    // Above threshold → Form 8995-A required (W-2 wage / UBIA limitations) — not built in v1.
+    // Source: Rev. Proc. 2024-40
+    qbi: {
+      threshold: {
+        single: 197300,   // IRC §199A(e)(2)(A) — verified vs Rev. Proc. 2024-40
+        mfs:    197300,   // IRC §199A(e)(2)(A) — same as single
+        hoh:    197300,   // IRC §199A(e)(2)(A) — same as single
+        mfj:    394600,   // IRC §199A(e)(2)(B) — double the single threshold
+        qss:    394600    // QSS uses MFJ threshold per IRC §2(a)
+      }
     }
   },
 
@@ -720,6 +734,19 @@ const TAX_CONSTANTS = {
     // TERMINATED — OBBBA §70505 amended §25C(h): no credit for property placed in service
     // after December 31, 2025. Code structure preserved for potential future re-enactment.
     energyImprovement: null,
+
+    // ── TRACK 5e: QBI Deduction — IRC §199A (Simplified Method — Form 8995) ─
+    // TODO:VERIFY vs Rev. Proc. 2025-32 — using CPI-estimated values ($197,300 × ~1.010)
+    // Rev. Proc. 2025-32 PDF not accessible for direct parsing as of 2026-04-08
+    qbi: {
+      threshold: {
+        single: 199300,   // TODO:VERIFY — est. $197,300 × CPI adj.
+        mfs:    199300,
+        hoh:    199300,
+        mfj:    398600,   // TODO:VERIFY — est. $394,600 × CPI adj.
+        qss:    398600
+      }
+    },
 
     // ── TRACK 6: Alternative Minimum Tax (AMT) Constants (2026) ──────────
     // OBBBA §70101 amended IRC §55(d) for TY2026+:
@@ -1927,6 +1954,38 @@ function teRenderInvestmentInterest() {
       </div>`;
 }
 
+// QBI deduction panel — read-only, computed from Schedule C — IRC §199A
+function teRenderQBIPanel(calc, K, fs) {
+  if (!K || !K.qbi) return '<div class="te-ded-note">QBI constants not available for this tax year.</div>';
+  let threshold = K.qbi.threshold[fs] || K.qbi.threshold.single;
+  let qbiBase   = calc.qbiBase   || 0;
+  let qbiDed    = calc.qbiDeduction || 0;
+  let above     = calc.qbiAboveThreshold || false;
+
+  if (qbiBase === 0) {
+    return `<div class="te-ded-note">No qualified business income — §199A deduction not applicable. Enter Schedule C net profit in the Income section to generate a QBI deduction. <span class="te-cite">IRC §199A(c)(1)</span></div>`;
+  }
+  if (above) {
+    return `
+      <div class="te-ded-note" style="color:var(--warning,#f59e0b);border-left:3px solid var(--warning,#f59e0b);padding-left:10px;">
+        <strong>Above Threshold:</strong> Taxable income exceeds the §199A simplified threshold (${teFmt(threshold)}).
+        QBI deduction requires Form 8995-A with W-2 wage and UBIA capital limitations — manual computation required for this return.
+        <span class="te-cite">IRC §199A(b)(2),(e)(2)</span>
+      </div>`;
+  }
+  return `
+    <div class="te-ctc-tbl" style="margin-top:4px;">
+      <div class="te-ctc-row"><span>Schedule C Net Profit (QBI) <span class="te-cite">IRC §199A(c)</span></span><span>${teFmt(calc.netSEIncome || 0)}</span></div>
+      <div class="te-ctc-row te-ctc-sub"><span>− 50% of SE Tax (§164(f) deduction reduces QBI)</span><span>(${teFmt(calc.seTaxDeduction || 0)})</span></div>
+      <div class="te-ctc-row te-ctc-sub"><span>= Qualified Business Income</span><span>${teFmt(qbiBase)}</span></div>
+      <div class="te-ctc-row" style="margin-top:6px;"></div>
+      <div class="te-ctc-row"><span>20% × QBI</span><span>${teFmt(teRound(qbiBase * 0.20))}</span></div>
+      <div class="te-ctc-row"><span>20% × Taxable Income Before QBI</span><span>${teFmt(teRound((calc.taxableIncomeBeforeQBI || 0) * 0.20))}</span></div>
+      <div class="te-ctc-row te-ctc-tot"><span>QBI Deduction (lesser of above) <span class="te-cite">IRC §199A(a),(b)(1)</span></span><span>${teFmt(qbiDed)}</span></div>
+    </div>
+    <div class="te-ded-note" style="margin-top:4px;">Simplified method (Form 8995) applies — taxable income ${teFmt(calc.taxableIncomeBeforeQBI || 0)} is below the ${teFmt(threshold)} threshold. <span class="te-cite">IRC §199A(e)(2); Form 8995</span></div>`;
+}
+
 function teRenderDeductions() {
   let r      = teCurrentReturn;
   let fs     = r.filingStatus || 'single';
@@ -2126,6 +2185,12 @@ function teRenderDeductions() {
             ? `Itemizing saves <strong>${teFmt(itemTotal - stdAmt)}</strong> more than the standard deduction. <span class="te-cite">IRC §63(b)</span>`
             : `Standard deduction is <strong>${teFmt(stdAmt - itemTotal)}</strong> higher than current itemized total. Enter Schedule A expenses below to compare.`}
       </div>
+    </div>
+
+    <div class="te-subsec" style="margin-top:18px;margin-bottom:18px;">
+      <div class="te-subsec-lbl">Qualified Business Income Deduction (§199A) <span class="te-cite">IRC §199A; 1040 Line 13a</span></div>
+      <div class="te-subsec-desc">Automatically computed from Schedule C net profit. Applies to sole proprietors with qualified business income below the simplified method threshold. Reduces taxable income — not AGI. <span class="te-cite">IRC §199A(a)</span></div>
+      <div id="te-qbi-panel" style="margin-top:8px;">${teRenderQBIPanel(calc, K, fs)}</div>
     </div>
 
     <div class="te-subsec-lbl" style="margin-bottom:8px;margin-top:18px;">Schedule A — Itemized Deductions <span class="te-cite">IRC §63(d)</span></div>
@@ -3316,7 +3381,32 @@ function teRecalculate() {
   teCurrentReturn.deductionType = calc.deductionType;
 
   // ── Step 5: Taxable Income — IRC §63(a) ─────────────────────────────
-  calc.taxableIncome = teRound(Math.max(0, calc.agi - calc.deductionUsed));
+  // taxableIncomeBeforeQBI: AGI − std/itemized deduction, before §199A QBI deduction
+  calc.taxableIncomeBeforeQBI = teRound(Math.max(0, calc.agi - calc.deductionUsed));
+
+  // ── Step 5b: QBI Deduction — IRC §199A (Form 8995 simplified method) ──
+  // QBI = Schedule C net profit reduced by 50% of SE tax (§164(f) deduction per Form 8995 instructions)
+  // Only applies when QBI > 0 (losses do not create a deduction — IRC §199A(c)(1))
+  // TODO: SSTB limitation applies above threshold — future Form 8995-A build
+  calc.qbiBase = teRound(Math.max(0, calc.netSEIncome - calc.seTaxDeduction));
+  let qbiThreshold = (K.qbi && K.qbi.threshold) ? (K.qbi.threshold[fs] || K.qbi.threshold.single) : 0;
+  if (calc.qbiBase === 0 || !K.qbi) {
+    // No qualified business income — deduction is $0
+    calc.qbiDeduction        = 0;
+    calc.qbiAboveThreshold   = false;
+  } else if (calc.taxableIncomeBeforeQBI > qbiThreshold) {
+    // Above simplified method threshold — Form 8995-A required
+    // IRC §199A(e)(2): taxpayers above threshold must apply W-2 wage / UBIA limitations
+    calc.qbiDeduction        = 0;
+    calc.qbiAboveThreshold   = true;
+  } else {
+    // Simplified method: 20% × QBI, limited to 20% × taxable income before QBI
+    // IRC §199A(a),(b)(1)
+    calc.qbiDeduction        = teRound(Math.min(calc.qbiBase * 0.20, calc.taxableIncomeBeforeQBI * 0.20));
+    calc.qbiAboveThreshold   = false;
+  }
+  // QBI deduction reduces taxable income — IRC §199A(a); 1040 Line 13a → Line 15
+  calc.taxableIncome = teRound(Math.max(0, calc.taxableIncomeBeforeQBI - calc.qbiDeduction));
 
   // ── Step 6: Regular Income Tax — IRC §1 ─────────────────────────────
   // QSS uses MFJ brackets per IRC §2(a)
@@ -3540,6 +3630,9 @@ function teRecalculate() {
         }
       }
     }
+    // Live-update QBI panel
+    let qbiPanel = document.getElementById('te-qbi-panel');
+    if (qbiPanel) qbiPanel.innerHTML = teRenderQBIPanel(calc, K, fs);
   }
 }
 
@@ -4514,6 +4607,8 @@ function teUpdateMeter(calc, K, fs) {
   if (itMRow)   itMRow.style.display   = useIt ? 'flex'  : 'none';
   teM('te-m-std',       '(' + teFmt(calc.stdDed)       + ')');
   teM('te-m-itemized',  '(' + teFmt(calc.itemizedTotal) + ')');
+  let qbiMRow = document.getElementById('te-m-qbi-row');
+  if (qbiMRow) { qbiMRow.style.display = (calc.qbiDeduction || 0) > 0 ? 'flex' : 'none'; teM('te-m-qbi', '(' + teFmt(calc.qbiDeduction || 0) + ')'); }
   teM('te-m-taxable',  teFmt(calc.taxableIncome));
   teM('te-m-regtax',   teFmt(calc.regularTax));
   teM('te-m-ctc',     calc.ctcNonRefundable > 0 ? '(' + teFmt(calc.ctcNonRefundable) + ')' : '$0');
