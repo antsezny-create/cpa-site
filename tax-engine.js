@@ -3450,12 +3450,17 @@ function teRecalculate() {
   calc.estQ3         = teRound(parseFloat(ep.q3) || 0);
   calc.estQ4         = teRound(parseFloat(ep.q4) || 0);
   calc.estPayments   = teRound(calc.estQ1 + calc.estQ2 + calc.estQ3 + calc.estQ4);
-  calc.totalPayments = teRound(calc.w2Withholding + calc.estPayments);
 
   // ── Step 12: Refund / Balance Due ───────────────────────────────────
-  // Positive = refund; negative = balance due
+  // Refundable credits: EIC (§32) + ACTC (§24(d)) + AOC refundable (§25A(i)) — 1040 Line 32
   calc.totalRefundableCredits = teRound(calc.actcRefundable + calc.aocRefundable + calc.eicCredit);
-  calc.refundOrDue = teRound(calc.totalPayments + calc.totalRefundableCredits - calc.taxAfterCredits);
+  // Total payments: withholding (Line 25a) + estimated (Line 26) + refundable credits (Line 32) → 1040 Line 33
+  calc.totalPayments = teRound(calc.w2Withholding + calc.estPayments + calc.totalRefundableCredits);
+  // Refund (1040 Line 34) and Balance Due (1040 Line 37) — named aliases
+  calc.refund     = teRound(Math.max(0,  calc.totalPayments - calc.totalTax));
+  calc.balanceDue = teRound(Math.max(0,  calc.totalTax      - calc.totalPayments));
+  // refundOrDue: positive = refund, negative = balance due — used by meter and display
+  calc.refundOrDue = teRound(calc.totalPayments - calc.totalTax);
 
   teCurrentReturn._calc = calc;
 
