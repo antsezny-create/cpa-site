@@ -3001,9 +3001,9 @@ function teSDTxRowHTML(part, tx, idx) {
   }
   let showWarn = daysHeld !== null && hasAmts;
   let isWrong  = showWarn && (part === 'st' ? daysHeld > 365 : daysHeld <= 365);
-  let warnMsg  = part === 'st'
-    ? '&#9888; Held &gt; 1 year &mdash; may belong in Part II (long-term). IRC &sect;1222(3),(4)'
-    : '&#9888; Held &le; 1 year &mdash; may belong in Part I (short-term). IRC &sect;1222(1),(2)';
+  let warnBtn  = part === 'st'
+    ? `<button class="te-sd-tx-warn-btn" onclick="teSchedDMoveTx('st',${idx})">&#9888; Held &gt; 1 year &mdash; Move to Part II (Long-Term)</button>`
+    : `<button class="te-sd-tx-warn-btn" onclick="teSchedDMoveTx('lt',${idx})">&#9888; Held &le; 1 year &mdash; Move to Part I (Short-Term)</button>`;
   let gainDisplay = hasAmts
     ? (gain >= 0 ? teFmt(gain) : '(' + teFmt(Math.abs(gain)) + ')')
     : '&mdash;';
@@ -3025,7 +3025,7 @@ function teSDTxRowHTML(part, tx, idx) {
         id="te-sd-${part}-gain-${idx}">${gainDisplay}</span>
       <button class="te-sd-tx-del" onclick="teSchedDDelTx('${part}',${idx})" title="Remove">&#10005;</button>
     </div>
-    ${isWrong ? `<div class="te-sd-tx-warn">${warnMsg}</div>` : ''}
+    ${isWrong ? `<div class="te-sd-tx-warn">${warnBtn}</div>` : ''}
   </div>`;
 }
 
@@ -4654,8 +4654,8 @@ function teOnSchedDTx(part, idx, field, value) {
           let days = Math.floor((b - a) / 86400000);
           let isWrong = part === 'st' ? days > 365 : days <= 365;
           if (isWrong) warn = part === 'st'
-            ? '&#9888; Held &gt; 1 year &mdash; may belong in Part II (long-term). IRC &sect;1222(3),(4)'
-            : '&#9888; Held &le; 1 year &mdash; may belong in Part I (short-term). IRC &sect;1222(1),(2)';
+            ? `<button class="te-sd-tx-warn-btn" onclick="teSchedDMoveTx('st',${idx})">&#9888; Held &gt; 1 year &mdash; Move to Part II (Long-Term)</button>`
+            : `<button class="te-sd-tx-warn-btn" onclick="teSchedDMoveTx('lt',${idx})">&#9888; Held &le; 1 year &mdash; Move to Part I (Short-Term)</button>`;
         }
       }
       if (existing) existing.remove();
@@ -4665,6 +4665,32 @@ function teOnSchedDTx(part, idx, field, value) {
 
   clearTimeout(teSchedDTimer);
   teSchedDTimer = setTimeout(() => teRecalculate(), 150);
+}
+
+// Move a transaction from one part to the other (ST→LT or LT→ST).
+// Called from the holding-period warning button.
+// Copies the full row to the destination, deletes from source, re-renders both tables.
+function teSchedDMoveTx(fromPart, idx) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  let sd      = teCurrentReturn.scheduleD;
+  let fromKey = fromPart === 'st' ? 'shortTermTransactions' : 'longTermTransactions';
+  let toPart  = fromPart === 'st' ? 'lt' : 'st';
+  let toKey   = fromPart === 'st' ? 'longTermTransactions'  : 'shortTermTransactions';
+  if (!sd[fromKey] || !sd[fromKey][idx]) return;
+  // Copy the row to the destination table
+  if (!sd[toKey]) sd[toKey] = [];
+  let tx = { ...sd[fromKey][idx], id: toPart + '-' + sd[toKey].length };
+  sd[toKey].push(tx);
+  // Remove from source — keep at least one empty row
+  if (sd[fromKey].length <= 1) {
+    sd[fromKey] = [{ id: fromPart + '-0', description: '', dateAcquired: '', dateSold: '', proceeds: '', cost: '', adjustments: '' }];
+  } else {
+    sd[fromKey].splice(idx, 1);
+  }
+  teRenderSDTxRows(fromPart);
+  teRenderSDTxRows(toPart);
+  teRecalculate();
 }
 
 // Re-render the entire tx rows container for a given part.
