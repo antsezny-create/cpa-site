@@ -799,6 +799,7 @@ let teReturns        = [];
 let teActiveYear     = 2026;
 let teCurrentReturn  = null;
 let teActiveSection  = 'dashboard';
+let teNavSource      = null;    // source section for mini-screen back button
 let teNotesPanelOpen = false;
 let teDirty          = false;  // true when return has unsaved changes
 
@@ -1223,16 +1224,694 @@ function teGetScheduleStatus(schedId) {
   }
 }
 
-function teOpenSchedule(schedId) {
-  // Phase 3 Step 9+: each schedId will render its own dedicated schedule screen.
-  // For now, map to the closest interview section.
-  let sectionMap = {
-    'w2': 'income', 'ira': 'income', 'pension': 'income', 'ss': 'income',
-    '1099-div': 'income', '1099-int': 'income', 'sched-d': 'income',
-    'sched-c': 'income', 'sched-e': 'income',
-    'deductions': 'deductions', 'credits': 'credits', 'payments': 'payments'
-  };
-  teSwitchSection(sectionMap[schedId] || 'income');
+// ──────────────────────────────────────────────────────────────────────
+//  STEP 8B — MENU PAGES & MINI-SCREENS
+//  Income / Deductions / Credits / Payments → menu cards → mini-screens
+// ──────────────────────────────────────────────────────────────────────
+
+function teBackLabel(src) {
+  return ({
+    income:     '← Income',
+    deductions: '← Deductions',
+    credits:    '← Credits',
+    payments:   '← Payments & Withholding',
+    dashboard:  '← Form 1040'
+  })[src] || '← Back';
+}
+
+function teNavBack() {
+  teSwitchSection(teNavSource || 'dashboard');
+  teNavSource = null;
+}
+
+function teMiniNav(src) {
+  return `<div class="te-mini-nav"><button class="ghost-btn te-mini-back" onclick="teNavBack()">${teBackLabel(src)}</button></div>`;
+}
+
+// Build a clickable card for the section menu pages
+function teMenuCard(schedId, formNum, title, desc, hasData, amtDisplay, navSrc) {
+  let dot = hasData
+    ? '<span class="te-card-dot te-card-dot-on"></span>'
+    : '<span class="te-card-dot te-card-dot-off"></span>';
+  let amt = hasData && amtDisplay
+    ? `<span class="te-card-amt te-mono">${amtDisplay}</span>`
+    : `<span class="te-card-amt te-card-amt-empty">—</span>`;
+  return `
+    <div class="te-menu-card" onclick="teOpenSchedule('${esc(schedId)}','${esc(navSrc)}')">
+      <div class="te-card-top"><div class="te-card-form">${esc(formNum)}</div>${dot}</div>
+      <div class="te-card-title">${title}</div>
+      <div class="te-card-desc">${desc}</div>
+      <div class="te-card-footer">${amt}</div>
+    </div>`;
+}
+
+// ── INCOME MENU ───────────────────────────────────────────────────────
+function teRenderIncomeMenu() {
+  let r  = teCurrentReturn;
+  let c  = r._calc || {};
+  let s1 = r.schedule1099 || {};
+  let src = 'income';
+  let hasDIV    = (parseFloat(s1.ordinaryDividends) || 0) > 0;
+  let hasINT    = (parseFloat(s1.interestIncome) || 0) > 0;
+  let hasINTDIV = hasDIV || hasINT;
+  let intDivAmt = (c.interestIncome || 0) + (c.ordinaryDividends || 0);
+  let sdNet     = c.scheduleDNet || 0;
+  let hasSd     = !!(((r.scheduleD||{}).netSTCG)||((r.scheduleD||{}).netLTCG)||((r.scheduleD||{}).priorYearCarryforward));
+  return `
+    <div class="te-sec-hdr"><h2>Income</h2>
+    <p class="te-sec-sub">Select a form to enter data &mdash; <span class="te-cite">IRC §61</span></p></div>
+    <div class="te-menu-grid">
+      ${teMenuCard('w2',         'W-2',          'Wages &amp; Salaries',
+          'Box 1 wages, Box 2 federal withholding. Enter each employer separately.',
+          (r.w2||[]).length > 0, teFmt(c.w2Wages||0), src)}
+      ${teMenuCard('1099-intdiv','1099-INT / DIV','Interest &amp; Dividend Income',
+          'Taxable interest, ordinary dividends, and qualified dividends.',
+          hasINTDIV, teFmt(intDivAmt), src)}
+      ${teMenuCard('ira',        '1099-R',        'IRA Distributions',
+          'Traditional IRA, SEP-IRA, SIMPLE IRA — Lines 4a / 4b.',
+          (r.ira1099r||[]).length > 0, teFmt(c.iraTaxable||0), src)}
+      ${teMenuCard('pension',    '1099-R',        'Pensions &amp; Annuities',
+          '401(k), 403(b), pension plans, annuities — Lines 5a / 5b.',
+          (r.pension1099r||[]).length > 0, teFmt(c.pensionTaxable||0), src)}
+      ${teMenuCard('ss',         'SSA-1099',      'Social Security Benefits',
+          'Benefits from SSA. Taxability: 0%, 50%, or 85% of gross. IRC §86.',
+          parseFloat((r.socialSecurity||{}).benefits) > 0, teFmt(c.ssBenefitsTaxable||0), src)}
+      ${teMenuCard('sched-c',    'Schedule C',    'Self-Employment Income',
+          'Net profit from business. Drives SE tax and QBI deduction. IRC §162.',
+          parseFloat((r.scheduleC||{}).netProfit) > 0, teFmt(c.netSEIncome||0), src)}
+      ${teMenuCard('sched-d',    'Schedule D',    'Capital Gains &amp; Losses',
+          'Net short-term and long-term gains. $3,000 annual loss cap. IRC §1221.',
+          hasSd, hasSd ? teFmt(Math.abs(sdNet)) : null, src)}
+      ${teMenuCard('sched-e',    'Schedule E',    'Pass-Through &amp; K-1 Income',
+          'Partnership, S-Corp, trust, estate K-1 income and losses. IRC §702, §1366.',
+          (r.scheduleE||[]).length > 0, teFmt(c.scheduleENet||0), src)}
+    </div>
+    <div class="te-menu-total">
+      <span>Total Gross Income <span class="te-cite">§61 / 1040 Line 9</span></span>
+      <span class="te-mono te-menu-total-amt">${teFmt(c.grossIncome||0)}</span>
+    </div>`;
+}
+
+// ── DEDUCTIONS MENU ───────────────────────────────────────────────────
+function teRenderDeductionsMenu() {
+  let r   = teCurrentReturn;
+  let c   = r._calc || {};
+  let src = 'deductions';
+  return `
+    <div class="te-sec-hdr"><h2>Deductions</h2>
+    <p class="te-sec-sub">Select a schedule to enter data &mdash; <span class="te-cite">IRC §62, §63</span></p></div>
+    <div class="te-menu-section-lbl">Above-the-Line Adjustments <span class="te-cite">IRC §62</span></div>
+    <div class="te-menu-grid">
+      ${teMenuCard('sli',     'Schedule 1', 'Student Loan Interest',
+          'Up to $2,500. Phases out by MAGI. IRC §221.',
+          (c.sliDeduction||0) > 0, teFmt(c.sliDeduction||0), src)}
+      ${teMenuCard('hsa',     'Form 8889',  'HSA Deduction',
+          'Health Savings Account contributions. Requires qualifying HDHP. IRC §223.',
+          (c.hsaDeduction||0) > 0, teFmt(c.hsaDeduction||0), src)}
+      ${teMenuCard('ira-ded', 'Form 1040',  'Traditional IRA Deduction',
+          'Deductible IRA contributions. Phases out with employer plan coverage. IRC §219.',
+          (c.iraDeduction||0) > 0, teFmt(c.iraDeduction||0), src)}
+      ${teMenuCard('alimony', 'Schedule 1', 'Alimony Paid',
+          'Pre-2019 divorce agreements only. Post-TCJA not deductible. IRC §215.',
+          (c.alimonyDeduction||0) > 0, teFmt(c.alimonyDeduction||0), src)}
+    </div>
+    <div class="te-menu-section-lbl" style="margin-top:20px;">Schedule A — Itemized Deductions <span class="te-cite">IRC §63(d)</span></div>
+    <div class="te-menu-grid">
+      ${teMenuCard('salt',       'Schedule A', 'State &amp; Local Taxes (SALT)',
+          'State income, local income, real estate, personal property. $10K–$40K cap.',
+          (c.saltDeduction||0) > 0, teFmt(c.saltDeduction||0), src)}
+      ${teMenuCard('mortgage',   'Schedule A', 'Mortgage Interest',
+          'Form 1098 interest on acquisition debt. $750K / $1M limit. IRC §163(h).',
+          (c.mortgageDeduction||0) > 0, teFmt(c.mortgageDeduction||0), src)}
+      ${teMenuCard('charitable', 'Schedule A', 'Charitable Contributions',
+          'Cash and non-cash contributions. 60% / 50% of AGI limits. IRC §170.',
+          (c.charitableDeduction||0) > 0, teFmt(c.charitableDeduction||0), src)}
+      ${teMenuCard('medical',    'Schedule A', 'Medical Expenses',
+          'Unreimbursed medical & dental exceeding 7.5% of AGI. IRC §213.',
+          (c.medicalDeduction||0) > 0, teFmt(c.medicalDeduction||0), src)}
+    </div>
+    <div class="te-menu-total">
+      <span>Deduction Applied <span class="te-cite">1040 Line 12e</span></span>
+      <span class="te-mono te-menu-total-amt">${teFmt(c.deductionUsed||0)}</span>
+    </div>`;
+}
+
+// ── CREDITS MENU ──────────────────────────────────────────────────────
+function teRenderCreditsMenu() {
+  let r     = teCurrentReturn;
+  let c     = r._calc || {};
+  let fs    = r.filingStatus || 'single';
+  let isMFS = (fs === 'mfs');
+  let src   = 'credits';
+  let mfsCard = (formNum, title, cite) =>
+    `<div class="te-menu-card te-menu-card-mfs">
+       <div class="te-card-top"><div class="te-card-form">${formNum}</div></div>
+       <div class="te-card-title">${title}</div>
+       <div class="te-card-mfs-note">Not available for MFS. <span class="te-cite">${cite}</span></div>
+     </div>`;
+  let totalCr = (c.ctcNonRefundable||0)+(c.actcRefundable||0)+
+                (c.eicCredit||0)+(c.cdccCredit||0)+
+                (c.saversCredit||0)+(c.energyCredit||0)+
+                (c.aocRefundable||0);
+  return `
+    <div class="te-sec-hdr"><h2>Tax Credits</h2>
+    <p class="te-sec-sub">Select a credit to enter data &mdash; <span class="te-cite">IRC §24, §25A, §32</span></p></div>
+    <div class="te-menu-grid">
+      ${teMenuCard('ctc',    'Form 8812',   'Child Tax Credit',
+          'CTC ($2,000 / child under 17) + ACTC refundable portion. Auto-calculated from dependents.',
+          (c.ctcNonRefundable||0)+(c.actcRefundable||0) > 0,
+          teFmt((c.ctcNonRefundable||0)+(c.actcRefundable||0)), src)}
+      ${teMenuCard('edu',    'Form 8863',   'Education Credits',
+          'American Opportunity (AOC) or Lifetime Learning (LLC) — one credit per student per year.',
+          (r.educationStudents||[]).length > 0,
+          teFmt((c.eduCredit||0)+(c.aocRefundable||0)), src)}
+      ${isMFS
+        ? mfsCard('Schedule EIC', 'Earned Income Credit', 'IRC §32(d)')
+        : teMenuCard('eic', 'Schedule EIC', 'Earned Income Credit',
+            'Fully refundable. Auto-calculated from earned income and qualifying children.',
+            (c.eicCredit||0) > 0, teFmt(c.eicCredit||0), src)}
+      ${isMFS
+        ? mfsCard('Form 2441', 'Child &amp; Dependent Care Credit', 'IRC §21(e)(2)')
+        : teMenuCard('cdcc', 'Form 2441', 'Child &amp; Dependent Care Credit',
+            'Care expenses for qualifying persons. Non-refundable. Coordinates with FSA.',
+            (c.cdccCredit||0) > 0, teFmt(c.cdccCredit||0), src)}
+      ${isMFS
+        ? mfsCard('Form 8880', "Saver's Credit", 'IRC §25B(g)')
+        : teMenuCard('savers', 'Form 8880', "Retirement Savings (Saver's) Credit",
+            'Credit for contributions to 401(k), IRA, etc. Non-refundable. IRC §25B.',
+            (c.saversCredit||0) > 0, teFmt(c.saversCredit||0), src)}
+      ${teMenuCard('energy', 'Form 5695',  'Energy-Efficient Home Credit',
+          'Two pools: §25C general ($1,200 cap) and heat pump ($2,000 cap). Non-refundable.',
+          (c.energyCredit||0) > 0, teFmt(c.energyCredit||0), src)}
+    </div>
+    <div class="te-menu-total">
+      <span>Total Credits</span>
+      <span class="te-mono te-menu-total-amt">${teFmt(totalCr)}</span>
+    </div>`;
+}
+
+// ── PAYMENTS MENU ─────────────────────────────────────────────────────
+function teRenderPaymentsMenu() {
+  let r             = teCurrentReturn;
+  let c             = r._calc || {};
+  let w2Withholding = c.w2Withholding || 0;
+  let estPmt        = c.estPayments   || 0;
+  let src           = 'payments';
+  return `
+    <div class="te-sec-hdr"><h2>Payments &amp; Withholding</h2>
+    <p class="te-sec-sub">Federal tax payments &mdash; <span class="te-cite">IRC §3402, §6654</span></p></div>
+    <div class="te-menu-grid">
+      <div class="te-menu-card te-menu-card-readonly" onclick="teOpenSchedule('w2','income')">
+        <div class="te-card-top">
+          <div class="te-card-form">W-2</div>
+          <span class="te-card-dot ${w2Withholding > 0 ? 'te-card-dot-on' : 'te-card-dot-off'}"></span>
+        </div>
+        <div class="te-card-title">Federal W-2 Withholding</div>
+        <div class="te-card-desc">Box 2 withholding from W-2s. Read-only — enter under Income → W-2.</div>
+        <div class="te-card-footer">
+          ${w2Withholding > 0 ? `<span class="te-card-amt te-mono">${teFmt(w2Withholding)}</span>` : `<span class="te-card-amt te-card-amt-empty">—</span>`}
+          <span class="te-card-readonly-badge">Auto</span>
+        </div>
+      </div>
+      ${teMenuCard('est-payments', 'Form 1040-ES', 'Estimated Tax Payments',
+          'Quarterly prepayments. Enter Q1–Q4 amounts. IRC §6654.',
+          estPmt > 0, teFmt(estPmt), src)}
+    </div>
+    <div class="te-menu-total">
+      <span>Total Payments <span class="te-cite">1040 Line 33</span></span>
+      <span class="te-mono te-menu-total-amt">${teFmt(c.totalPayments||0)}</span>
+    </div>`;
+}
+
+// ── SECTION OPEN / ROUTING ────────────────────────────────────────────
+// Category schedIds (from dashboard badges) → navigate to the menu page.
+// Form-level schedIds → render a focused mini-screen.
+function teOpenSchedule(schedId, source) {
+  teNavSource = source || teActiveSection || 'dashboard';
+  // Category badges → menu page (nav highlight stays, no back button needed)
+  if (schedId === 'deductions' || schedId === 'credits' || schedId === 'payments') {
+    teSwitchSection(schedId);
+    return;
+  }
+  // All other schedIds → mini-screen
+  teActiveSection = 'mini:' + schedId;
+  document.querySelectorAll('.te-sec-btn:not(.te-sec-stub)').forEach(b => b.classList.remove('active'));
+  let body = document.getElementById('te-interview-body');
+  if (!body) return;
+  body.innerHTML = teRenderMiniScreen(schedId);
+  teMiniPostRender(schedId);
+  if (teNotesPanelOpen) {
+    let lbl = document.getElementById('te-notes-sec-lbl');
+    if (lbl) lbl.textContent = 'Section: ' + schedId;
+    teRenderNotesHistory();
+  }
+}
+
+// ── MINI-SCREEN SHELL ─────────────────────────────────────────────────
+function teRenderMiniScreen(schedId) {
+  let src = teNavSource || 'dashboard';
+  let nav = teMiniNav(src);
+  let r   = teCurrentReturn;
+  let c   = r._calc || {};
+
+  switch (schedId) {
+
+    // ── INCOME ────────────────────────────────────────────────────
+    case 'w2':
+      return nav + `
+        <div class="te-sec-hdr"><h2>W-2 — Wages &amp; Salaries</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §61(a)(1), §3401 &mdash; 1040 Line 1a</span></p></div>
+        <div class="te-subsec">
+          <div class="te-subsec-row">
+            <div class="te-subsec-desc">Enter each employer's W-2 separately. Box 1 = wages, Box 2 = federal withholding.</div>
+            <button class="ghost-btn te-sm-btn" onclick="teAddW2()">+ Add W-2</button>
+          </div>
+          <div id="te-w2-list"></div>
+          <div class="te-total-bar" id="te-w2-total-bar" style="display:none;">
+            <span>Total W-2 Wages <span class="te-cite">1040 Line 1a</span></span>
+            <span class="te-total-val" id="te-w2-total-val">$0</span>
+          </div>
+        </div>`;
+
+    case '1099-int':
+    case '1099-div':
+    case '1099-intdiv':
+      return nav + `
+        <div class="te-sec-hdr"><h2>1099-INT &amp; 1099-DIV — Interest &amp; Dividends</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §61(a)(4),(7) &mdash; 1040 Lines 2b, 3a, 3b</span></p></div>
+        <div class="te-subsec">${teRender1099()}</div>`;
+
+    case 'ira':
+      return nav + `
+        <div class="te-sec-hdr"><h2>1099-R — IRA Distributions</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §72, §408 &mdash; 1040 Lines 4a / 4b</span></p></div>
+        <div class="te-subsec">
+          <div class="te-subsec-desc">Taxable amount defaults to full gross distribution. Adjust if basis (after-tax contributions) or rollover applies (Box 2a).</div>
+          <div class="te-subsec-row" style="margin-top:8px;">
+            <div></div>
+            <button class="ghost-btn te-sm-btn" onclick="teAdd1099R('ira')">+ Add 1099-R (IRA)</button>
+          </div>
+          <div id="te-ira-list"></div>
+          <div class="te-total-bar" id="te-ira-total-bar" style="display:none;">
+            <span>Total IRA Taxable Amount <span class="te-cite">1040 Line 4b</span></span>
+            <span class="te-total-val" id="te-ira-total-val">$0</span>
+          </div>
+        </div>`;
+
+    case 'pension':
+      return nav + `
+        <div class="te-sec-hdr"><h2>1099-R — Pensions &amp; Annuities</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §72 &mdash; 1040 Lines 5a / 5b</span></p></div>
+        <div class="te-subsec">
+          <div class="te-subsec-desc">Distributions from 401(k), 403(b), 457(b), pension plans, annuities. Taxable amount defaults to full gross — adjust if after-tax basis applies.</div>
+          <div class="te-subsec-row" style="margin-top:8px;">
+            <div></div>
+            <button class="ghost-btn te-sm-btn" onclick="teAdd1099R('pension')">+ Add 1099-R (Pension)</button>
+          </div>
+          <div id="te-pension-list"></div>
+          <div class="te-total-bar" id="te-pension-total-bar" style="display:none;">
+            <span>Total Pension Taxable Amount <span class="te-cite">1040 Line 5b</span></span>
+            <span class="te-total-val" id="te-pension-total-val">$0</span>
+          </div>
+        </div>`;
+
+    case 'ss':
+      return nav + `
+        <div class="te-sec-hdr"><h2>SSA-1099 — Social Security Benefits</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §86 &mdash; 1040 Lines 6a / 6b</span></p></div>
+        <div class="te-subsec">${teRenderSSSection()}</div>`;
+
+    case 'sched-c':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Schedule C — Self-Employment Income</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §162, §61(a)(2) &mdash; Sch. 1 Line 3</span></p></div>
+        <div class="te-subsec">${teRenderScheduleC()}</div>`;
+
+    case 'sched-d':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Schedule D — Capital Gains &amp; Losses</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §1221, §1222 &mdash; 1040 Line 7a</span></p></div>
+        <div class="te-subsec">${teRenderScheduleD()}</div>`;
+
+    case 'sched-e':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Schedule E — Pass-Through &amp; K-1 Income</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §702, §1366 &mdash; Sch. 1 Line 5</span></p></div>
+        <div class="te-subsec">
+          <div class="te-subsec-desc">Partnership, S-Corp, trust, and estate K-1 income/loss. Passive losses suspended until offset by passive income. <span class="te-cite">IRC §469</span></div>
+          <div class="te-subsec-row" style="margin-top:8px;">
+            <div></div>
+            <button class="ghost-btn te-sm-btn" onclick="teAddScheduleE()">+ Add Entity</button>
+          </div>
+          <div id="te-sche-list"></div>
+        </div>`;
+
+    // ── DEDUCTIONS ────────────────────────────────────────────────
+    case 'sli':
+    case 'hsa':
+    case 'ira-ded':
+    case 'alimony':
+    case 'salt':
+    case 'mortgage':
+    case 'charitable':
+    case 'medical':
+      return nav + teRenderMiniDeductionSection(schedId);
+
+    // ── CREDITS ───────────────────────────────────────────────────
+    case 'ctc':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Child Tax Credit &amp; Schedule 8812</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §24 — OBBBA P.L. 119-21 &mdash; 1040 Lines 19, 28</span></p></div>
+        <div class="te-subsec">
+          <div class="te-subsec-desc">Qualifying children are auto-identified from the Personal section. Add dependents there to generate CTC amounts here.</div>
+          <div id="te-ctc-detail" style="margin-top:10px;"></div>
+        </div>`;
+
+    case 'edu':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Education Credits (Form 8863)</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §25A &mdash; 1040 Lines 29, 27a (AOC refundable)</span></p></div>
+        <div class="te-subsec">
+          <div class="te-subsec-row">
+            <div class="te-subsec-desc">American Opportunity (up to $2,500; 40% refundable) or Lifetime Learning (up to $2,000). One credit per student per year.</div>
+            <button class="ghost-btn te-sm-btn" onclick="teAddStudent()">+ Add Student</button>
+          </div>
+          <div id="te-edu-list" style="margin-top:10px;"></div>
+        </div>`;
+
+    case 'eic':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Earned Income Credit (Schedule EIC)</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §32 &mdash; 1040 Line 27a</span></p></div>
+        <div class="te-subsec">
+          <div class="te-subsec-desc">Fully refundable. Calculated automatically from earned income and qualifying children in the Personal section.</div>
+          <div id="te-eic-section" style="margin-top:10px;"></div>
+        </div>`;
+
+    case 'cdcc':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Child &amp; Dependent Care Credit (Form 2441)</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §21 &mdash; 1040 Line 20 via Sch. 3</span></p></div>
+        <div class="te-subsec"><div id="te-cdcc-section" style="margin-top:10px;"></div></div>`;
+
+    case 'savers':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Retirement Savings Credit (Form 8880)</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §25B &mdash; 1040 Line 20 via Sch. 3</span></p></div>
+        <div class="te-subsec"><div id="te-savers-section" style="margin-top:10px;"></div></div>`;
+
+    case 'energy':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Energy-Efficient Home Credit (Form 5695)</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §25C &mdash; 1040 Line 20 via Sch. 3</span></p></div>
+        <div class="te-subsec"><div id="te-energy-section" style="margin-top:10px;"></div></div>`;
+
+    // ── PAYMENTS ──────────────────────────────────────────────────
+    case 'est-payments':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Estimated Tax Payments (Form 1040-ES)</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §6654 &mdash; 1040 Line 26</span></p></div>
+        <div class="te-subsec">${teRenderEstimatedPayments()}</div>`;
+
+    default:
+      return nav + `<div class="te-empty">Unknown schedule: ${esc(schedId)}</div>`;
+  }
+}
+
+// ── POST-RENDER LIST CALLS FOR MINI-SCREENS ───────────────────────────
+function teMiniPostRender(schedId) {
+  switch (schedId) {
+    case 'w2':         teRenderW2List();              break;
+    case 'ira':        teRender1099RList('ira');       break;
+    case 'pension':    teRender1099RList('pension');   break;
+    case 'sched-e':    teRenderScheduleEList();        break;
+    case 'ctc':        teRenderCTCDetail();            break;
+    case 'edu':        teRenderEduList();              break;
+    case 'eic':        teRenderEICSection();           break;
+    case 'cdcc':       teRenderCDCCSection();          break;
+    case 'savers':     teRenderSaversSection();        break;
+    case 'energy':     teRenderEnergySection();        break;
+  }
+}
+
+// ── DEDUCTION MINI-SCREEN CONTENT ─────────────────────────────────────
+// Renders a single, focused deduction section (always expanded, with total bar).
+// IDs match the same IDs used in teRenderDeductions() so teOnScheduleA() / teOnAgiAdj() work identically.
+function teRenderMiniDeductionSection(secKey) {
+  let r    = teCurrentReturn;
+  let fs   = r.filingStatus || 'single';
+  let yr   = r.taxYear || teActiveYear;
+  let K    = TAX_CONSTANTS[yr];
+  if (!K) return '<div class="te-empty">Tax constants not available for ' + yr + '.</div>';
+  let a    = r.agiAdjustments || {};
+  let sa   = r.scheduleA      || {};
+  let calc = r._calc          || {};
+  let isMFS = (fs === 'mfs');
+  let isMFJ = (fs === 'mfj');
+
+  switch (secKey) {
+
+    case 'sli': {
+      let sliPo  = (fs === 'mfj') ? K.studentLoanInterest.phaseout.mfj : K.studentLoanInterest.phaseout.single;
+      let sliAmt = calc.sliDeduction || 0;
+      return `
+        <div class="te-sec-hdr"><h2>Student Loan Interest Deduction</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §221 &mdash; Sch. 1 Line 21</span></p></div>
+        <div class="te-subsec">
+          ${isMFS
+            ? '<div class="te-ded-note">Not available for Married Filing Separately. <span class="te-cite">IRC §221(b)(2)(B)</span></div>'
+            : `<div class="te-frow" style="align-items:flex-end;gap:12px;">
+                 <div class="te-field-group" style="max-width:180px;">
+                   <label class="te-lbl">Interest Paid in ${yr}</label>
+                   <input type="number" id="te-adj-sli" class="te-input te-mono" value="${esc(String(a.studentLoanInterest||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
+                 </div>
+                 <div class="te-ded-note" style="flex:1;padding-bottom:0;">Maximum $2,500. Phase-out: ${teFmt(sliPo.floor)}–${teFmt(sliPo.ceiling)} MAGI. <span class="te-cite">IRC §221(b)(1),(b)(2)</span></div>
+               </div>
+               <div class="te-total-bar" style="margin-top:14px;">
+                 <span>Allowable Deduction <span class="te-cite">IRC §221</span></span>
+                 <span class="te-total-val" id="te-mini-total-val">${teFmt(sliAmt)}</span>
+               </div>`}
+        </div>`;
+    }
+
+    case 'hsa': {
+      let hsaAmt = calc.hsaDeduction || 0;
+      return `
+        <div class="te-sec-hdr"><h2>HSA Deduction (Form 8889)</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §223 &mdash; Sch. 1 Line 13</span></p></div>
+        <div class="te-subsec">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div class="te-field-group" style="max-width:165px;">
+              <label class="te-lbl">Coverage Type</label>
+              <select id="te-adj-hsa-type" class="te-select" onchange="teOnAgiAdj()">
+                <option value="self"   ${a.hsaCoverageType!=='family'?'selected':''}>Self-Only (${teFmt(K.hsa.limitSelf)} limit)</option>
+                <option value="family" ${a.hsaCoverageType==='family'?'selected':''}>Family (${teFmt(K.hsa.limitFamily)} limit)</option>
+              </select>
+            </div>
+            <div class="te-field-group" style="max-width:165px;">
+              <label class="te-lbl">Contributions Made</label>
+              <input type="number" id="te-adj-hsa-contrib" class="te-input te-mono" value="${esc(String(a.hsaContributions||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
+            </div>
+            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding-bottom:6px;">
+              <input type="checkbox" id="te-adj-hsa-55" ${a.hsaTaxpayerAge55?'checked':''} onchange="teOnAgiAdj()">
+              Age 55+ (+$1,000) <span class="te-cite">IRC §223(b)(3)(B)</span>
+            </label>
+          </div>
+          <div class="te-ded-note">No income phase-out. Requires qualifying HDHP. Taxpayer certifies eligibility. <span class="te-cite">IRC §223(b)(1)</span></div>
+          <div class="te-total-bar" style="margin-top:14px;">
+            <span>Allowable Deduction <span class="te-cite">IRC §223</span></span>
+            <span class="te-total-val" id="te-mini-total-val">${teFmt(hsaAmt)}</span>
+          </div>
+        </div>`;
+    }
+
+    case 'ira-ded': {
+      let iraAmt   = calc.iraDeduction || 0;
+      let iraLimit = teFmt(K.ira.limit + (a.iraAge50Plus ? K.ira.catchUp : 0));
+      return `
+        <div class="te-sec-hdr"><h2>Traditional IRA Deduction</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §219 &mdash; Sch. 1 Line 20</span></p></div>
+        <div class="te-subsec">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div class="te-field-group" style="max-width:180px;">
+              <label class="te-lbl">IRA Contributions</label>
+              <input type="number" id="te-adj-ira-contrib" class="te-input te-mono" value="${esc(String(a.iraContributions||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
+            </div>
+            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding-bottom:6px;">
+              <input type="checkbox" id="te-adj-ira-50" ${a.iraAge50Plus?'checked':''} onchange="teOnAgiAdj()">
+              Age 50+ (+$1,000) <span class="te-cite">IRC §219(b)(5)(B)</span>
+            </label>
+          </div>
+          <div class="te-frow" style="gap:16px;margin-top:8px;flex-wrap:wrap;">
+            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="checkbox" id="te-adj-ira-active" ${a.iraActiveParticipant?'checked':''} onchange="teOnAgiAdj()">
+              Covered by employer plan <span class="te-cite">IRC §219(g)(2)</span>
+            </label>
+            ${isMFJ ? `
+            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="checkbox" id="te-adj-ira-spouse-active" ${a.iraSpouseActive?'checked':''} onchange="teOnAgiAdj()">
+              Spouse covered by employer plan <span class="te-cite">IRC §219(g)(7)</span>
+            </label>` : ''}
+          </div>
+          <div class="te-ded-note">Limit: ${iraLimit}. Deductibility phases out when covered by an employer plan. <span class="te-cite">IRC §219(g)</span></div>
+          <div class="te-total-bar" style="margin-top:14px;">
+            <span>Allowable Deduction <span class="te-cite">IRC §219</span></span>
+            <span class="te-total-val" id="te-mini-total-val">${teFmt(iraAmt)}</span>
+          </div>
+        </div>`;
+    }
+
+    case 'alimony': {
+      let alAmt = calc.alimonyDeduction || 0;
+      let al    = r.alimony || {};
+      return `
+        <div class="te-sec-hdr"><h2>Alimony Paid</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §215 &mdash; Sch. 1 Line 19a</span></p></div>
+        <div class="te-subsec">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div class="te-field-group" style="max-width:200px;">
+              <label class="te-lbl">Alimony Paid in ${yr}</label>
+              <input type="number" id="te-al-paid" class="te-input te-mono" value="${esc(String(al.paid||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAlimony()">
+            </div>
+            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding-bottom:6px;">
+              <input type="checkbox" id="te-al-pre" ${al.preAgreement?'checked':''} onchange="teOnAlimony()">
+              Divorce/separation agreement executed before Jan 1, 2019 <span class="te-cite">TCJA §11051</span>
+            </label>
+          </div>
+          ${!al.preAgreement
+            ? '<div class="te-ded-note" style="margin-top:4px;color:var(--te-warn,#f59e0b);">Post-2018 agreements: alimony paid is NOT deductible under TCJA. <span class="te-cite">IRC §215(b)(2)</span></div>'
+            : '<div class="te-ded-note" style="margin-top:4px;">Pre-2019 agreements: full amount paid is deductible. Recipient must include in gross income. <span class="te-cite">IRC §215(a), §71</span></div>'}
+          <div class="te-total-bar" style="margin-top:14px;">
+            <span>Allowable Deduction <span class="te-cite">IRC §215</span></span>
+            <span class="te-total-val" id="te-mini-total-val">${teFmt(alAmt)}</span>
+          </div>
+        </div>`;
+    }
+
+    case 'salt': {
+      let saltAmt   = calc.saltDeduction || 0;
+      let saltCap   = (fs === 'mfs') ? K.scheduleA.salt.mfsCap : K.scheduleA.salt.cap;
+      let saltThres = (fs === 'mfs') ? K.scheduleA.salt.mfsPhaseoutThreshold : K.scheduleA.salt.phaseoutThreshold;
+      return `
+        <div class="te-sec-hdr"><h2>Schedule A — State &amp; Local Taxes (SALT)</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §164 &mdash; Sch. A Line 5</span></p></div>
+        <div class="te-subsec">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div class="te-field-group" style="max-width:175px;">
+              <label class="te-lbl">State Income Tax Paid</label>
+              <input type="number" id="te-sa-sit" class="te-input te-mono" value="${esc(String(sa.stateIncomeTax||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-field-group" style="max-width:175px;">
+              <label class="te-lbl">Local Income Tax Paid</label>
+              <input type="number" id="te-sa-lit" class="te-input te-mono" value="${esc(String(sa.localIncomeTax||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-field-group" style="max-width:175px;">
+              <label class="te-lbl">Real Estate Tax</label>
+              <input type="number" id="te-sa-ret" class="te-input te-mono" value="${esc(String(sa.realEstateTax||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-field-group" style="max-width:175px;">
+              <label class="te-lbl">Personal Property Tax (ad valorem only)</label>
+              <input type="number" id="te-sa-ppt" class="te-input te-mono" value="${esc(String(sa.personalPropertyTax||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+          </div>
+          <div class="te-ded-note">Cap: ${teFmt(saltCap)} (${yr}). Phase-down: 30% of MAGI over ${teFmt(saltThres)}; floor $10,000. <span class="te-cite">OBBBA P.L. 119-21</span></div>
+          <div class="te-ded-note" style="margin-top:4px;">Personal property tax: ad valorem (value-based) portion only. Flat fees or per-unit charges do not qualify. <span class="te-cite">IRC §164(a)(2)</span></div>
+          <div class="te-total-bar" style="margin-top:14px;">
+            <span>Allowable SALT Deduction <span class="te-cite">IRC §164</span></span>
+            <span class="te-total-val" id="te-mini-total-val">${teFmt(saltAmt)}</span>
+          </div>
+        </div>`;
+    }
+
+    case 'mortgage': {
+      let miAmt = calc.mortgageDeduction || 0;
+      return `
+        <div class="te-sec-hdr"><h2>Schedule A — Mortgage Interest</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §163(h) &mdash; Sch. A Line 8</span></p></div>
+        <div class="te-subsec">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div class="te-field-group" style="max-width:185px;">
+              <label class="te-lbl">Interest Paid (Form 1098)</label>
+              <input type="number" id="te-sa-mi" class="te-input te-mono" value="${esc(String(sa.mortgageInterest||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-field-group" style="max-width:185px;">
+              <label class="te-lbl">Outstanding Balance</label>
+              <input type="number" id="te-sa-mb" class="te-input te-mono" value="${esc(String(sa.mortgageBalance||''))}" placeholder="0.00" step="1" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-field-group" style="max-width:185px;">
+              <label class="te-lbl">Loan Date</label>
+              <select id="te-sa-mld" class="te-select" onchange="teOnScheduleA()">
+                <option value="post2017" ${sa.mortgageLoanDate!=='pre2018'?'selected':''}>Post-12/15/2017 ($750K limit)</option>
+                <option value="pre2018"  ${sa.mortgageLoanDate==='pre2018'?'selected':''}>Pre-12/16/2017 ($1M limit)</option>
+              </select>
+            </div>
+            <div class="te-field-group" style="max-width:230px;">
+              <label class="te-lbl">Debt Purpose <span class="te-cite">IRC §163(h)(3)(C)</span></label>
+              <select id="te-sa-mp" class="te-select" onchange="teOnScheduleA()">
+                <option value="acquisition"          ${sa.mortgagePurpose!=='home_equity_personal'?'selected':''}>Acquisition / Improvement</option>
+                <option value="home_equity_personal" ${sa.mortgagePurpose==='home_equity_personal'?'selected':''}>Home Equity — Personal Use</option>
+              </select>
+            </div>
+          </div>
+          ${sa.mortgagePurpose === 'home_equity_personal'
+            ? '<div class="te-ded-note" style="margin-top:4px;color:var(--te-warn,#f59e0b);">Home equity interest used for personal purposes is not deductible under TCJA. <span class="te-cite">IRC §163(h)(3)(C)</span></div>'
+            : '<div class="te-ded-note">If balance exceeds debt limit, deductible interest is prorated: interest × (limit ÷ balance). <span class="te-cite">IRC §163(h)(3)(F)</span></div>'}
+          <div class="te-total-bar" style="margin-top:14px;">
+            <span>Allowable Mortgage Interest Deduction <span class="te-cite">IRC §163(h)</span></span>
+            <span class="te-total-val" id="te-mini-total-val">${teFmt(miAmt)}</span>
+          </div>
+        </div>`;
+    }
+
+    case 'charitable': {
+      let charAmt = calc.charitableDeduction || 0;
+      return `
+        <div class="te-sec-hdr"><h2>Schedule A — Charitable Contributions</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §170 &mdash; Sch. A Lines 11–12</span></p></div>
+        <div class="te-subsec">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div class="te-field-group" style="max-width:200px;">
+              <label class="te-lbl">Cash Contributions</label>
+              <input type="number" id="te-sa-cc" class="te-input te-mono" value="${esc(String(sa.cashCharitable||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-field-group" style="max-width:200px;">
+              <label class="te-lbl">Non-Cash Contributions</label>
+              <input type="number" id="te-sa-nc" class="te-input te-mono" value="${esc(String(sa.nonCashCharitable||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+          </div>
+          <div class="te-ded-note">Cash: limited to 60% of AGI. Non-cash: 50% of AGI. Combined cannot exceed 60% of AGI. <span class="te-cite">IRC §170(b)(1)(G),(A)</span></div>
+          <div class="te-total-bar" style="margin-top:14px;">
+            <span>Allowable Charitable Deduction <span class="te-cite">IRC §170</span></span>
+            <span class="te-total-val" id="te-mini-total-val">${teFmt(charAmt)}</span>
+          </div>
+        </div>`;
+    }
+
+    case 'medical': {
+      let medAmt   = calc.medicalDeduction || 0;
+      let agiFloor = Math.round((calc.agi || 0) * 0.075);
+      return `
+        <div class="te-sec-hdr"><h2>Schedule A — Medical &amp; Dental Expenses</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §213 &mdash; Sch. A Line 4</span></p></div>
+        <div class="te-subsec">
+          <div class="te-frow" style="align-items:flex-end;gap:12px;">
+            <div class="te-field-group" style="max-width:200px;">
+              <label class="te-lbl">Unreimbursed Medical Expenses</label>
+              <input type="number" id="te-sa-med" class="te-input te-mono" value="${esc(String(sa.medicalExpenses||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnScheduleA()">
+            </div>
+            <div class="te-ded-note" style="flex:1;padding-bottom:0;">Deductible amount = expenses exceeding 7.5% of AGI. Current 7.5% floor: ${teFmt(agiFloor)}. <span class="te-cite">IRC §213(a)</span></div>
+          </div>
+          <div class="te-ded-note" style="margin-top:4px;">Enter unreimbursed amounts only. Do not include expenses covered by insurance, HSA distributions, employer HRA, or any third-party reimbursement. <span class="te-cite">IRC §213(a)</span></div>
+          <div class="te-total-bar" style="margin-top:14px;">
+            <span>Allowable Medical Deduction <span class="te-cite">IRC §213</span></span>
+            <span class="te-total-val" id="te-mini-total-val">${teFmt(medAmt)}</span>
+          </div>
+        </div>`;
+    }
+
+    default:
+      return `<div class="te-empty">Unknown deduction section: ${esc(secKey)}</div>`;
+  }
 }
 
 function teRenderDashboard1040() {
@@ -1451,23 +2130,13 @@ function teSwitchSection(section) {
     body.innerHTML = teRenderPersonal();
     teRenderDepsList();
   } else if (section === 'income') {
-    body.innerHTML = teRenderIncome();
-    teRenderW2List();
-    teRender1099RList('ira');
-    teRender1099RList('pension');
-    teRenderScheduleEList();
+    body.innerHTML = teRenderIncomeMenu();
   } else if (section === 'deductions') {
-    body.innerHTML = teRenderDeductions();
+    body.innerHTML = teRenderDeductionsMenu();
   } else if (section === 'credits') {
-    body.innerHTML = teRenderCredits();
-    teRenderCTCDetail();
-    teRenderEduList();
-    teRenderEICSection();
-    teRenderCDCCSection();
-    teRenderSaversSection();
-    teRenderEnergySection();
+    body.innerHTML = teRenderCreditsMenu();
   } else if (section === 'payments') {
-    body.innerHTML = teRenderPayments();
+    body.innerHTML = teRenderPaymentsMenu();
   }
 
   if (teNotesPanelOpen) {
@@ -4030,6 +4699,52 @@ function teRecalculate() {
     // Live-update QBI panel
     let qbiPanel = document.getElementById('te-qbi-panel');
     if (qbiPanel) qbiPanel.innerHTML = teRenderQBIPanel(calc, K, fs);
+  }
+  // ── Mini-screen live updates ─────────────────────────────────────────
+  if (teActiveSection.startsWith('mini:')) {
+    let miniId = teActiveSection.slice(5);
+    // Update the deduction total-val bar without re-rendering the form fields
+    let totalValEl = document.getElementById('te-mini-total-val');
+    switch (miniId) {
+      case 'w2':          teRenderW2List();             break;
+      case 'ira':         teRender1099RList('ira');     break;
+      case 'pension':     teRender1099RList('pension'); break;
+      case 'ss': {
+        let ssSel = document.getElementById('te-ss-summary');
+        if (ssSel) ssSel.innerHTML = teRenderSSSummary(calc, fs);
+      }                                                  break;
+      case 'sched-e':     teRenderScheduleEList();      break;
+      case 'ctc':         teRenderCTCDetail();           break;
+      case 'eic':         teRenderEICSection();          break;
+      case 'cdcc':        teFocusSafe(teRenderCDCCSection);   break;
+      case 'savers':      teFocusSafe(teRenderSaversSection); break;
+      case 'energy':      teRenderEnergySection();       break;
+      case 'sli':         if (totalValEl) totalValEl.textContent = teFmt(calc.sliDeduction        || 0); break;
+      case 'hsa':         if (totalValEl) totalValEl.textContent = teFmt(calc.hsaDeduction        || 0); break;
+      case 'ira-ded':     if (totalValEl) totalValEl.textContent = teFmt(calc.iraDeduction        || 0); break;
+      case 'alimony':     if (totalValEl) totalValEl.textContent = teFmt(calc.alimonyDeduction    || 0); break;
+      case 'salt':        if (totalValEl) totalValEl.textContent = teFmt(calc.saltDeduction       || 0); break;
+      case 'mortgage':    if (totalValEl) totalValEl.textContent = teFmt(calc.mortgageDeduction   || 0); break;
+      case 'charitable':  if (totalValEl) totalValEl.textContent = teFmt(calc.charitableDeduction || 0); break;
+      case 'medical':     if (totalValEl) totalValEl.textContent = teFmt(calc.medicalDeduction    || 0); break;
+    }
+    // Menu totals: update the total bar in the menu that opened this mini-screen
+    let menuTot = document.querySelector('.te-menu-total-amt');
+    if (menuTot) {
+      // not applicable — menu pages are replaced by mini-screens; total bars are in mini-screens only
+    }
+  }
+  // ── Menu page live updates (recalc while on a menu page) ─────────────
+  if (teActiveSection === 'income' || teActiveSection === 'deductions' ||
+      teActiveSection === 'credits' || teActiveSection === 'payments') {
+    // Re-render the menu to update card amounts and status dots
+    let body = document.getElementById('te-interview-body');
+    if (body) {
+      if (teActiveSection === 'income')     body.innerHTML = teRenderIncomeMenu();
+      if (teActiveSection === 'deductions') body.innerHTML = teRenderDeductionsMenu();
+      if (teActiveSection === 'credits')    body.innerHTML = teRenderCreditsMenu();
+      if (teActiveSection === 'payments')   body.innerHTML = teRenderPaymentsMenu();
+    }
   }
 }
 

@@ -4669,3 +4669,165 @@ input[type="number"].te-input {
   color: var(--text-dim);
   border: 1px solid var(--border);
 }
+
+/* ──────────────────────────────────────────────────────────────────────
+   STEP 8B — MENU PAGES & MINI-SCREENS
+   ────────────────────────────────────────────────────────────────────── */
+
+/* Mini-screen back button bar */
+.te-mini-nav {
+  margin-bottom: 16px;
+}
+.te-mini-back {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  background: transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.te-mini-back:hover {
+  color: var(--text);
+  border-color: var(--border-active, #3a4a6b);
+}
+
+/* Section menu — label above a card group */
+.te-menu-section-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 10px;
+}
+
+/* Grid of form cards */
+.te-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+/* Individual card */
+.te-menu-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.te-menu-card:hover {
+  border-color: var(--accent, #4f7cff);
+  background: var(--bg-hover);
+}
+
+/* Read-only card variant (W-2 withholding in payments) */
+.te-menu-card.te-menu-card-readonly {
+  cursor: pointer;
+  opacity: 0.85;
+}
+.te-menu-card.te-menu-card-readonly:hover {
+  border-color: var(--text-muted);
+  opacity: 1;
+}
+
+/* MFS unavailable card */
+.te-menu-card.te-menu-card-mfs {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.te-card-mfs-note {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* Card interior */
+.te-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.te-card-form {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.te-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+.te-card-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.45;
+  flex: 1;
+}
+.te-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  gap: 6px;
+}
+.te-card-amt {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.te-card-amt-empty {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.te-card-readonly-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 6px;
+}
+
+/* Status dot */
+.te-card-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.te-card-dot-on  { background: #34d399; box-shadow: 0 0 5px rgba(52,211,153,0.5); }
+.te-card-dot-off { background: var(--border); }
+
+/* Section total bar at bottom of menu */
+.te-menu-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  margin-top: 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.te-menu-total-amt {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
