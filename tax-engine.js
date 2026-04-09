@@ -411,6 +411,39 @@ const TAX_CONSTANTS = {
         cap: 2000   // §25C(b)(2) — heat pumps, heat pump water heaters, biomass stoves/boilers
                     // SEPARATE cap — IN ADDITION to the $1,200 Pool A cap
       }
+    },
+
+    // ── TRACK 6: Alternative Minimum Tax (AMT) Constants (2025) ──────────
+    // IRC §55 — AMT exemption amounts, phase-out thresholds, rate break
+    // Source: Instructions for Form 6251 (2025) — irs.gov/instructions/i6251
+    // Phase-out rate: 25% — IRC §55(d)(3)(B) — STATUTORY (not inflation-adjusted)
+    // Rates 26%/28% — IRC §55(b)(1)(A) — STATUTORY
+    amt: {
+      exemption: {
+        single:  88100,   // Form 6251 instructions (2025) — irs.gov/instructions/i6251
+        mfj:    137000,   // Form 6251 instructions (2025)
+        mfs:     68500,   // Form 6251 instructions (2025) — IRC §55(d)(1)(B)
+        hoh:     88100,   // Same as single
+        qss:    137000    // QSS uses MFJ treatment — IRC §2(a)
+      },
+      // Phase-out threshold: AMTI level at which exemption begins reducing
+      // Source: Form 6251 instructions (2025) — irs.gov/instructions/i6251
+      phaseoutThreshold: {
+        single:  626350,   // Form 6251 instructions (2025)
+        mfj:    1252700,   // Form 6251 instructions (2025)
+        mfs:     626350,   // Form 6251 instructions (2025) — same as single (= half of MFJ)
+        hoh:     626350,   // Same as single
+        qss:    1252700    // QSS uses MFJ threshold
+      },
+      phaseoutRate:  0.25,    // IRC §55(d)(3)(B) — STATUTORY — 25 cents per dollar above threshold
+      // Rate break: 26% applies to AMTI ≤ this amount; 28% applies above
+      // Source: Form 6251 instructions (2025) — irs.gov/instructions/i6251
+      rateBreak: {
+        standard: 239100,   // Single/MFJ/HOH/QSS — Form 6251 instructions (2025)
+        mfs:      119550    // MFS: half of standard — Form 6251 instructions (2025)
+      },
+      rate26: 0.26,     // IRC §55(b)(1)(A)(i) — STATUTORY
+      rate28: 0.28      // IRC §55(b)(1)(A)(ii) — STATUTORY
     }
   },
 
@@ -627,14 +660,23 @@ const TAX_CONSTANTS = {
 
     // IRC §32 — Earned Income Credit (2026)
     // Statutory rates unchanged — IRC §32(b)(1)(A),(B)
-    // Inflation-adjusted amounts: Source: Rev. Proc. 2025-32 — TODO:VERIFY (not parsed)
-    // Values below are estimates based on ~2% inflation adjustment from 2025 pending verification.
+    // Inflation-adjusted amounts: Source: Rev. Proc. 2025-32 (not fully parsed)
+    // maxCredit[0] and [3] confirmed from IRS newsroom — irs-releases-tax-inflation-adjustments-for-tax-year-2026
+    // maxCredit[1],[2] and threshold/bonus figures: estimated via confirmed 2.28% CPI factor —
+    //   factor = $664/$649 = 1.02311 — TODO:VERIFY vs Rev. Proc. 2025-32 §4.06
     eic: {
-      maxCredit:         { 0: 660, 1: 4400, 2: 7270, 3: 8180 }, // TODO:VERIFY vs Rev. Proc. 2025-32
+      // maxCredit[0]: $664 — confirmed IRS newsroom 2026-04-08
+      // maxCredit[3]: $8,231 — confirmed IRS newsroom 2026-04-08
+      // maxCredit[1],[2]: estimated ($4,328 × 1.02311 ≈ $4,428; $7,152 × 1.02311 ≈ $7,317) — TODO:VERIFY
+      maxCredit:         { 0: 664, 1: 4428, 2: 7317, 3: 8231 },
       phaseInRate:       { 0: 0.0765, 1: 0.34, 2: 0.40, 3: 0.40 },  // IRC §32(b)(1)(A) — statutory
       phaseOutRate:      { 0: 0.0765, 1: 0.1598, 2: 0.2106, 3: 0.2106 }, // IRC §32(b)(1)(B) — statutory
-      phaseOutThreshold: { 0: 10230, 1: 24035, 2: 24035, 3: 24035 }, // TODO:VERIFY vs Rev. Proc. 2025-32
-      jointBonus:        6150,    // TODO:VERIFY vs Rev. Proc. 2025-32
+      // phaseOutThreshold[0]: estimated ($10,620 × 1.023 ≈ $10,860) — TODO:VERIFY vs Rev. Proc. 2025-32
+      // phaseOutThreshold[1,2,3]: estimated — TODO:VERIFY vs Rev. Proc. 2025-32
+      phaseOutThreshold: { 0: 10860, 1: 24035, 2: 24035, 3: 24035 }, // TODO:VERIFY vs Rev. Proc. 2025-32
+      // jointBonus: estimated ($7,120 × 1.023 ≈ $7,280) — TODO:VERIFY vs Rev. Proc. 2025-32
+      // Cross-check: MFJ 3+QC completed phaseout = $70,244 (confirmed Rev. Proc. 2025-32)
+      jointBonus:        7280,    // TODO:VERIFY vs Rev. Proc. 2025-32
       investmentIncomeLimit: 11950 // TODO:VERIFY vs Rev. Proc. 2025-32
     },
 
@@ -677,7 +719,47 @@ const TAX_CONSTANTS = {
     // ── TRACK 5D: Energy-Efficient Home Improvement Credit (2026) ────────
     // TERMINATED — OBBBA §70505 amended §25C(h): no credit for property placed in service
     // after December 31, 2025. Code structure preserved for potential future re-enactment.
-    energyImprovement: null
+    energyImprovement: null,
+
+    // ── TRACK 6: Alternative Minimum Tax (AMT) Constants (2026) ──────────
+    // OBBBA §70101 amended IRC §55(d) for TY2026+:
+    //   (1) Phase-out thresholds reset to lower amounts: $500,000 (single), $1,000,000 (MFJ)
+    //       indexed for CPI going forward — IRS newsroom confirmed 2026-04-08
+    //   (2) Phase-out rate DOUBLED: 25% → 50% — OBBBA §70101
+    // Exemption amounts confirmed: IRS newsroom irs-releases-tax-inflation-adjustments-for-tax-year-2026
+    // Source: OBBBA P.L. 119-21 §70101; irs.gov/newsroom/one-big-beautiful-bill-provisions
+    // TODO:VERIFY — phaseoutRate 50%: confirmed from irs.gov OBBBA newsroom;
+    //   verify rate text in P.L. 119-21 §70101 when statute accessible
+    // TODO:VERIFY — rateBreak: estimated 2025 ($239,100) × 2.3% CPI ≈ $244,600; verify vs Rev. Proc. 2025-32
+    // Rates 26%/28% — IRC §55(b)(1)(A) — STATUTORY — UNCHANGED by OBBBA
+    amt: {
+      exemption: {
+        single:  90100,    // OBBBA §70101; IRS newsroom — confirmed 2026-04-08
+        mfj:    140200,    // OBBBA §70101; IRS newsroom — confirmed 2026-04-08
+        mfs:     70100,    // Half of MFJ — IRC §55(d)(1)(B) statutory ratio
+        hoh:     90100,    // Same as single
+        qss:    140200     // QSS uses MFJ treatment — IRC §2(a)
+      },
+      // OBBBA §70101: thresholds reset to 2018 statutory levels, CPI-indexed going forward
+      // Source: IRS newsroom — confirmed 2026-04-08
+      phaseoutThreshold: {
+        single:  500000,   // OBBBA §70101 — IRS newsroom confirmed
+        mfj:    1000000,   // OBBBA §70101 — IRS newsroom confirmed
+        mfs:     500000,   // Half of MFJ (= same as single)
+        hoh:     500000,   // Same as single
+        qss:    1000000    // QSS uses MFJ threshold
+      },
+      // OBBBA §70101: doubled phase-out rate from 25% to 50% effective TY2026
+      // TODO:VERIFY — rate change confirmed from IRS OBBBA newsroom; verify vs. P.L. 119-21 §70101 text
+      phaseoutRate:  0.50,
+      // TODO:VERIFY — 2026 rate break; estimated $239,100 × 2.3% ≈ $244,600
+      rateBreak: {
+        standard: 244600,  // TODO:VERIFY vs. Rev. Proc. 2025-32
+        mfs:      122300   // Half of standard — TODO:VERIFY
+      },
+      rate26: 0.26,     // IRC §55(b)(1)(A)(i) — STATUTORY — unchanged
+      rate28: 0.28      // IRC §55(b)(1)(A)(ii) — STATUTORY — unchanged
+    }
   }
 };
 
@@ -796,6 +878,11 @@ function teEmptyReturn(clientId, clientName, taxYear) {
       heatPumpWH:     '',   // heat pump water heaters — Pool B
       biomass:        ''    // biomass stoves/boilers — Pool B
     },
+    // ── Track 6 — Alternative Minimum Tax — IRC §55 ──────────────────────
+    // ISO exercise spread: spread at exercise of incentive stock options — IRC §56(b)(3)
+    // This is the ONLY AMT preference item requiring user input; all other AMT adjustments
+    // (SALT, standard deduction) are auto-derived from existing income/deduction data.
+    isoExercise: '',        // IRC §56(b)(3) — user enters aggregate spread; $0 if none
     annotations:  [],
     completedSections: []
   };
@@ -1344,6 +1431,20 @@ function teRenderIncome() {
         <button class="ghost-btn te-sm-btn" onclick="teAddScheduleE()">+ Add Entity</button>
       </div>
       <div id="te-sche-list"></div>
+    </div>
+
+    <div class="te-subsec" style="margin-top:20px;">
+      <div class="te-subsec-lbl">ISO Exercise — AMT Preference Item <span class="te-cite">IRC §56(b)(3)</span></div>
+      <div class="te-subsec-desc">Spread at exercise of incentive stock options. Not included in regular W-2/1040 income, but IS an AMT adjustment. Enter $0 or leave blank if no ISOs were exercised this year. <span class="te-cite">IRC §56(b)(3); Form 6251 Line 2</span></div>
+      <div class="te-frow">
+        <div class="te-field-group">
+          <label class="te-lbl">ISO Exercise Spread <span class="te-cite">IRC §56(b)(3)</span></label>
+          <input type="number" id="te-iso-spread" class="te-input te-mono"
+            value="${esc(teCurrentReturn.isoExercise||'')}" min="0" step="1" placeholder="$0"
+            oninput="teOnISOField(this.value)">
+        </div>
+      </div>
+      <div class="te-ded-note">Spread = (Fair Market Value per share − Exercise Price per share) × shares exercised. Reported on Form 6251 Line 2. Does not appear on Form 1040 regular income. <span class="te-cite">IRC §56(b)(3)</span></div>
     </div>
 
     <div class="te-stub-sec" style="margin-top:8px;">
@@ -2579,6 +2680,70 @@ function teRenderAddlTaxes() {
       <div class="te-adj-body" id="te-adj-body-niit" style="display:${niitTriggered ? 'block' : 'none'};">
         ${niitHtml}
       </div>
+    </div>
+    ${teRenderAMTAccordion(calc, K, fs)}`;
+}
+
+// AMT accordion — rendered as part of teRenderAddlTaxes
+function teRenderAMTAccordion(calc, K, fs) {
+  let amtTriggered = (calc.amt || 0) > 0;
+  let A = K ? K.amt : null;
+  let row = (label, val, cls='') =>
+    `<div class="te-ctc-row${cls ? ' ' + cls : ''}"><span>${label}</span><span>${val}</span></div>`;
+
+  let amtHtml;
+  if (!A) {
+    amtHtml = `<div class="te-ded-note">AMT constants not available for this tax year.</div>`;
+  } else {
+    let fsLabel = { single:'Single', mfj:'MFJ', mfs:'MFS', hoh:'HOH', qss:'QSS' }[fs] || fs;
+    let fsKey   = (fs === 'qss') ? 'mfj' : fs;
+    let stdBack  = calc.amtStdAddBack  || 0;
+    let saltBack = calc.amtSaltAddBack || 0;
+    let isoAmt   = calc.amtISOSpread   || 0;
+    let amti     = calc.amti           || 0;
+    let effExemp = calc.amtEffExemption || 0;
+    let phaseReduction = teRound(Math.max(0, (calc.amtExemption || 0) - effExemp));
+    let amtiAfterExemp = teRound(Math.max(0, amti - effExemp));
+    let thr      = A.phaseoutThreshold[fsKey] || A.phaseoutThreshold.single;
+    let rateBreak = (fs === 'mfs') ? A.rateBreak.mfs : A.rateBreak.standard;
+
+    amtHtml = `
+      <div class="te-ctc-tbl" style="margin-top:8px;">
+        ${row('Regular Taxable Income', teFmt(calc.taxableIncome || 0))}
+        ${stdBack  > 0 ? row('+ Standard Deduction Add-Back <span class="te-cite">IRC §56(b)(1)(E)</span>',   teFmt(stdBack),  'te-ctc-sub') : ''}
+        ${saltBack > 0 ? row('+ SALT Add-Back <span class="te-cite">IRC §56(b)(1)(A)(ii)</span>',             teFmt(saltBack), 'te-ctc-sub') : ''}
+        ${isoAmt   > 0 ? row('+ ISO Exercise Spread <span class="te-cite">IRC §56(b)(3)</span>',              teFmt(isoAmt),   'te-ctc-sub') : ''}
+        ${row('= AMTI (Alternative Minimum Taxable Income)', teFmt(amti), 'te-ctc-sub')}
+        <div class="te-ctc-row" style="margin-top:6px;"></div>
+        ${row('AMT Exemption (' + fsLabel + ') <span class="te-cite">IRC §55(d)</span>', teFmt(calc.amtExemption || 0))}
+        ${phaseReduction > 0
+          ? row('Phase-out (AMTI exceeds $' + thr.toLocaleString() + ' × ' + Math.round(A.phaseoutRate * 100) + '%)', '(' + teFmt(phaseReduction) + ')', 'te-ctc-sub')
+          : ''}
+        ${row('= Effective Exemption', teFmt(effExemp), 'te-ctc-sub')}
+        ${row('= AMTI After Exemption', teFmt(amtiAfterExemp), 'te-ctc-sub')}
+        <div class="te-ctc-row" style="margin-top:6px;"></div>
+        ${row('26% / 28% Rate Break Threshold', teFmt(rateBreak))}
+        ${row('Tentative Minimum Tax (TMT)', teFmt(calc.amtTMT || 0), 'te-ctc-sub')}
+        <div class="te-ctc-row" style="margin-top:6px;"></div>
+        ${row('Regular Tax <span class="te-cite">IRC §1</span>', teFmt(calc.regularTax || 0))}
+        ${amtTriggered
+          ? row('= Alternative Minimum Tax (TMT − Regular Tax) <span class="te-cite">IRC §55(a)</span>', teFmt(calc.amt || 0), 'te-ctc-tot')
+          : row('AMT <span class="te-cite">IRC §55(a)</span>', '$0 — Regular tax ≥ TMT', 'te-ctc-ok')}
+      </div>
+      ${amtTriggered ? `<div class="te-ded-note" style="margin-top:4px;"><strong>Note:</strong> AMT paid on deferral items (e.g. ISO exercise) may generate a Minimum Tax Credit (MTC) carryforward under IRC §53, offsetting future regular tax liability. Track separately.</div>` : ''}
+      <div class="te-ded-note" style="margin-top:4px;">SALT and the standard deduction are disallowed for AMT. Qualified mortgage interest and charitable contributions remain deductible. QDLTCG portion of AMTI is taxed at preferential rates — IRC §55(b)(3). ISO spread entered in the Income section. <span class="te-cite">IRC §55; Form 6251</span></div>`;
+  }
+
+  return `
+    <div class="te-adj-row${amtTriggered ? ' te-adj-open' : ''}" id="te-adj-row-amt">
+      <div class="te-adj-row-hdr" onclick="teToggleAdj('amt')">
+        <span class="te-adj-row-label">Alternative Minimum Tax (AMT) <span class="te-cite">IRC §55</span></span>
+        <span class="te-adj-row-val ${amtTriggered ? '' : 'te-adj-val-zero'}">${teFmt(calc.amt || 0)}</span>
+        <span class="te-adj-chevron">&#8250;</span>
+      </div>
+      <div class="te-adj-body" id="te-adj-body-amt" style="display:${amtTriggered ? 'block' : 'none'};">
+        ${amtHtml}
+      </div>
     </div>`;
 }
 
@@ -2609,7 +2774,7 @@ function teRenderPayments() {
     </div>
 
     <div class="te-subsec" style="margin-top:20px;">
-      <div class="te-subsec-lbl">Additional Taxes <span class="te-cite">IRC §1401, §3101(b)(2), §1411</span></div>
+      <div class="te-subsec-lbl">Additional Taxes <span class="te-cite">IRC §55, §1401, §3101(b)(2), §1411</span></div>
       <div class="te-subsec-desc">Surtaxes computed automatically from income entries. Expand each to verify the calculation.</div>
       <div id="te-addl-taxes-panel">${teRenderAddlTaxes()}</div>
     </div>
@@ -2813,11 +2978,19 @@ function teRecalculate() {
     calc.regularTax = teBracketTax(calc.taxableIncome, K.brackets[bKey] || K.brackets.single);
   }
 
-  // ── Step 7a: Pre-credit taxes (Schedule 2, Part I) ──────────────────
-  // AMT is added here — before credits — because non-refundable credits
-  // (CTC, AOC, LLC) CAN offset regular income tax + AMT combined.
-  // Source: Form 1040 Schedule 2, Part I; IRC §55
-  calc.amt             = 0;  // IRC §55     — Phase 2 (Track 6)
+  // ── Step 7a: Alternative Minimum Tax — IRC §55 ──────────────────────
+  // AMT is included in taxBeforeCredits so non-refundable credits (CTC, CDCC, AOC, LLC,
+  // Saver's, Energy) offset the combined regular tax + AMT — per Schedule 2, Part I.
+  // teCalcAMT requires regularTax already set (above) to compute amt = max(0, TMT − regularTax).
+  let amtResult         = teCalcAMT(teCurrentReturn, calc, K, fs);
+  calc.amti             = amtResult.amti;
+  calc.amtExemption     = amtResult.exemption;
+  calc.amtEffExemption  = amtResult.effectiveExemption;
+  calc.amtTMT           = amtResult.tmt;
+  calc.amt              = amtResult.amt;
+  calc.amtStdAddBack    = amtResult.stdAddBack;
+  calc.amtSaltAddBack   = amtResult.saltAddBack;
+  calc.amtISOSpread     = amtResult.isoSpread;
   calc.taxBeforeCredits = teRound(calc.regularTax + calc.amt);
 
   // ── Step 8: Child Tax Credit — IRC §24 ──────────────────────────────
@@ -3399,6 +3572,109 @@ function teCalcEnergy(r, K) {
 }
 
 
+// ISO exercise spread field handler
+function teOnISOField(value) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  teCurrentReturn.isoExercise = value;
+  teRecalculate();
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
+//  TRACK 6 — ALTERNATIVE MINIMUM TAX (AMT)
+// ──────────────────────────────────────────────────────────────────────
+
+// IRC §55 — Alternative Minimum Tax
+// Parallel tax computation: taxpayer pays the HIGHER of regular tax or Tentative Minimum Tax (TMT).
+// AMT owed = max(0, TMT − regular tax) — IRC §55(a)
+//
+// r:    current return object
+// calc: computed values — requires regularTax, taxableIncome, saltDeduction,
+//       stdDed, deductionType, qdltcg to already be set
+// K:    TAX_CONSTANTS for the return's tax year
+// fs:   filing status
+function teCalcAMT(r, calc, K, fs) {
+  let A = K.amt;
+  if (!A) return { amti: 0, exemption: 0, effectiveExemption: 0, tmt: 0, amt: 0, isoSpread: 0, stdAddBack: 0, saltAddBack: 0 };
+
+  // ISO exercise spread — AMT preference item — IRC §56(b)(3)
+  // User-entered: FMV minus exercise price for all ISOs exercised during the year.
+  // NOT included in regular income (W-2 or otherwise) but DOES increase AMTI.
+  let iso = teRound(Math.max(0, parseFloat(r.isoExercise) || 0));
+
+  // ── Step 1: Compute AMTI — IRC §55(b)(2) ────────────────────────────
+  // Start from regular taxable income and add back AMT disallowed items.
+  //
+  // Disallowed for AMT:
+  //   Standard deduction — IRC §56(b)(1)(E)
+  //   State and local taxes (SALT) — IRC §56(b)(1)(A)(ii)
+  //
+  // Allowed for AMT (no add-back needed):
+  //   Qualified mortgage interest — IRC §56(b)(1)(C)(i) exception
+  //   Charitable contributions — not disallowed
+  //   Medical expenses at 7.5% floor — ARP Act P.L. 117-2 §9222 set permanent 7.5% for both regular + AMT
+  //
+  // Standard deduction add-back: applies only if standard deduction was taken.
+  let stdAddBack  = calc.deductionType === 'standard' ? (calc.stdDed || 0) : 0;
+  // SALT add-back: applies only if itemized (if standard, SALT was never deducted).
+  let saltAddBack = calc.deductionType === 'itemized'  ? (calc.saltDeduction || 0) : 0;
+
+  let amti = teRound(calc.taxableIncome + stdAddBack + saltAddBack + iso);
+
+  // ── Step 2: AMT Exemption — IRC §55(d) ──────────────────────────────
+  // Exemption phases out at phaseoutRate per dollar of AMTI above threshold.
+  // 2025: 25% rate — STATUTORY. 2026: 50% rate — OBBBA §70101.
+  let fsKey = (fs === 'qss') ? 'mfj' : fs;
+  let exemption          = A.exemption[fsKey]          || A.exemption.single;
+  let threshold          = A.phaseoutThreshold[fsKey]  || A.phaseoutThreshold.single;
+  let phaseoutReduction  = teRound(Math.max(0, amti - threshold) * A.phaseoutRate);
+  let effectiveExemption = teRound(Math.max(0, exemption - phaseoutReduction));
+  let amtiAfterExemption = teRound(Math.max(0, amti - effectiveExemption));
+
+  if (amtiAfterExemption <= 0) {
+    return { amti, exemption, effectiveExemption, tmt: 0, amt: 0, isoSpread: iso, stdAddBack, saltAddBack };
+  }
+
+  // ── Step 3: Tentative Minimum Tax (TMT) — IRC §55(b)(1) ─────────────
+  // IRC §55(b)(3): QDLTCG portion of AMTI is taxed at preferential 0%/15%/20% rates
+  // (same as regular tax) rather than the flat 26%/28% AMT rates.
+  // This mirrors the Form 6251 Line 17 worksheet.
+  let rateBreak = (fs === 'mfs') ? A.rateBreak.mfs : A.rateBreak.standard;
+  let qdltcg    = calc.qdltcg || 0;
+  let tmt;
+
+  if (qdltcg > 0 && amtiAfterExemption > 0) {
+    // QDLTCG in AMTI = min(qdltcg, amtiAfterExemption) — can't exceed total AMTI
+    let qdltcgInAMTI = Math.min(qdltcg, amtiAfterExemption);
+    let ordinaryAMTI = teRound(amtiAfterExemption - qdltcgInAMTI);
+    let ordinaryTMT  = teCalcAMTOrdinary(ordinaryAMTI, rateBreak, A);
+    // Preferential rate on QDLTCG: use the same QDLTCG worksheet as regular tax,
+    // substituting amtiAfterExemption for taxableIncome and ordinaryAMTI for ordinaryPortion.
+    let qdltcgTMT    = teCalcQDLTCGTax(qdltcgInAMTI, amtiAfterExemption, ordinaryAMTI, K, fs);
+    tmt = teRound(ordinaryTMT + qdltcgTMT);
+  } else {
+    tmt = teCalcAMTOrdinary(amtiAfterExemption, rateBreak, A);
+  }
+
+  // ── Step 4: AMT Liability — IRC §55(a) ──────────────────────────────
+  // AMT = max(0, TMT − regular IRC §1 tax)
+  // regularTax here is the pre-credit regular tax (after QDLTCG worksheet if applicable).
+  // Note: AMT paid due to deferral items (e.g. ISO) generates an MTC carryforward — IRC §53.
+  let amt = teRound(Math.max(0, tmt - (calc.regularTax || 0)));
+
+  return { amti, exemption, effectiveExemption, tmt, amt, isoSpread: iso, stdAddBack, saltAddBack };
+}
+
+// Helper: apply 26%/28% two-rate structure to the ordinary portion of AMTI
+// IRC §55(b)(1)(A): 26% on AMTI ≤ rateBreak; 28% on the excess above rateBreak
+function teCalcAMTOrdinary(amtiOrdinary, rateBreak, A) {
+  if (amtiOrdinary <= 0)         return 0;
+  if (amtiOrdinary <= rateBreak) return teRound(amtiOrdinary * A.rate26);
+  return teRound(rateBreak * A.rate26 + (amtiOrdinary - rateBreak) * A.rate28);
+}
+
+
 // EIC section UI renderer — called when credits tab is active
 function teRenderEICSection() {
   let c = document.getElementById('te-eic-section');
@@ -3883,6 +4159,10 @@ function teUpdateMeter(calc, K, fs) {
   if (niitMRow) { niitMRow.style.display = calc.niit > 0 ? 'flex' : 'none'; teM('te-m-niit', teFmt(calc.niit)); }
   let amMRow = document.getElementById('te-m-am-row');
   if (amMRow) { amMRow.style.display = calc.addlMedicareTax > 0 ? 'flex' : 'none'; teM('te-m-am', teFmt(calc.addlMedicareTax)); }
+
+  // AMT row — hidden when $0
+  let amtMRow = document.getElementById('te-m-amt-row');
+  if (amtMRow) { amtMRow.style.display = calc.amt > 0 ? 'flex' : 'none'; teM('te-m-amt', teFmt(calc.amt || 0)); }
 
   teM('te-m-wh',      '(' + teFmt(calc.w2Withholding) + ')');
 
