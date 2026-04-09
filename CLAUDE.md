@@ -6,21 +6,22 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Who You're Working With
 
-**Anthony Sesny** — solo CPA candidate running Sesny Advisory in New York. Non-technical background. Uses VS Code + Git for editing and deployment. Casual communication style, open to suggestions.
+**Anthony Sesny** — solo CPA Candidate running Sesny Advisory in New York. Does not yet hold a CPA license. Non-technical background. Uses VS Code + Git for editing and deployment. Casual communication style, open to suggestions.
 
 - Admin email: sesnyanthony@gmail.com (hardcoded in admin-login.js for persistent session)
+- Git email: antsezny@gmail.com
 - Site live on Vercel; backend on Firebase project: `sesny-cpa`
 
 ---
 
 ## Project Overview
 
-**Sesny Advisory** — full-stack CPA client portal for tax & accounting services. Clients upload documents and message the firm; admins manage clients, financials, returns, and accounting.
+**Sesny Advisory** — full-stack CPA client portal for tax & accounting services. Clients upload documents and message the firm; admins manage clients, financials, returns, accounting, and the tax engine.
 
 - **Frontend:** Vanilla JavaScript, HTML5, CSS3 (no framework, no build step)
 - **Backend:** Firebase (Firestore, Auth, Storage, Cloud Functions via Node.js)
 - **Email:** Nodemailer + Gmail via Cloud Functions
-- **Hosting:** Vercel (auto-deploys from GitHub `main` branch) + Firebase Hosting
+- **Hosting:** Vercel (auto-deploys from GitHub `main` branch)
 - **Git remote:** https://github.com/antsezny-create/cpa-site
 
 ---
@@ -35,12 +36,14 @@ This file provides guidance to Claude Code when working with code in this reposi
 | `pending.html` | Waiting page; real-time listener auto-redirects when approved |
 | `portal.html/css/js` | Client-facing portal (docs, messages, returns, financials) |
 | `dashboard.html` + `dashboard.js` | Admin dashboard (12+ tabs) |
-| `dashboard.css` | Admin dark theme styles (redesigned Mar 2026) |
+| `dashboard.css` | Admin dark theme styles |
 | `workspace.css` + `workspace.js` | Return assembly module |
 | `accounting-additions.css` + `financials.js` | Full accounting module (GL, IS, BS, SCF, SSHE) |
 | `import.js` | Data import (CSV/QuickBooks/trial balance) |
+| `calendar.js` | Calendar module — month/week views, federal deadlines, client/personal/user calendars, event CRUD |
+| `tax-engine.js` | Tax engine — IRC-based federal income tax calculator (Tracks 1–6 complete: income, SE, investment, credits, AMT) |
 | `admin.html` + `admin-login.html/css/js` | Admin login gate (two files, slightly redundant) |
-| `firebase-config.js` | Firebase init (auth, db, storage). App Check disabled. |
+| `firebase-config.js` | Firebase init (auth, db, storage). App Check active with reCAPTCHA v3. |
 | `firestore.rules` + `storage.rules` | Security rules |
 | `firebase.json` + `vercel.json` | Deploy configs with security headers |
 | `toast.js` | Custom toast/modal/prompt system (replaces alert/confirm) |
@@ -48,12 +51,24 @@ This file provides guidance to Claude Code when working with code in this reposi
 | `privacy.html` + `terms.html` | Legal pages |
 
 ### Dashboard JS Load Order
-`dashboard.html` loads: `firebase-config.js` → `toast.js` → `financials.js` → `workspace.js` → `import.js` → `dashboard.js`
+`dashboard.html` loads (in order):
+1. `toast.js`
+2. Firebase CDN scripts (app, auth, firestore, storage, app-check) — v10.12.0
+3. `pdf-lib` (unpkg CDN)
+4. `xlsx` (cdnjs CDN)
+5. `firebase-config.js`
+6. `dashboard.js`
+7. `financials.js`
+8. `import.js`
+9. `workspace.js`
+10. `calendar.js`
+11. `tax-engine.js`
 
 ### Inter-file Dependencies
 - All authenticated pages depend on `firebase-config.js`
 - `portal.js` and `dashboard.js` both write to: `clients`, `documents`, `messages`, `activity`
 - Cloud Functions read `clients`, `documents`, `messages`; write `isBalanced` on `journalEntries`
+- `tax-engine.js` and `calendar.js` are self-contained modules initialized by `dashboard.js`
 
 ---
 
@@ -77,28 +92,30 @@ This file provides guidance to Claude Code when working with code in this reposi
 | `savedForms/{formId}` | clientId, formName, formData, savedAt, notes | Admin or client |
 | `returnWorkspaces/{clientId_year}` | clientId, clientName, clientType, taxYear, status, forms[], review[], engagementNotes, lockedAt | Admin only |
 | `adminSessions/{sessionId}` | uid, email, loggedInAt, lastActivity | Admin |
+| `calendarEvents/{eventId}` | title, date, type, color, notes, allDay, startTime, endTime, clientId, clientName, calYear, isOverride, originalDate, createdAt | Admin only |
+| `settings/{docId}` | firm: {firmName, defaultTaxYear}; userCalendars: {list:[{id,name,color}]} | Admin only |
 
 ### Firestore Rules Summary
 - Clients can ONLY update: `fulfilled` (documentRequests), `readByClient` (messages)
 - Clients CANNOT modify: role, status, approvalStatus, bookkeeping, caseOpen, year, type
 - All accounting collections (GL, COA, IS, BS, etc.) are admin-only
+- `calendarEvents` and `settings` are admin-only
 
 ### Cloud Storage Paths
 - `documents/{clientUID}/{fileName}.pdf` — client uploads, admin/client reads
 - `practitioner-forms/{timestamp}_{fileName}.pdf` — admin uploads ONLY
+- `saved-forms/{filename}` — admin only
 
 ---
 
 ## Known Bugs & Issues
 
-1. `dashboard.html` line 108/122: malformed button tag (missing opening tag, extra closing tag) in master-accounts sidebar nav
+1. `dashboard.html` ~line 108/122: malformed button tag (missing opening tag, extra closing tag) in master-accounts sidebar nav
 2. `admin.html` and `admin-login.html` are near-duplicates — unclear which is canonical
-3. `functions/index.js`: URL `https://cpa-site-pied.vercel.app/` hardcoded in 6 email functions (should be env var)
-4. `storage.rules`: no rule for `practitioner-forms/` path — admin form uploads may fail silently
-5. `portal.js`: real-time listeners not cleaned up on tab switch (memory leak risk)
-6. Document request auto-fulfillment uses substring matching — "W" request matches "W-2.pdf" (false positive risk)
-7. App Check disabled in `firebase-config.js` (was blocking auth; needs proper reCAPTCHA config)
-8. Firestore rules: clients cannot update their own phone/profile fields — may want to allow limited self-service updates
+3. `functions/index.js`: URL `https://cpa-site-pied.vercel.app/` hardcoded in 6 email functions — intentionally deferred until custom domain is set up
+4. `portal.js`: real-time listeners not cleaned up on tab switch (memory leak risk)
+5. Document request auto-fulfillment uses substring matching — "W" request matches "W-2.pdf" (false positive risk)
+6. Firestore rules: clients cannot update their own phone/profile fields — may want to allow limited self-service updates
 
 ---
 
@@ -128,6 +145,10 @@ Vercel auto-deploys from GitHub `main`. Same URL always.
 3. **Commit messages.** Never add "Co-Authored-By" lines. Keep commit messages clean.
 4. **No silent edits.** Every time a change is made, explain exactly what is being changed and exactly how it works — line by line if needed.
 5. **New Firestore paths.** Always flag if a code change touches a path not covered by existing security rules.
+6. **No Wikipedia.** Only approved primary sources: irs.gov, uscode.house.gov, congress.gov, fasb.org, aicpa.org, sec.gov.
+7. **Coding gate.** Never start coding until Anthony says "Ready Chief."
+8. **Triggers.** "Ready Chief" is Anthony's and only Anthony's. You are to never utter these words, same with "Remember Chief."
+9. **Closing Sessions.** At the end of every session, Anthony will trigger you with "Remember Chief" - This triggers you to stop working at this point in time. Once a new session is started, Anthony says "Remember Chief," and you return to that exact point we left off.
 
 ---
 
@@ -153,6 +174,31 @@ Adopt a dual-role persona for all work on the Dashboard AIS:
 
 ---
 
+## Tax Engine
+
+File: `tax-engine.js` | Default active year: 2026
+
+IRC flow: gross income → exclusions → AGI → deductions (std vs itemized) → taxable income → tax liability → credits → payments → refund/balance due
+
+Constants keyed by year (2025 and 2026). All constants must be verified against primary IRS/IRC sources and cited in comments.
+
+**Tracks 1–6: ALL COMPLETE** as of 2026-04-08.
+
+| Track | Scope |
+|-------|-------|
+| 1 | Core income, brackets, standard deduction, withholding, IRA/HSA/SLI |
+| 2 | Schedule A — SALT, mortgage, charitable, medical |
+| 3 | Self-employment — SE tax, §164(f), alimony, estimated payments |
+| 4 | Investment income — 1099-INT/DIV, Schedule D/E, NIIT, QDLTCG rates |
+| 5 | Credits — EIC, Child & Dependent Care, Saver's, Energy, CTC/ACTC |
+| 6 | AMT — IRC §55, OBBBA §70101 phase-out changes |
+
+**Pending constants (TODO:VERIFY in code):**
+- EIC 2026 full table (0/1/2 QC amounts + phase-out thresholds) — IRS EITC tables page not yet updated for 2026
+- AMT 2026 rate break ($244,600 estimated; 2025 confirmed at $239,100)
+
+---
+
 ## Key Commands
 
 All backend commands run from `/functions/`:
@@ -164,4 +210,4 @@ npm run logs     # View function logs
 npm run shell    # Open Firebase shell
 ```
 
-Frontend has no build step — edit HTML/JS/CSS directly and deploy via Vercel or `firebase deploy --only hosting`.
+Frontend has no build step — edit HTML/JS/CSS directly and push to GitHub. Vercel auto-deploys.
