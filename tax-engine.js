@@ -1568,13 +1568,14 @@ function teRender1099RList(type) {
   }
   if (bar) bar.style.display = 'flex';
 
+  let colStyle = 'display:grid;grid-template-columns:2fr 1fr 1fr 64px 60px 28px;gap:8px;align-items:center;';
   c.innerHTML = `
     <div class="te-w2-tbl">
-      <div class="te-w2-hdr">
+      <div style="${colStyle}padding:0 4px 7px;font-size:9px;font-weight:800;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;border-bottom:1px solid var(--border);">
         <span>Payer Name</span><span>Gross Distribution</span><span>Taxable Amount</span><span>Age</span><span>§72(t) Exc.</span><span></span>
       </div>
       ${entries.map((e, i) => `
-        <div class="te-w2-row">
+        <div style="${colStyle}padding:5px 4px;border-bottom:1px solid rgba(30,45,69,0.4);">
           <input type="text"   class="te-input"          value="${esc(e.payerName||'')}"  placeholder="Payer name"
             oninput="teUpd1099R('${type}',${i},'payerName',this.value)">
           <input type="number" class="te-input te-mono"  value="${e.grossDist||''}"        placeholder="0.00" step="0.01" min="0"
@@ -1583,7 +1584,7 @@ function teRender1099RList(type) {
             id="te-1099r-${type}-${i}-td"
             title="Defaults to gross distribution. Adjust if 1099-R Box 2a shows a lower taxable amount (basis, after-tax contributions, partial rollover)."
             oninput="teUpd1099R('${type}',${i},'taxableDist',this.value)">
-          <input type="number" class="te-input te-mono"  value="${e.age||''}"              placeholder="Age" step="1" min="0" max="130" style="max-width:64px;"
+          <input type="number" class="te-input te-mono"  value="${e.age||''}"              placeholder="Age" step="1" min="0" max="130"
             oninput="teUpd1099R('${type}',${i},'age',this.value)">
           <label class="te-chk-lbl" style="justify-content:center;" title="Check if a §72(t)(2) exception applies (disability, SEPP, death, medical expenses, etc.)">
             <input type="checkbox" ${e.penaltyException ? 'checked' : ''}
