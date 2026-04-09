@@ -798,7 +798,7 @@ const TAX_CONSTANTS = {
 let teReturns        = [];
 let teActiveYear     = 2026;
 let teCurrentReturn  = null;
-let teActiveSection  = 'personal';
+let teActiveSection  = 'dashboard';
 let teNotesPanelOpen = false;
 let teDirty          = false;  // true when return has unsaved changes
 
@@ -811,8 +811,9 @@ function teEmptyReturn(clientId, clientName, taxYear) {
     returnType:   '1040',
     status:       'not_started',
     filingStatus: 'single',
-    taxpayer:     { firstName: '', lastName: '', ssnLast4: '', dob: '' },
-    spouse:       { firstName: '', lastName: '', ssnLast4: '', dob: '' },
+    taxpayer:     { firstName: '', middleInitial: '', lastName: '', ssn: '', dob: '' },
+    spouse:       { firstName: '', middleInitial: '', lastName: '', ssn: '', dob: '' },
+    address:      { street: '', apt: '', city: '', state: '', zip: '' },
     dependents:   [],
     w2:           [],
     deductionType: 'standard',
@@ -959,7 +960,7 @@ function teClearReturn() {
         status:     teCurrentReturn.status
       });
       teMarkDirty();
-      teSwitchSection('personal');
+      teSwitchSection('dashboard');
       teRecalculate();
       toast('Return cleared. Save to persist.', 'info');
     }
@@ -1159,7 +1160,7 @@ function teOpenReturn(returnId) {
     teClearDirty();  // fresh load = clean baseline
     teShowEngine();
     teUpdateBreadcrumb();
-    teSwitchSection('personal');
+    teSwitchSection('dashboard');
     teRecalculate();
   }).catch(e => toast('Failed to load return: ' + e.message, 'error'));
 }
@@ -1197,6 +1198,241 @@ function teUpdateBreadcrumb() {
 
 
 // ──────────────────────────────────────────────────────────────────────
+//  1040 DASHBOARD — Form-level read-only summary
+//  Phase 3 Step 8: shell with all 1040 lines, schedule badges, live values.
+//  Phase 3 Step 9+: teOpenSchedule() will render individual schedule screens.
+// ──────────────────────────────────────────────────────────────────────
+
+function teGetScheduleStatus(schedId) {
+  let r  = teCurrentReturn;
+  let s1 = r.schedule1099 || {};
+  switch (schedId) {
+    case 'w2':       return (r.w2 || []).length > 0 ? 'entered' : 'empty';
+    case 'ira':      return (r.ira1099r || []).length > 0 ? 'entered' : 'empty';
+    case 'pension':  return (r.pension1099r || []).length > 0 ? 'entered' : 'empty';
+    case 'ss':       return parseFloat((r.socialSecurity || {}).benefits) > 0 ? 'entered' : 'empty';
+    case '1099-div': return parseFloat(s1.ordinaryDividends) > 0 ? 'entered' : 'empty';
+    case '1099-int': return parseFloat(s1.interestIncome) > 0 ? 'entered' : 'empty';
+    case 'sched-d': {
+      let sd = r.scheduleD || {};
+      return (sd.netSTCG || sd.netLTCG || sd.priorYearCarryforward) ? 'entered' : 'empty';
+    }
+    case 'sched-c':  return parseFloat((r.scheduleC || {}).netProfit) > 0 ? 'entered' : 'empty';
+    case 'sched-e':  return (r.scheduleE || []).length > 0 ? 'entered' : 'empty';
+    default:         return 'empty';
+  }
+}
+
+function teOpenSchedule(schedId) {
+  // Phase 3 Step 9+: each schedId will render its own dedicated schedule screen.
+  // For now, map to the closest interview section.
+  let sectionMap = {
+    'w2': 'income', 'ira': 'income', 'pension': 'income', 'ss': 'income',
+    '1099-div': 'income', '1099-int': 'income', 'sched-d': 'income',
+    'sched-c': 'income', 'sched-e': 'income',
+    'deductions': 'deductions', 'credits': 'credits', 'payments': 'payments'
+  };
+  teSwitchSection(sectionMap[schedId] || 'income');
+}
+
+function teRenderDashboard1040() {
+  let c  = teCurrentReturn._calc || {};
+  let r  = teCurrentReturn;
+  let s1 = r.schedule1099 || {};
+
+  // ── Display helpers ────────────────────────────────────────────────
+  // fv: positive value or dash
+  function fv(n)   { return (n || 0) !== 0 ? teFmt(Math.abs(n)) : '—'; }
+  // fvNeg: shown in parentheses (deductions, credits)
+  function fvNeg(n){ return (n || 0) !== 0 ? '(' + teFmt(Math.abs(n)) + ')' : '—'; }
+  // fvPM: gain positive, loss in parens, zero = dash
+  function fvPM(n) {
+    if (!n || n === 0) return '—';
+    return n < 0 ? '(' + teFmt(Math.abs(n)) + ')' : teFmt(n);
+  }
+
+  function badge(schedId, label) {
+    let st  = teGetScheduleStatus(schedId);
+    let cls = st === 'entered' ? 'te-dash-badge te-dash-badge-on' : 'te-dash-badge te-dash-badge-off';
+    return `<span class="${cls}" onclick="teOpenSchedule('${esc(schedId)}')">${esc(label)}</span>`;
+  }
+
+  // Regular line: line# | label + optional badges | amount
+  function line(num, label, amt, opts) {
+    opts = opts || {};
+    let cls  = 'te-dash-line' + (opts.indent ? ' te-dash-indent' : '') + (opts.sub ? ' te-dash-sub' : '');
+    let bdgs = opts.badges ? ' ' + opts.badges : '';
+    return `<div class="${cls}">
+      <span class="te-dash-num">${num}</span>
+      <span class="te-dash-lbl">${label}${bdgs}</span>
+      <span class="te-dash-amt">${amt}</span>
+    </div>`;
+  }
+
+  // Bold total line
+  function tot(num, label, amt, opts) {
+    opts = opts || {};
+    let extra = opts.refund ? ' te-dash-refund' : opts.due ? ' te-dash-due' : '';
+    return `<div class="te-dash-line te-dash-total${extra}">
+      <span class="te-dash-num">${num}</span>
+      <span class="te-dash-lbl">${label}</span>
+      <span class="te-dash-amt">${amt}</span>
+    </div>`;
+  }
+
+  // Section divider — uses the actual Form 1040 section labels
+  function sec(label) {
+    return `<div class="te-dash-sec-break"><span class="te-dash-sec-lbl">${label}</span></div>`;
+  }
+
+  // ── Derived values ─────────────────────────────────────────────────
+
+  // 1040 Line 8 = Schedule 1, Part I total (Sch C + Sch E → gross income)
+  let sched1PartI  = teRound((c.netSEIncome || 0) + (c.scheduleENet || 0));
+
+  // 1040 Line 10 = Schedule 1, Part II total (all above-the-line adjustments)
+  let sched1PartII = c.adjustments || 0;
+
+  // 1040 Line 14 = 12e + 13a (total deductions reducing taxable income)
+  let line14       = teRound((c.deductionUsed || 0) + (c.qbiDeduction || 0));
+
+  // Schedule 2, Line 3 → 1040 Line 17 (AMT + other additions from Schedule 2 Part I)
+  // In this engine: only AMT; additions to tax (1a-1z) not yet implemented.
+  let sched2line3  = c.amt || 0;
+
+  // Schedule 3, Line 8 → 1040 Line 20 (non-refundable credits other than CTC)
+  // CDCC (§21) + Saver's (§25B) + Energy (§25C/§30D) flow through Sch 3 → 1040 Line 20
+  let sched3line8  = teRound((c.cdccCredit || 0) + (c.saversCredit || 0) + (c.energyCredit || 0));
+
+  // 1040 Line 21 = Line 19 + Line 20 (total non-refundable credits)
+  let line21       = teRound((c.ctcNonRefundable || 0) + sched3line8);
+
+  // 1040 Line 22 = Line 18 − Line 21 (tax after all non-refundable credits)
+  let line22       = teRound(Math.max(0, (c.taxBeforeCredits || 0) - line21));
+
+  // Schedule 2, Line 21 → 1040 Line 23 (other taxes: SE + NIIT + Addl Medicare + §72(t))
+  let sched2line21 = teRound((c.seTax || 0) + (c.niit || 0) + (c.addlMedicareTax || 0) + (c.earlyWithdrawalPenalty || 0));
+
+  // 1040 Line 25d = total withholding (our engine: W-2 only; 1099 withholding not yet tracked)
+  let line25d      = c.w2Withholding || 0;
+
+  // 1040 Line 32 = total other payments & refundable credits (EIC + ACTC + AOC)
+  let line32       = c.totalRefundableCredits || 0;
+
+  // 1040 Line 34 = overpayment (Line 33 > Line 24); Line 35a = amount refunded to taxpayer
+  // Engine: calc.refund = max(0, totalPayments − totalTax) which equals Line 34/35a combined
+  let line34       = c.refund     || 0;
+  let line37       = c.balanceDue || 0;
+
+  // Deduction type label for Line 12e
+  let isItemized   = (c.itemizedTotal || 0) > (c.stdDed || 0);
+
+  return `
+    <div class="te-sec-hdr">
+      <h2>Form 1040 &mdash; U.S. Individual Income Tax Return</h2>
+      <p class="te-sec-sub">Tax Year ${esc(String(r.taxYear || teActiveYear))} &mdash; Read-only summary. Click any badge to jump to that schedule.</p>
+    </div>
+
+    <div class="te-dash-1040">
+
+      ${sec('Income')}
+
+      ${line('1a',  'Wages, salaries, tips (W-2, Box 1)',            fv(c.w2Wages),            { badges: badge('w2', 'W-2') })}
+      ${line('2a',  'Tax-exempt interest',                           fv(parseFloat(s1.taxExemptInterest) || 0), { sub: true })}
+      ${line('2b',  'Taxable interest',                              fv(c.interestIncome),     { badges: badge('1099-int', '1099-INT') })}
+      ${line('3a',  'Qualified dividends',                           fv(c.qualifiedDividends), { sub: true })}
+      ${line('3b',  'Ordinary dividends',                            fv(c.ordinaryDividends),  { badges: badge('1099-div', '1099-DIV') })}
+      ${line('4a',  'IRA distributions &mdash; gross',               fv(c.iraGross),           { badges: badge('ira', '1099-R IRA') })}
+      ${line('4b',  '— taxable amount',                              fv(c.iraTaxable),         { indent: true, sub: true })}
+      ${line('5a',  'Pensions &amp; annuities &mdash; gross',        fv(c.pensionGross),       { badges: badge('pension', '1099-R Pen.') })}
+      ${line('5b',  '— taxable amount',                              fv(c.pensionTaxable),     { indent: true, sub: true })}
+      ${line('6a',  'Social security benefits &mdash; gross',        fv(c.ssBenefitsGross),    { badges: badge('ss', 'SSA-1099') })}
+      ${line('6b',  '— taxable amount &nbsp;<span class="te-cite">IRC §86</span>', fv(c.ssBenefitsTaxable), { indent: true, sub: true })}
+      ${line('7a',  'Capital gain or (loss) &nbsp;<span class="te-cite">Sch. D, line 16 or 21</span>', fvPM(c.scheduleDNet), { badges: badge('sched-d', 'Sch. D') })}
+      ${line('8',   'Additional income &nbsp;<span class="te-cite">Sch. 1, line 10</span>',            fvPM(sched1PartI),    { badges: badge('sched-c', 'Sch. C') + ' ' + badge('sched-e', 'Sch. E') })}
+
+      ${tot('9', 'Total income &nbsp;<span class="te-cite">add lines 1z, 2b, 3b, 4b, 5b, 6b, 7a, 8</span>', fv(c.grossIncome))}
+
+      ${line('10',  'Adjustments to income &nbsp;<span class="te-cite">Sch. 1, line 26</span>',
+          sched1PartII > 0 ? fvNeg(sched1PartII) : '—', {})}
+
+      ${tot('11a', 'Adjusted Gross Income', fv(c.agi))}
+
+      ${sec('Tax and Credits')}
+
+      ${line('11b', 'Adjusted gross income (from line 11a)',         fv(c.agi),                { sub: true })}
+      ${line('12e', isItemized ? 'Itemized deductions &nbsp;<span class="te-cite">Sch. A, line 17</span>'
+                               : 'Standard deduction &nbsp;<span class="te-cite">IRC §63(c)</span>',
+          (c.deductionUsed || 0) > 0 ? fvNeg(c.deductionUsed) : '—',
+          { badges: isItemized ? badge('deductions', 'Sch. A') : '' })}
+      ${line('13a', 'Qualified business income deduction &nbsp;<span class="te-cite">§199A / Form 8995</span>',
+          (c.qbiDeduction || 0) > 0 ? fvNeg(c.qbiDeduction) : '—', {})}
+      ${tot('14', 'Total deductions &nbsp;<span class="te-cite">add lines 12e + 13a</span>',
+          line14 > 0 ? fvNeg(line14) : '—')}
+      ${tot('15', 'Taxable income &nbsp;<span class="te-cite">line 11b − line 14</span>', fv(c.taxableIncome))}
+
+      ${line('16',  'Tax &nbsp;<span class="te-cite">IRC §1 brackets</span>',                  fv(c.regularTax),   {})}
+      ${line('17',  'Schedule 2, line 3 &nbsp;<span class="te-cite">AMT / Form 6251</span>',   sched2line3 > 0 ? fv(sched2line3) : '—', {})}
+      ${tot('18',   'Add lines 16 and 17',                                                     fv(c.taxBeforeCredits))}
+
+      ${line('19',  'Child tax credit / credit for other dependents &nbsp;<span class="te-cite">Sch. 8812</span>',
+          (c.ctcNonRefundable || 0) > 0 ? fvNeg(c.ctcNonRefundable) : '—',
+          { badges: badge('credits', 'Credits') })}
+      ${line('20',  'Schedule 3, line 8 &nbsp;<span class="te-cite">other non-refundable credits</span>',
+          sched3line8 > 0 ? fvNeg(sched3line8) : '—', {})}
+      ${sched3line8 > 0 ? `
+        ${(c.cdccCredit   || 0) > 0 ? line('',   '— Child &amp; Dependent Care §21',         fvNeg(c.cdccCredit),   { indent: true, sub: true }) : ''}
+        ${(c.saversCredit || 0) > 0 ? line('',   "— Saver's Credit §25B",                    fvNeg(c.saversCredit), { indent: true, sub: true }) : ''}
+        ${(c.energyCredit || 0) > 0 ? line('',   '— Energy Credit §25C / §30D',              fvNeg(c.energyCredit), { indent: true, sub: true }) : ''}
+      ` : ''}
+      ${tot('21',  'Add lines 19 and 20 (total non-refundable credits)',                       line21 > 0 ? fvNeg(line21) : '—')}
+      ${tot('22',  'Subtract line 21 from line 18',                                            fv(line22))}
+
+      ${line('23',  'Other taxes &nbsp;<span class="te-cite">Sch. 2, line 21</span>',          sched2line21 > 0 ? fv(sched2line21) : '—', {})}
+      ${sched2line21 > 0 ? `
+        ${(c.seTax                || 0) > 0 ? line('', '— Self-employment tax §1401',             fv(c.seTax),                  { indent: true, sub: true }) : ''}
+        ${(c.addlMedicareTax      || 0) > 0 ? line('', '— Additional Medicare Tax §3101(b)(2)',   fv(c.addlMedicareTax),        { indent: true, sub: true }) : ''}
+        ${(c.niit                 || 0) > 0 ? line('', '— Net Investment Income Tax §1411',       fv(c.niit),                   { indent: true, sub: true }) : ''}
+        ${(c.earlyWithdrawalPenalty||0) > 0 ? line('', '— Early withdrawal penalty §72(t)',       fv(c.earlyWithdrawalPenalty), { indent: true, sub: true }) : ''}
+      ` : ''}
+
+      ${tot('24', 'Total Tax &nbsp;<span class="te-cite">add lines 22 and 23</span>', fv(c.totalTax))}
+
+      ${sec('Payments and Refundable Credits')}
+
+      ${line('25a', 'Federal income tax withheld — Form(s) W-2',     fv(line25d),          { badges: badge('w2', 'W-2') })}
+      ${line('25d', 'Add lines 25a–25c (total withholding)',          fv(line25d),          { sub: true })}
+      ${line('26',  'Estimated tax payments &nbsp;<span class="te-cite">§6654</span>',
+          (c.estPayments || 0) > 0 ? fv(c.estPayments) : '—',
+          { badges: badge('payments', 'Est. Pmts') })}
+      ${line('27a', 'Earned Income Credit (EIC) &nbsp;<span class="te-cite">§32</span>',
+          (c.eicCredit || 0) > 0 ? fv(c.eicCredit) : '—',
+          { badges: badge('credits', 'Credits') })}
+      ${line('28',  'Additional Child Tax Credit &nbsp;<span class="te-cite">§24(d) / Sch. 8812</span>',
+          (c.actcRefundable || 0) > 0 ? fv(c.actcRefundable) : '—', {})}
+      ${line('29',  'American opportunity credit &nbsp;<span class="te-cite">§25A / Form 8863, line 8</span>',
+          (c.aocRefundable || 0) > 0 ? fv(c.aocRefundable) : '—', {})}
+      ${tot('32',   'Total other payments &amp; refundable credits &nbsp;<span class="te-cite">add 27a–31</span>',
+          line32 > 0 ? fv(line32) : '—')}
+      ${tot('33',   'Total payments &nbsp;<span class="te-cite">add lines 25d + 26 + 32</span>', fv(c.totalPayments))}
+
+      ${sec('Refund / Amount You Owe')}
+
+      ${line34 > 0
+        ? tot('34',  'Overpayment &nbsp;<span class="te-cite">line 33 minus line 24</span>', teFmt(line34))
+        : ''}
+      ${line34 > 0
+        ? tot('35a', 'Amount refunded to you',   teFmt(line34), { refund: true })
+        : line37 > 0
+          ? tot('37',  'Amount you owe',          teFmt(line37), { due: true })
+          : tot('—',   'Enter return data to calculate', '—')}
+
+    </div><!-- /.te-dash-1040 -->
+  `;
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
 //  SECTION NAVIGATION
 // ──────────────────────────────────────────────────────────────────────
 
@@ -1209,7 +1445,9 @@ function teSwitchSection(section) {
   let body = document.getElementById('te-interview-body');
   if (!body) return;
 
-  if (section === 'personal') {
+  if (section === 'dashboard') {
+    body.innerHTML = teRenderDashboard1040();
+  } else if (section === 'personal') {
     body.innerHTML = teRenderPersonal();
     teRenderDepsList();
   } else if (section === 'income') {
@@ -1249,68 +1487,127 @@ function teRenderPersonal() {
   let fs = r.filingStatus || 'single';
   let tp = r.taxpayer || {};
   let sp = r.spouse   || {};
+  let ad = r.address  || {};
   let showSpouse = (fs === 'mfj' || fs === 'mfs');
 
+  // Helper: checkbox cell for dependent table
+  function chk(id, checked, onchange, label) {
+    return `<div class="te-pers-chk-cell">
+      <input type="checkbox" id="${id}" ${checked?'checked':''} onchange="${onchange}">
+      <label for="${id}" class="te-pers-chk-lbl">${label}</label>
+    </div>`;
+  }
+
   return `
-    <div class="te-sec-hdr"><h2>Personal Information</h2>
-    <p class="te-sec-sub">Filing status and taxpayer identification &mdash; <span class="te-cite">IRC §2, §7703, §152</span></p></div>
-
-    <div class="te-field-group" style="margin-bottom:18px;">
-      <label class="te-lbl">Filing Status <span class="te-cite">IRC §2</span></label>
-      <select id="te-fs" class="te-select" onchange="teOnFSChange(this.value)">
-        <option value="single" ${fs==='single'?'selected':''}>Single</option>
-        <option value="mfj"    ${fs==='mfj'   ?'selected':''}>Married Filing Jointly (MFJ)</option>
-        <option value="mfs"    ${fs==='mfs'   ?'selected':''}>Married Filing Separately (MFS)</option>
-        <option value="hoh"    ${fs==='hoh'   ?'selected':''}>Head of Household (HOH)</option>
-        <option value="qss"    ${fs==='qss'   ?'selected':''}>Qualifying Surviving Spouse (QSS)</option>
-      </select>
+    <div class="te-sec-hdr">
+      <h2>Personal Information</h2>
+      <p class="te-sec-sub">Taxpayer identification, address, and dependents &mdash; <span class="te-cite">IRC §2, §7703, §152 &mdash; Form 1040, Page 1</span></p>
     </div>
 
-    <div class="te-subsec-lbl" style="margin-bottom:10px;">Taxpayer</div>
-    <div class="te-frow">
-      <div class="te-field-group">
-        <label class="te-lbl">First Name</label>
-        <input type="text" id="te-tp-fn" class="te-input" value="${esc(tp.firstName||'')}" oninput="teOnField()">
-      </div>
-      <div class="te-field-group">
-        <label class="te-lbl">Last Name</label>
-        <input type="text" id="te-tp-ln" class="te-input" value="${esc(tp.lastName||'')}" oninput="teOnField()">
-      </div>
-      <div class="te-field-group te-narrow">
-        <label class="te-lbl">SSN (Last 4)</label>
-        <input type="text" id="te-tp-ssn" class="te-input" value="${esc(tp.ssnLast4||'')}" maxlength="4" placeholder="XXXX" oninput="teOnField()">
-      </div>
-      <div class="te-field-group">
-        <label class="te-lbl">Date of Birth</label>
-        <input type="date" lang="en-GB" id="te-tp-dob" class="te-input" value="${esc(tp.dob||'')}" onchange="teOnField()">
+    <!-- ── Filing Status ── -->
+    <div class="te-pers-block">
+      <div class="te-pers-block-lbl">Filing Status <span class="te-cite">IRC §2</span></div>
+      <div style="max-width:340px;">
+        <select id="te-fs" class="te-select" onchange="teOnFSChange(this.value)">
+          <option value="single" ${fs==='single'?'selected':''}>Single</option>
+          <option value="mfj"    ${fs==='mfj'   ?'selected':''}>Married Filing Jointly (MFJ)</option>
+          <option value="mfs"    ${fs==='mfs'   ?'selected':''}>Married Filing Separately (MFS)</option>
+          <option value="hoh"    ${fs==='hoh'   ?'selected':''}>Head of Household (HOH)</option>
+          <option value="qss"    ${fs==='qss'   ?'selected':''}>Qualifying Surviving Spouse (QSS)</option>
+        </select>
       </div>
     </div>
 
-    <div id="te-spouse-sec" style="display:${showSpouse?'block':'none'};">
-      <div class="te-subsec-lbl" style="margin-top:20px;margin-bottom:10px;">Spouse</div>
-      <div class="te-frow">
+    <!-- ── Taxpayer ── -->
+    <div class="te-pers-block">
+      <div class="te-pers-block-lbl">Taxpayer</div>
+      <div class="te-pers-name-row">
+        <div class="te-field-group">
+          <label class="te-lbl">First Name</label>
+          <input type="text" id="te-tp-fn" class="te-input" value="${esc(tp.firstName||'')}" oninput="teOnField()">
+        </div>
+        <div class="te-field-group" style="flex:0 0 52px;min-width:0;">
+          <label class="te-lbl">M.I.</label>
+          <input type="text" id="te-tp-mi" class="te-input" value="${esc(tp.middleInitial||'')}" maxlength="1" oninput="teOnField()">
+        </div>
+        <div class="te-field-group">
+          <label class="te-lbl">Last Name</label>
+          <input type="text" id="te-tp-ln" class="te-input" value="${esc(tp.lastName||'')}" oninput="teOnField()">
+        </div>
+        <div class="te-field-group" style="flex:0 0 140px;min-width:0;">
+          <label class="te-lbl">Social Security Number</label>
+          <input type="text" id="te-tp-ssn" class="te-input" value="${esc(tp.ssn||'')}" maxlength="11" placeholder="XXX-XX-XXXX" oninput="teOnField()">
+        </div>
+        <div class="te-field-group" style="flex:0 0 140px;min-width:0;">
+          <label class="te-lbl">Date of Birth <span class="te-cite" style="font-weight:400;">(engine)</span></label>
+          <input type="date" lang="en-GB" id="te-tp-dob" class="te-input" value="${esc(tp.dob||'')}" onchange="teOnField()">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Spouse ── -->
+    <div id="te-spouse-sec" class="te-pers-block" style="display:${showSpouse?'block':'none'};">
+      <div class="te-pers-block-lbl">Spouse</div>
+      <div class="te-pers-name-row">
         <div class="te-field-group">
           <label class="te-lbl">First Name</label>
           <input type="text" id="te-sp-fn" class="te-input" value="${esc(sp.firstName||'')}" oninput="teOnField()">
+        </div>
+        <div class="te-field-group" style="flex:0 0 52px;min-width:0;">
+          <label class="te-lbl">M.I.</label>
+          <input type="text" id="te-sp-mi" class="te-input" value="${esc(sp.middleInitial||'')}" maxlength="1" oninput="teOnField()">
         </div>
         <div class="te-field-group">
           <label class="te-lbl">Last Name</label>
           <input type="text" id="te-sp-ln" class="te-input" value="${esc(sp.lastName||'')}" oninput="teOnField()">
         </div>
-        <div class="te-field-group te-narrow">
-          <label class="te-lbl">SSN (Last 4)</label>
-          <input type="text" id="te-sp-ssn" class="te-input" value="${esc(sp.ssnLast4||'')}" maxlength="4" placeholder="XXXX" oninput="teOnField()">
+        <div class="te-field-group" style="flex:0 0 140px;min-width:0;">
+          <label class="te-lbl">Social Security Number</label>
+          <input type="text" id="te-sp-ssn" class="te-input" value="${esc(sp.ssn||'')}" maxlength="11" placeholder="XXX-XX-XXXX" oninput="teOnField()">
         </div>
-        <div class="te-field-group">
-          <label class="te-lbl">Date of Birth</label>
+        <div class="te-field-group" style="flex:0 0 140px;min-width:0;">
+          <label class="te-lbl">Date of Birth <span class="te-cite" style="font-weight:400;">(engine)</span></label>
           <input type="date" lang="en-GB" id="te-sp-dob" class="te-input" value="${esc(sp.dob||'')}" onchange="teOnField()">
         </div>
       </div>
     </div>
 
-    <div class="te-subsec" style="margin-top:28px;">
-      <div class="te-subsec-row">
-        <div><div class="te-subsec-lbl">Dependents <span class="te-cite">IRC §152</span></div></div>
+    <!-- ── Home Address ── -->
+    <div class="te-pers-block">
+      <div class="te-pers-block-lbl">Home Address</div>
+      <div class="te-frow" style="margin-bottom:8px;">
+        <div class="te-field-group">
+          <label class="te-lbl">Street Address</label>
+          <input type="text" id="te-addr-street" class="te-input" value="${esc(ad.street||'')}" placeholder="Number and street" oninput="teOnField()">
+        </div>
+        <div class="te-field-group" style="flex:0 0 90px;min-width:0;">
+          <label class="te-lbl">Apt. No.</label>
+          <input type="text" id="te-addr-apt" class="te-input" value="${esc(ad.apt||'')}" oninput="teOnField()">
+        </div>
+      </div>
+      <div class="te-frow">
+        <div class="te-field-group">
+          <label class="te-lbl">City / Town</label>
+          <input type="text" id="te-addr-city" class="te-input" value="${esc(ad.city||'')}" oninput="teOnField()">
+        </div>
+        <div class="te-field-group" style="flex:0 0 130px;min-width:0;">
+          <label class="te-lbl">State</label>
+          <select id="te-addr-state" class="te-select" onchange="teOnField()">
+            <option value="">— Select —</option>
+            ${['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'].map(s=>`<option value="${s}" ${(ad.state||'')=== s?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="te-field-group" style="flex:0 0 110px;min-width:0;">
+          <label class="te-lbl">ZIP Code</label>
+          <input type="text" id="te-addr-zip" class="te-input" value="${esc(ad.zip||'')}" maxlength="10" placeholder="XXXXX" oninput="teOnField()">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Dependents ── -->
+    <div class="te-pers-block">
+      <div class="te-pers-block-lbl" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Dependents <span class="te-cite">IRC §152 &mdash; Form 1040, Lines (1)–(7)</span></span>
         <button class="ghost-btn te-sm-btn" onclick="teAddDep()">+ Add Dependent</button>
       </div>
       <div id="te-deps-list"></div>
@@ -1332,14 +1629,25 @@ function teOnField() {
   let g = id => { let el = document.getElementById(id); return el ? el.value : ''; };
   let fs = document.getElementById('te-fs');
   if (fs) teCurrentReturn.filingStatus = fs.value;
-  teCurrentReturn.taxpayer.firstName = g('te-tp-fn');
-  teCurrentReturn.taxpayer.lastName  = g('te-tp-ln');
-  teCurrentReturn.taxpayer.ssnLast4  = g('te-tp-ssn');
-  teCurrentReturn.taxpayer.dob       = g('te-tp-dob');
-  teCurrentReturn.spouse.firstName   = g('te-sp-fn');
-  teCurrentReturn.spouse.lastName    = g('te-sp-ln');
-  teCurrentReturn.spouse.ssnLast4    = g('te-sp-ssn');
-  teCurrentReturn.spouse.dob         = g('te-sp-dob');
+  // Taxpayer
+  teCurrentReturn.taxpayer.firstName     = g('te-tp-fn');
+  teCurrentReturn.taxpayer.middleInitial = g('te-tp-mi');
+  teCurrentReturn.taxpayer.lastName      = g('te-tp-ln');
+  teCurrentReturn.taxpayer.ssn           = g('te-tp-ssn');
+  teCurrentReturn.taxpayer.dob           = g('te-tp-dob');
+  // Spouse
+  teCurrentReturn.spouse.firstName       = g('te-sp-fn');
+  teCurrentReturn.spouse.middleInitial   = g('te-sp-mi');
+  teCurrentReturn.spouse.lastName        = g('te-sp-ln');
+  teCurrentReturn.spouse.ssn             = g('te-sp-ssn');
+  teCurrentReturn.spouse.dob             = g('te-sp-dob');
+  // Address
+  if (!teCurrentReturn.address) teCurrentReturn.address = {};
+  teCurrentReturn.address.street = g('te-addr-street');
+  teCurrentReturn.address.apt    = g('te-addr-apt');
+  teCurrentReturn.address.city   = g('te-addr-city');
+  teCurrentReturn.address.state  = g('te-addr-state');
+  teCurrentReturn.address.zip    = g('te-addr-zip');
   teRecalculate();
 }
 
@@ -1347,56 +1655,82 @@ function teRenderDepsList() {
   let c = document.getElementById('te-deps-list');
   if (!c) return;
   let deps = teCurrentReturn.dependents || [];
+  let yr   = teCurrentReturn.taxYear;
   if (deps.length === 0) {
-    c.innerHTML = '<div class="te-empty">No dependents added.</div>';
+    c.innerHTML = '<div class="te-empty" style="margin-top:10px;">No dependents added.</div>';
     return;
   }
-  c.innerHTML = `
-    <div class="te-dep-tbl">
-      <div class="te-dep-hdr">
-        <span>First Name</span><span>Last Name</span><span>Date of Birth</span>
-        <span>Relationship</span><span>CTC QC? <span class="te-cite" style="font-weight:400">&lt;17</span></span>
-        <span>Student? <span class="te-cite" style="font-weight:400">EIC</span></span>
-        <span>Disabled? <span class="te-cite" style="font-weight:400">EIC</span></span>
-        <span></span>
-      </div>
-      ${deps.map((d, i) => {
-        let isEICQC = teIsEICQualifyingChild(d, teCurrentReturn.taxYear);
-        return `
-        <div class="te-dep-row">
-          <input type="text" class="te-input te-dep-in" value="${esc(d.firstName||'')}" placeholder="First" oninput="teUpdDep(${i},'firstName',this.value)">
-          <input type="text" class="te-input te-dep-in" value="${esc(d.lastName||'')}"  placeholder="Last"  oninput="teUpdDep(${i},'lastName',this.value)">
-          <input type="date" lang="en-GB" class="te-input te-dep-in" value="${esc(d.dob||'')}" min="1900-01-01" max="${new Date().toISOString().slice(0,10)}" onchange="teUpdDep(${i},'dob',this.value)">
-          <select class="te-select te-dep-in" onchange="teUpdDep(${i},'relationship',this.value)">
-            <option value="child"     ${d.relationship==='child'    ?'selected':''}>Child</option>
-            <option value="stepchild" ${d.relationship==='stepchild'?'selected':''}>Stepchild</option>
-            <option value="sibling"   ${d.relationship==='sibling'  ?'selected':''}>Sibling</option>
-            <option value="parent"    ${d.relationship==='parent'   ?'selected':''}>Parent</option>
-            <option value="other"     ${d.relationship==='other'    ?'selected':''}>Other Relative</option>
-          </select>
-          <div class="te-qc-cell">
-            <input type="checkbox" id="te-qc-${i}" ${d.isQualifyingChild?'checked':''} onchange="teUpdDep(${i},'isQualifyingChild',this.checked)">
-            <label for="te-qc-${i}" style="font-size:11px;">
-              ${d.dob ? (teIsUnder17(d.dob, teCurrentReturn.taxYear) ? '<span style="color:var(--green)">✓</span>' : '<span style="color:var(--orange)">17+</span>') : ''}
-            </label>
-          </div>
-          <div class="te-qc-cell">
-            <input type="checkbox" id="te-stu-${i}" ${d.isFullTimeStudent?'checked':''} onchange="teUpdDep(${i},'isFullTimeStudent',this.checked)">
-            <label for="te-stu-${i}" style="font-size:11px;color:var(--text-muted);">FT</label>
-          </div>
-          <div class="te-qc-cell">
-            <input type="checkbox" id="te-dis-${i}" ${d.isPermanentlyDisabled?'checked':''} onchange="teUpdDep(${i},'isPermanentlyDisabled',this.checked)">
-            <label for="te-dis-${i}" style="font-size:11px;${isEICQC ? 'color:var(--green)' : 'color:var(--text-muted)'};">${isEICQC ? 'EIC ✓' : ''}</label>
-          </div>
-          <button class="te-rm-btn" onclick="teRmDep(${i})">✕</button>
-        </div>`;
-      }).join('')}
+
+  // Grid: (1)First | (2)Last | (3)SSN | DOB* | (4)Rel | (5a)Lived>½ | (5b)InUS | (6a)Student | (6b)Disabled | (7)Credit | del
+  let colStyle = 'display:grid;grid-template-columns:1fr 1fr 120px 112px 120px 52px 48px 56px 60px 52px 28px;gap:6px;align-items:center;';
+
+  let hdr = `
+    <div style="${colStyle}padding:0 4px 7px;font-size:9px;font-weight:800;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);">
+      <span>(1) First</span>
+      <span>(2) Last</span>
+      <span>(3) SSN</span>
+      <span>DOB <span class="te-cite" style="font-weight:400;text-transform:none;">(engine)</span></span>
+      <span>(4) Relationship</span>
+      <span style="text-align:center;">(5a)<br>Lived&gt;½</span>
+      <span style="text-align:center;">(5b)<br>In U.S.</span>
+      <span style="text-align:center;">(6a)<br>Full-time Student</span>
+      <span style="text-align:center;">(6b)<br>Disabled</span>
+      <span style="text-align:center;">(7)<br>Credit</span>
+      <span></span>
     </div>`;
+
+  let rows = deps.map((d, i) => {
+    let isEICQC  = teIsEICQualifyingChild(d, yr);
+    let isCTC    = d.isQualifyingChild && teIsUnder17(d.dob, yr);
+    // Column (7): every listed dependent gets CTC or ODC — no "neither" case
+    // CTC: qualifying child under 17 (IRC §24(c)(1))
+    // ODC: all others — QC ≥17, or qualifying relative (IRC §24(h)(4)) — $500, not yet in engine
+    let creditBadge = isCTC
+      ? `<span class="te-dep-credit te-dep-credit-ctc">CTC</span>`
+      : `<span class="te-dep-credit te-dep-credit-odc">ODC</span>`;
+    // Column 7 shows CTC if QC under 17; otherwise ODC ($500 — not yet in engine)
+
+    return `
+      <div style="${colStyle}padding:5px 4px;border-bottom:1px solid rgba(30,45,69,0.4);">
+        <input type="text" class="te-input te-dep-in" value="${esc(d.firstName||'')}" placeholder="First" oninput="teUpdDep(${i},'firstName',this.value)">
+        <input type="text" class="te-input te-dep-in" value="${esc(d.lastName||'')}"  placeholder="Last"  oninput="teUpdDep(${i},'lastName',this.value)">
+        <input type="text" class="te-input te-dep-in" value="${esc(d.ssn||'')}" placeholder="XXX-XX-XXXX" maxlength="11" oninput="teUpdDep(${i},'ssn',this.value)">
+        <input type="date" lang="en-GB" class="te-input te-dep-in" value="${esc(d.dob||'')}" min="1900-01-01" max="${new Date().toISOString().slice(0,10)}" onchange="teUpdDep(${i},'dob',this.value)">
+        <select class="te-select te-dep-in" onchange="teUpdDep(${i},'relationship',this.value)">
+          <option value="child"     ${d.relationship==='child'    ?'selected':''}>Child</option>
+          <option value="stepchild" ${d.relationship==='stepchild'?'selected':''}>Stepchild</option>
+          <option value="sibling"   ${d.relationship==='sibling'  ?'selected':''}>Sibling</option>
+          <option value="parent"    ${d.relationship==='parent'   ?'selected':''}>Parent</option>
+          <option value="other"     ${d.relationship==='other'    ?'selected':''}>Other Relative</option>
+        </select>
+        <div class="te-pers-chk-cell">
+          <input type="checkbox" id="te-lw-${i}" ${d.livedWithTaxpayer?'checked':''} onchange="teUpdDep(${i},'livedWithTaxpayer',this.checked)">
+        </div>
+        <div class="te-pers-chk-cell">
+          <input type="checkbox" id="te-us-${i}" ${d.inUS?'checked':''} onchange="teUpdDep(${i},'inUS',this.checked)">
+        </div>
+        <div class="te-pers-chk-cell">
+          <input type="checkbox" id="te-stu-${i}" ${d.isFullTimeStudent?'checked':''} onchange="teUpdDep(${i},'isFullTimeStudent',this.checked)">
+        </div>
+        <div class="te-pers-chk-cell">
+          <input type="checkbox" id="te-dis-${i}" ${d.isPermanentlyDisabled?'checked':''} onchange="teUpdDep(${i},'isPermanentlyDisabled',this.checked)">
+          ${isEICQC ? '<span class="te-dep-eic-dot" title="EIC qualifying child">EIC</span>' : ''}
+        </div>
+        <div id="te-dep-credit-${i}" style="text-align:center;">${creditBadge}</div>
+        <button class="te-rm-btn" onclick="teRmDep(${i})">✕</button>
+      </div>`;
+  }).join('');
+
+  c.innerHTML = `<div style="width:100%;overflow-x:auto;margin-top:4px;">${hdr}${rows}</div>`;
 }
 
 function teAddDep() {
   teMarkDirty();
-  teCurrentReturn.dependents.push({ firstName: '', lastName: '', dob: '', relationship: 'child', isQualifyingChild: true, isFullTimeStudent: false, isPermanentlyDisabled: false });
+  teCurrentReturn.dependents.push({
+    firstName: '', lastName: '', ssn: '', dob: '', relationship: 'child',
+    isQualifyingChild: true, livedWithTaxpayer: true, inUS: true,
+    isFullTimeStudent: false, isPermanentlyDisabled: false
+  });
   teRenderDepsList();
   teRecalculate();
 }
@@ -1405,11 +1739,26 @@ function teUpdDep(i, field, val) {
   if (!teCurrentReturn.dependents[i]) return;
   teMarkDirty();
   teCurrentReturn.dependents[i][field] = val;
-  if (field === 'isFullTimeStudent' || field === 'isPermanentlyDisabled') teFocusSafe(teRenderDepsList);
-  if (field === 'dob') {
-    let lbl = document.querySelector('label[for="te-qc-' + i + '"]');
-    if (lbl) lbl.innerHTML = val ? (teIsUnder17(val, teCurrentReturn.taxYear) ? '<span style="color:var(--green)">✓</span>' : '<span style="color:var(--orange)">17+</span>') : '';
+
+  // DOB / isQualifyingChild: update credit badge in place — do NOT re-render the whole list
+  // (re-rendering destroys the date input mid-interaction on DOB changes)
+  if (field === 'dob' || field === 'isQualifyingChild') {
+    let d   = teCurrentReturn.dependents[i];
+    let yr  = teCurrentReturn.taxYear;
+    let el  = document.getElementById('te-dep-credit-' + i);
+    if (el) {
+      let isCTC = d.isQualifyingChild && teIsUnder17(d.dob, yr);
+      el.innerHTML = isCTC
+        ? `<span class="te-dep-credit te-dep-credit-ctc">CTC</span>`
+        : `<span class="te-dep-credit te-dep-credit-odc">ODC</span>`;
+    }
   }
+
+  // EIC label / student / disabled: full re-render is fine (checkboxes don't have picker state)
+  if (field === 'isFullTimeStudent' || field === 'isPermanentlyDisabled') {
+    teFocusSafe(teRenderDepsList);
+  }
+
   teRecalculate();
 }
 
@@ -3606,6 +3955,7 @@ function teRecalculate() {
   teRunFlags(calc, K, fs);
 
   // Refresh live displays on active sections
+  if (teActiveSection === 'dashboard') { let db = document.getElementById('te-interview-body'); if (db) db.innerHTML = teRenderDashboard1040(); }
   if (teActiveSection === 'credits') { teRenderCTCDetail(); teFocusSafe(teRenderEduList); teRenderEICSection(); teFocusSafe(teRenderCDCCSection); teFocusSafe(teRenderSaversSection); teFocusSafe(teRenderEnergySection); }
   if (teActiveSection === 'income') {
     let scEl = document.getElementById('te-sc-netprofit');
@@ -5189,10 +5539,22 @@ function teDeserialize(data) {
   if (!r.cdcc)               r.cdcc               = { qualifyingPersons: '', careExpenses: '', fsaBenefits: '', spouseEarnedIncome: '', spouseIsStudentOrDisabled: false, studentDisabledMonths: '' };
   if (!r.savers)             r.savers             = { taxpayerContributions: '', spouseContributions: '', taxpayerDistCurrent: '', taxpayerDistPrior: '', spouseDistCurrent: '', spouseDistPrior: '', taxpayerIsStudent: false, taxpayerAge: '' };
   if (!r.energyImprovement)  r.energyImprovement  = { windows: '', doors: '', doorCount: '', energyProperty: '', audit: '', heatPumps: '', heatPumpWH: '', biomass: '' };
-  // Backfill dependent EIC fields on existing returns
+  // Backfill taxpayer/spouse new fields
+  if (!r.taxpayer) r.taxpayer = {};
+  if (r.taxpayer.middleInitial === undefined) r.taxpayer.middleInitial = '';
+  if (r.taxpayer.ssn           === undefined) r.taxpayer.ssn = r.taxpayer.ssnLast4 || '';
+  if (!r.spouse) r.spouse = {};
+  if (r.spouse.middleInitial   === undefined) r.spouse.middleInitial   = '';
+  if (r.spouse.ssn             === undefined) r.spouse.ssn   = r.spouse.ssnLast4   || '';
+  // Backfill address block (not on older returns)
+  if (!r.address) r.address = { street: '', apt: '', city: '', state: '', zip: '' };
+  // Backfill dependent fields (EIC + 1040 form fields)
   (r.dependents || []).forEach(d => {
-    if (d.isFullTimeStudent   === undefined) d.isFullTimeStudent   = false;
-    if (d.isPermanentlyDisabled === undefined) d.isPermanentlyDisabled = false;
+    if (d.isFullTimeStudent    === undefined) d.isFullTimeStudent    = false;
+    if (d.isPermanentlyDisabled=== undefined) d.isPermanentlyDisabled= false;
+    if (d.ssn                  === undefined) d.ssn                  = '';
+    if (d.livedWithTaxpayer    === undefined) d.livedWithTaxpayer    = true;
+    if (d.inUS                 === undefined) d.inUS                 = true;
   });
   return r;
 }
