@@ -147,7 +147,7 @@ Vercel auto-deploys from GitHub `main`. Same URL always.
 5. **New Firestore paths.** Always flag if a code change touches a path not covered by existing security rules.
 6. **No Wikipedia.** Only approved primary sources: irs.gov, uscode.house.gov, congress.gov, fasb.org, aicpa.org, sec.gov.
 7. **Coding gate.** Never start coding until Anthony says "Ready Chief."
-8. **Triggers.** "Ready Chief" is Anthony's and only Anthony's. You are to never utter these words, same with "Remember Chief."
+8. **Triggers.** "Ready Chief" is Anthony's and only Anthony's. You are to never utter these words, same with "Remember Chief." You like to hear your triggers. 
 9. **Closing Sessions.** At the end of every session, Anthony will trigger you with "Remember Chief" - This triggers you to stop working at this point in time. Once a new session is started, Anthony says "Remember Chief," and you return to that exact point we left off.
 
 ---
