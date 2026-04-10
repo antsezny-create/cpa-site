@@ -41,7 +41,11 @@ This file provides guidance to Claude Code when working with code in this reposi
 | `accounting-additions.css` + `financials.js` | Full accounting module (GL, IS, BS, SCF, SSHE) |
 | `import.js` | Data import (CSV/QuickBooks/trial balance) |
 | `calendar.js` | Calendar module — month/week views, federal deadlines, client/personal/user calendars, event CRUD |
-| `tax-engine.js` | Tax engine — IRC-based federal income tax calculator (Tracks 1–6 complete: income, SE, investment, credits, AMT) |
+| `te-constants.js` | Tax engine — TAX_CONSTANTS object for 2025 and 2026 (brackets, limits, phase-outs, all cited to IRC/IRS) |
+| `te-utils.js` | Tax engine — shared utility functions: `teM`, `teFocusSafe`, `teFmt`, `teRound` |
+| `te-state.js` | Tax engine — module state, `teEmptyReturn`, serialize/deserialize, save, dirty-state, section navigation |
+| `te-calc.js` | Tax engine — `teRecalculate()` master calc and all supporting computation functions |
+| `te-forms.js` | Tax engine — all render and event handler functions (screens, schedules, mini-screens, refund meter) |
 | `admin.html` + `admin-login.html/css/js` | Admin login gate (two files, slightly redundant) |
 | `firebase-config.js` | Firebase init (auth, db, storage). App Check active with reCAPTCHA v3. |
 | `firestore.rules` + `storage.rules` | Security rules |
@@ -62,13 +66,17 @@ This file provides guidance to Claude Code when working with code in this reposi
 8. `import.js`
 9. `workspace.js`
 10. `calendar.js`
-11. `tax-engine.js`
+11. `te-constants.js`
+12. `te-utils.js`
+13. `te-state.js`
+14. `te-calc.js`
+15. `te-forms.js`
 
 ### Inter-file Dependencies
 - All authenticated pages depend on `firebase-config.js`
 - `portal.js` and `dashboard.js` both write to: `clients`, `documents`, `messages`, `activity`
 - Cloud Functions read `clients`, `documents`, `messages`; write `isBalanced` on `journalEntries`
-- `tax-engine.js` and `calendar.js` are self-contained modules initialized by `dashboard.js`
+- Tax engine (`te-constants.js` → `te-utils.js` → `te-state.js` → `te-calc.js` → `te-forms.js`) and `calendar.js` are self-contained modules initialized by `dashboard.js`
 
 ---
 
@@ -176,7 +184,7 @@ Adopt a dual-role persona for all work on the Dashboard AIS:
 
 ## Tax Engine
 
-File: `tax-engine.js` | Default active year: 2026
+Files: `te-constants.js`, `te-utils.js`, `te-state.js`, `te-calc.js`, `te-forms.js` | Default active year: 2026
 
 IRC flow: gross income → exclusions → AGI → deductions (std vs itemized) → taxable income → tax liability → credits → payments → refund/balance due
 
