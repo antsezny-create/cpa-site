@@ -115,6 +115,19 @@ function teRenderIncomeMenu() {
       ${teMenuCard('sched-e',    'Schedule E',    'Pass-Through &amp; K-1 Income',
           'Partnership, S-Corp, trust, estate K-1 income and losses. IRC §702, §1366.',
           (r.scheduleE||[]).length > 0, teFmt(c.scheduleENet||0), src)}
+      ${(() => {
+        let s1 = r.schedule1 || {};
+        let s1Lines = (c.sched1Lines) || {};
+        let hasS1 = (parseFloat(s1.taxRefunds)||0) > 0 || (parseFloat(s1.alimonyReceived)||0) > 0
+          || (parseFloat(s1.otherGains)||0) > 0 || (parseFloat(s1.unemployment)||0) > 0
+          || ['l8a','l8b','l8c','l8d','l8e','l8f','l8g','l8h','l8i','l8j','l8k','l8l',
+              'l8m','l8n','l8o','l8p','l8q','l8r','l8s','l8t','l8u','l8v'].some(k => (parseFloat(s1[k])||0) !== 0)
+          || (s1.otherIncomeRows||[]).length > 0;
+        let s1Extra = c.sched1Extra || 0;
+        return teMenuCard('sched-1-pi', 'Schedule 1', 'Additional Income',
+          'Taxable refunds, alimony, other gains, unemployment, other income. Sch. 1 Part I → 1040 Line 8.',
+          hasS1, hasS1 ? teFmt(Math.abs(s1Extra)) : null, src);
+      })()}
     </div>
     <div class="te-menu-total">
       <span>Total Gross Income <span class="te-cite">§61 / 1040 Line 9</span></span>
@@ -355,6 +368,12 @@ function teRenderMiniScreen(schedId) {
         <p class="te-sec-sub"><span class="te-cite">IRC §1221, §1222 &mdash; 1040 Line 7a</span></p></div>
         <div class="te-subsec">${teRenderScheduleD()}</div>`;
 
+    case 'sched-1-pi':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Schedule 1, Part I — Additional Income</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §61 &mdash; 1040 Line 8</span></p></div>
+        <div class="te-subsec">${teRenderSchedule1PI()}</div>`;
+
     case 'sched-e':
       return nav + `
         <div class="te-sec-hdr"><h2>Schedule E — Pass-Through &amp; K-1 Income</h2>
@@ -444,7 +463,8 @@ function teRenderMiniScreen(schedId) {
 function teMiniPostRender(schedId) {
   switch (schedId) {
     case 'w2':         teRenderW2List();              break;
-    case 'sched-c':    teRenderSchedCOtherExpRows(); break;  // re-render Part V rows after screen loads
+    case 'sched-c':    teRenderSchedCOtherExpRows();  break;  // re-render Part V rows after screen loads
+    case 'sched-1-pi': teRenderS1OtherIncomeRows();   break;  // re-render 8z rows after screen loads
     case 'sched-d':    /* rows rendered inline on initial render — no post-render needed */ break;
     case 'sched-se':   /* all lines computed on render — no list post-render needed */ break;
     case 'retirement': teRender1099RList('ira'); teRender1099RList('pension'); break;
@@ -770,8 +790,10 @@ function teRenderDashboard1040() {
 
   // ── Derived values ─────────────────────────────────────────────────
 
-  // 1040 Line 8 = Schedule 1, Part I total (Sch C + Sch E → gross income)
-  let sched1PartI  = teRound((c.netSEIncome || 0) + (c.scheduleENet || 0));
+  // 1040 Line 8 = Schedule 1, Part I, Line 10 — full additional income total
+  let sched1PartI  = (c.sched1Lines && c.sched1Lines.l10 !== undefined)
+    ? c.sched1Lines.l10
+    : teRound((c.netSEIncome || 0) + (c.scheduleENet || 0));  // fallback for pre-calc state
 
   // 1040 Line 10 = Schedule 1, Part II total (all above-the-line adjustments)
   let sched1PartII = c.adjustments || 0;
@@ -832,7 +854,7 @@ function teRenderDashboard1040() {
       ${line('6a',  'Social security benefits &mdash; gross',        fv(c.ssBenefitsGross),    { badges: badge('ss', 'SSA-1099') })}
       ${line('6b',  '— taxable amount &nbsp;<span class="te-cite">IRC §86</span>', fv(c.ssBenefitsTaxable), { indent: true, sub: true })}
       ${line('7a',  'Capital gain or (loss) &nbsp;<span class="te-cite">Sch. D, line 16 or 21</span>', fvPM(c.scheduleDNet), { badges: badge('sched-d', 'Sch. D') })}
-      ${line('8',   'Additional income &nbsp;<span class="te-cite">Sch. 1, line 10</span>',            fvPM(sched1PartI),    { badges: badge('sched-c', 'Sch. C') + ' ' + badge('sched-e', 'Sch. E') })}
+      ${line('8',   'Additional income &nbsp;<span class="te-cite">Sch. 1, line 10</span>',            fvPM(sched1PartI),    { badges: badge('sched-1-pi', 'Sch. 1') })}
 
       ${tot('9', 'Total income &nbsp;<span class="te-cite">add lines 1z, 2b, 3b, 4b, 5b, 6b, 7a, 8</span>', fv(c.grossIncome))}
 
@@ -1943,6 +1965,307 @@ function teRenderScheduleEList() {
       §199A QBI: Enter the amount reported on K-1 (Partnership Box 20 Code Z; S-Corp Box 17 Code V). This may differ from the income/(loss) above — the entity applies its own deductions before reporting QBI. C-Corporation income is never eligible. <span class="te-cite">IRC §199A(c); IRC §199A(f)(1)</span>
     </div>`;
 }
+
+// ──────────────────────────────────────────────────────────────────────
+//  SCHEDULE 1, PART I — ADDITIONAL INCOME
+// ──────────────────────────────────────────────────────────────────────
+
+function teRenderSchedule1PI() {
+  let r   = teCurrentReturn;
+  let s1  = (r && r.schedule1)                    || {};
+  let ln  = (r && r._calc && r._calc.sched1Lines) || {};
+  let c   = (r && r._calc)                        || {};
+  let yr  = r ? (r.taxYear || teActiveYear) : teActiveYear;
+
+  let fmtPM = v => v === 0 ? '$0.00' : v > 0 ? teFmt(v) : '(' + teFmt(Math.abs(v)) + ')';
+
+  // ── Row helpers ────────────────────────────────────────────────────
+
+  // Full-width editable row — lines 1–7
+  let iRow = (num, label, stateKey, val, note='', isNeg=false) =>
+    `<div class="te-sc-row te-s1-row">
+       <span class="te-sc-num">${num}</span>
+       <span class="te-sc-lbl">${label}${isNeg ? '<span class="te-s1-neg-tag">negative</span>' : ''}${note ? `<span class="te-sc-note">${note}</span>` : ''}</span>
+       <input type="number" class="te-input te-mono te-sc-inp" step="0.01" min="0"
+         value="${esc(String(val||''))}" placeholder="0.00"
+         oninput="teOnSched1PI('${stateKey}',this.value)">
+     </div>`;
+
+  // Two-column editable row — lines 8a–8v (shorter labels, no note)
+  // groupStart: adds top border to mark the start of a new logical cluster within a column
+  let iRow2 = (num, label, stateKey, val, isNeg=false, groupStart=false) =>
+    `<div class="te-sc-row te-s1-row te-s1-col-row${groupStart ? ' te-s1-group-start' : ''}">
+       <span class="te-sc-num">${num}</span>
+       <span class="te-sc-lbl te-s1-col-lbl">${label}${isNeg ? '<span class="te-s1-neg-tag">negative</span>' : ''}</span>
+       <input type="number" class="te-input te-mono te-sc-inp te-s1-col-inp" step="0.01" min="0"
+         value="${esc(String(val||''))}" placeholder="0.00"
+         oninput="teOnSched1PI('${stateKey}',this.value)">
+     </div>`;
+
+  // Read-only auto-populated row — id always on the inner span for live DOM updates
+  let rRow = (num, label, valId, displayVal, linkSched='', note='') => {
+    let inner = linkSched
+      ? `<span id="${valId}" class="te-s1-ro-link" onclick="teOpenSchedule('${linkSched}','sched-1-pi')">${displayVal}</span>`
+      : `<span id="${valId}">${displayVal}</span>`;
+    return `<div class="te-sc-row te-s1-row te-s1-ro-row">
+       <span class="te-sc-num">${num}</span>
+       <span class="te-sc-lbl">${label}${note ? `<span class="te-sc-note">${note}</span>` : ''}</span>
+       <span class="te-sc-val">${inner}</span>
+     </div>`;
+  };
+
+  // Computed total row — lines 9, optionally with extra class
+  let tRow = (num, label, valId, displayVal, extraCls='') =>
+    `<div class="te-sc-row te-sc-row-total${extraCls ? ' ' + extraCls : ''}">
+       <span class="te-sc-num">${num}</span>
+       <span class="te-sc-lbl">${label}</span>
+       <span class="te-sc-val te-mono" id="${valId}">${displayVal}</span>
+     </div>`;
+
+  // Display values for auto-populated read-only lines
+  let l3val = ln.l3 !== undefined ? fmtPM(ln.l3) : fmtPM(parseFloat((r.scheduleC||{}).netProfit)||0);
+  let l5val = ln.l5 !== undefined ? fmtPM(ln.l5) : fmtPM(c.scheduleENet||0);
+  let l6val = ln.l6 !== undefined ? teFmt(ln.l6) : teFmt(0);
+
+  // 8z dynamic rows
+  let s1OtherRows = s1.otherIncomeRows || [];
+  let s1OtherHtml = `<div id="te-s1-8z-rows">${s1OtherRows.map((row, i) =>
+    `<div class="te-sc-row te-s1-row" style="gap:8px;">
+       <span class="te-sc-num">—</span>
+       <input type="text" class="te-input te-sc-lbl-inp" style="flex:1;" placeholder="Type of income"
+         value="${esc(row.type||'')}" oninput="teOnS1OtherIncome(${i},'type',this.value)">
+       <input type="number" class="te-input te-mono te-sc-inp" step="0.01"
+         value="${esc(String(row.amount||''))}" placeholder="0.00"
+         oninput="teOnS1OtherIncome(${i},'amount',this.value)">
+       <button class="te-sc-del-btn" onclick="teS1DelOtherIncome(${i})" title="Remove row">✕</button>
+     </div>`).join('')}</div>`;
+
+  let l10 = ln.l10 || 0;
+
+  return `
+  <div class="te-s1-form">
+
+    <!-- Header — single condensed row -->
+    <div class="te-sc-header-bar te-s1-header">
+      <span class="te-sc-title">Schedule 1 &mdash; Additional Income</span>
+      <span class="te-sc-subtitle">Part I &nbsp;&middot;&nbsp; Tax Year ${yr} &nbsp;&middot;&nbsp; <span class="te-cite">IRC §61</span> &nbsp;&middot;&nbsp; 1040 Line 8</span>
+    </div>
+
+    <!-- 1099-K — compact inline row -->
+    <div class="te-sc-section-label">Form(s) 1099-K &mdash; Amounts Included in Error or Personal Items Sold at a Loss</div>
+    <div class="te-sc-row te-s1-row">
+      <span class="te-sc-num">—</span>
+      <span class="te-sc-lbl">Amount included in error or personal items sold at a loss
+        <span class="te-sc-note" style="font-style:italic;">Informational only &mdash; does not flow to line 10.</span>
+      </span>
+      <input type="number" class="te-input te-mono te-sc-inp" step="0.01" min="0"
+        value="${esc(String(s1.k1099Amount||''))}" placeholder="0.00"
+        oninput="teOnSched1PI('k1099Amount',this.value)">
+    </div>
+
+    <!-- Part I — Lines 1–7 -->
+    <div class="te-sc-section-label">Part I &mdash; Additional Income &nbsp;<span class="te-cite" style="font-weight:400;">IRC §61</span></div>
+
+    ${iRow('1',  'Taxable refunds, credits, or offsets of state and local income taxes', 'taxRefunds', s1.taxRefunds, 'IRC §111(a)')}
+    ${iRow('2a', 'Alimony received', 'alimonyReceived', s1.alimonyReceived, 'Pre-2019 agreements only &mdash; IRC §71')}
+
+    <div class="te-sc-row te-s1-row">
+      <span class="te-sc-num">2b</span>
+      <span class="te-sc-lbl">Date of original divorce or separation agreement</span>
+      <input type="date" class="te-input te-mono te-sc-inp" style="max-width:160px;"
+        value="${esc(s1.alimonyDate||'')}"
+        onchange="teOnSched1PI('alimonyDate',this.value)">
+    </div>
+
+    ${rRow('3', 'Business income or (loss) &nbsp;<span class="te-cite">Schedule C</span>', 'te-s1-l3', l3val, 'sched-c', 'Click to open Schedule C')}
+
+    <div class="te-sc-row te-s1-row">
+      <span class="te-sc-num">4</span>
+      <span class="te-sc-lbl">Other gains or (losses)
+        <label class="te-sc-radio-lbl" style="margin-left:10px;">
+          <input type="checkbox" ${s1.otherGainsForm4797?'checked':''} onchange="teOnSched1PI('otherGainsForm4797',this.checked)"> Form 4797
+        </label>
+        <label class="te-sc-radio-lbl">
+          <input type="checkbox" ${s1.otherGainsForm4684?'checked':''} onchange="teOnSched1PI('otherGainsForm4684',this.checked)"> Form 4684
+        </label>
+      </span>
+      <input type="number" class="te-input te-mono te-sc-inp" step="0.01"
+        value="${esc(String(s1.otherGains||''))}" placeholder="0.00"
+        oninput="teOnSched1PI('otherGains',this.value)">
+    </div>
+
+    ${rRow('5', 'Rental real estate, royalties, partnerships, S corps, trusts &nbsp;<span class="te-cite">Schedule E</span>', 'te-s1-l5', l5val, 'sched-e', 'Click to open Schedule E')}
+    ${rRow('6', 'Farm income or (loss) &nbsp;<span class="te-cite">Schedule F</span>', 'te-s1-l6', l6val, '', 'Auto from Schedule SE &mdash; Schedule F form coming in a future update')}
+
+    <div class="te-sc-row te-s1-row" style="flex-wrap:wrap;gap:4px 0;">
+      <span class="te-sc-num">7</span>
+      <span class="te-sc-lbl">Unemployment compensation &nbsp;<span class="te-cite">IRC §85(a)</span></span>
+      <input type="number" class="te-input te-mono te-sc-inp" step="0.01" min="0"
+        value="${esc(String(s1.unemployment||''))}" placeholder="0.00"
+        oninput="teOnSched1PI('unemployment',this.value)">
+      <div style="width:100%;padding-left:40px;margin-top:2px;display:flex;align-items:center;gap:10px;">
+        <label class="te-sc-radio-lbl">
+          <input type="checkbox" id="te-s1-unemp-repaid" ${s1.unemploymentRepaid?'checked':''}
+            onchange="teOnSched1PI('unemploymentRepaid',this.checked)">
+          Repaid prior year overpayment
+        </label>
+        <div id="te-s1-unemp-repaid-wrap" style="display:${s1.unemploymentRepaid?'flex':'none'};align-items:center;gap:6px;">
+          <span class="te-sc-note">Repayment amount:</span>
+          <input type="number" class="te-input te-mono" style="width:110px;" step="0.01" min="0"
+            value="${esc(String(s1.unemploymentRepaidAmt||''))}" placeholder="0.00"
+            oninput="teOnSched1PI('unemploymentRepaidAmt',this.value)">
+        </div>
+      </div>
+    </div>
+
+    <!-- Lines 8a–8v: two-column grid -->
+    <div class="te-sc-section-label" style="margin-top:12px;">Other Income &mdash; Lines 8a&ndash;8z</div>
+
+    <!-- Flat 2-column grid: elements interleaved left-right so CSS grid aligns rows by height.
+         Order: (8a,8l), (8b,8m), (8c,8n), (8d,8o), (8e,8p), (8f,8q), (8g,8r), (8h,8s),
+                (8i,8t), (8j,8u), (8k,8v)
+         Group-start borders (per column):
+           Left:  8d (group 2), 8g (group 3)
+           Right: 8n (group 2), 8q (group 3)                                              -->
+    <div class="te-s1-8av-grid">
+      ${iRow2('8a', 'Net operating loss <span class="te-cite">IRC §172</span>',            'l8a', s1.l8a, true)}
+      ${iRow2('8l', 'Rental of personal property (for profit, not in business)',            'l8l', s1.l8l)}
+
+      ${iRow2('8b', 'Gambling winnings <span class="te-cite">IRC §165(d)</span>',          'l8b', s1.l8b)}
+      ${iRow2('8m', 'Olympic/Paralympic medals &amp; USOC prize money <span class="te-cite">IRC §74(d)</span>', 'l8m', s1.l8m)}
+
+      ${iRow2('8c', 'Cancellation of debt <span class="te-cite">IRC §61(a)(12)</span>',    'l8c', s1.l8c)}
+      ${iRow2('8n', 'Section 951(a) inclusion (Subpart F)',                                'l8n', s1.l8n, false, true)}
+
+      ${iRow2('8d', 'Foreign earned income exclusion (Form 2555)',                         'l8d', s1.l8d, true,  true)}
+      ${iRow2('8o', 'Section 951A(a) inclusion (GILTI)',                                   'l8o', s1.l8o)}
+
+      ${iRow2('8e', 'Income from Form 8853 (Archer MSA)',                                  'l8e', s1.l8e)}
+      ${iRow2('8p', 'Section 461(l) excess business loss adjustment',                      'l8p', s1.l8p)}
+
+      ${iRow2('8f', 'Income from Form 8889 (HSA)',                                         'l8f', s1.l8f)}
+      ${iRow2('8q', 'ABLE account distributions <span class="te-cite">IRC §529A</span>',  'l8q', s1.l8q, false, true)}
+
+      ${iRow2('8g', 'Alaska Permanent Fund dividends <span class="te-cite">IRC §643(b)</span>', 'l8g', s1.l8g, false, true)}
+      ${iRow2('8r', 'Scholarship / fellowship not on W-2',                                 'l8r', s1.l8r)}
+
+      ${iRow2('8h', 'Jury duty pay',                                                       'l8h', s1.l8h)}
+      ${iRow2('8s', 'Nontaxable Medicaid waiver payments (Form 1040, line 1a/1d)',         'l8s', s1.l8s, true)}
+
+      ${iRow2('8i', 'Prizes and awards <span class="te-cite">IRC §74(a)</span>',           'l8i', s1.l8i)}
+      ${iRow2('8t', 'Nonqualified deferred comp / nongovernmental §457',                   'l8t', s1.l8t)}
+
+      ${iRow2('8j', 'Not-for-profit activity income <span class="te-cite">IRC §183</span>','l8j', s1.l8j)}
+      ${iRow2('8u', 'Wages earned while incarcerated',                                     'l8u', s1.l8u)}
+
+      ${iRow2('8k', 'Stock options',                                                        'l8k', s1.l8k)}
+      ${iRow2('8v', 'Digital assets as ordinary income (not reported elsewhere)',           'l8v', s1.l8v)}
+    </div>
+
+    <!-- Line 8z — full-width dynamic rows -->
+    <div class="te-sc-section-label" style="font-size:11px;margin-top:10px;">8z &mdash; Other Income (specify type)</div>
+    ${s1OtherHtml}
+    <div style="padding-left:40px;margin-top:6px;">
+      <button class="ghost-btn te-sm-btn" onclick="teS1AddOtherIncome()">+ Add Other Income</button>
+    </div>
+
+    <!-- Line 9 — Total other income (subtotal visual weight) -->
+    ${tRow('9', 'Total other income &nbsp;<span class="te-cite">Add lines 8a&ndash;8z</span>', 'te-s1-l9', fmtPM(ln.l9||0), 'te-sc-row-subtotal')}
+
+    <!-- Line 10 — Total Additional Income (highlighted box — unchanged) -->
+    <div class="te-sc-net-bar ${l10 >= 0 ? 'te-sc-profit' : 'te-sc-loss'}" id="te-s1-l10-bar" style="margin-top:12px;">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;">
+          Line 10 &mdash; Total Additional Income &nbsp;<span class="te-cite">1040 Line 8</span>
+        </span>
+        <span style="font-size:11px;color:var(--text-dim);">Lines 1 + 2a + 3 + 4 + 5 + 6 + 7 + 9</span>
+      </div>
+      <span class="te-sc-net-amt" id="te-s1-l10">${l10 >= 0 ? teFmt(l10) : '(' + teFmt(Math.abs(l10)) + ')'}</span>
+    </div>
+
+  </div>`;
+}
+
+// ── SCHEDULE 1 PART I HANDLERS ────────────────────────────────────────
+
+function teOnSched1PI(field, value) {
+  if (!teCurrentReturn) return;
+  if (!teCurrentReturn.schedule1) teCurrentReturn.schedule1 = {};
+  let s1 = teCurrentReturn.schedule1;
+
+  // Boolean fields — immediate
+  if (field === 'otherGainsForm4797' || field === 'otherGainsForm4684' || field === 'unemploymentRepaid') {
+    s1[field] = value;
+    // Toggle repayment amount wrapper visibility
+    if (field === 'unemploymentRepaid') {
+      let wrap = document.getElementById('te-s1-unemp-repaid-wrap');
+      if (wrap) wrap.style.display = value ? 'flex' : 'none';
+    }
+    teMarkDirty();
+    teRecalculate();
+    return;
+  }
+
+  // Date field — immediate
+  if (field === 'alimonyDate') {
+    s1[field] = value;
+    teMarkDirty();
+    return;
+  }
+
+  // Number/text fields — debounce 150ms
+  s1[field] = value;
+  teMarkDirty();
+  clearTimeout(teSchedS1Timer);
+  teSchedS1Timer = setTimeout(teRecalculate, 150);
+}
+
+function teS1AddOtherIncome() {
+  if (!teCurrentReturn) return;
+  if (!teCurrentReturn.schedule1) teCurrentReturn.schedule1 = {};
+  if (!teCurrentReturn.schedule1.otherIncomeRows) teCurrentReturn.schedule1.otherIncomeRows = [];
+  teCurrentReturn.schedule1.otherIncomeRows.push({ type: '', amount: '' });
+  teMarkDirty();
+  teRenderS1OtherIncomeRows();
+}
+
+function teS1DelOtherIncome(idx) {
+  if (!teCurrentReturn || !teCurrentReturn.schedule1) return;
+  let rows = teCurrentReturn.schedule1.otherIncomeRows || [];
+  rows.splice(idx, 1);
+  teMarkDirty();
+  teRenderS1OtherIncomeRows();
+  teRecalculate();
+}
+
+function teOnS1OtherIncome(idx, field, value) {
+  if (!teCurrentReturn || !teCurrentReturn.schedule1) return;
+  let rows = teCurrentReturn.schedule1.otherIncomeRows || [];
+  if (!rows[idx]) return;
+  rows[idx][field] = value;
+  teMarkDirty();
+  if (field === 'amount') {
+    clearTimeout(teSchedS1Timer);
+    teSchedS1Timer = setTimeout(teRecalculate, 150);
+  }
+}
+
+function teRenderS1OtherIncomeRows() {
+  let wrap = document.getElementById('te-s1-8z-rows');
+  if (!wrap) return;
+  let rows = (teCurrentReturn && teCurrentReturn.schedule1 && teCurrentReturn.schedule1.otherIncomeRows) || [];
+  wrap.innerHTML = rows.map((row, i) =>
+    `<div class="te-sc-row" style="gap:8px;padding-left:40px;">
+       <input type="text" class="te-input te-sc-lbl-inp" style="flex:1;" placeholder="Type of income"
+         value="${esc(row.type||'')}" oninput="teOnS1OtherIncome(${i},'type',this.value)">
+       <input type="number" class="te-input te-mono te-sc-inp" step="0.01"
+         value="${esc(String(row.amount||''))}" placeholder="0.00"
+         oninput="teOnS1OtherIncome(${i},'amount',this.value)">
+       <button class="te-sc-del-btn" onclick="teS1DelOtherIncome(${i})" title="Remove row">✕</button>
+     </div>`).join('');
+}
+
+// ──────────────────────────────────────────────────────────────────────
 
 function teRenderScheduleC() {
   let r    = teCurrentReturn;

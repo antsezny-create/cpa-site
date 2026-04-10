@@ -384,6 +384,92 @@ function teRecalculate() {
       .reduce((s, e) => s + (parseFloat(e.taxableDist) || 0) * 0.10, 0)
   );
 
+  // ── Schedule 1, Part I — Additional Income ──────────────────────────────
+  // IRS Schedule 1, Part I collects additional income not reported directly on Form 1040.
+  // Lines 3, 5, 6 are auto-populated from existing engine data (already in grossIncome).
+  // Lines 1, 2a, 4, 7, 8a–8z are new editable items added to calc.sched1Extra below.
+  let s1 = teCurrentReturn.schedule1 || {};
+
+  // Line 1 — Taxable state/local refunds — IRC §111(a): only taxable if prior deduction yielded benefit
+  let s1L1  = teRound(parseFloat(s1.taxRefunds)    || 0);
+
+  // Line 2a — Alimony received — pre-2019 divorce/separation agreements only
+  // Post-TCJA: agreements executed after Dec 31, 2018 → NOT includible — IRC §71 repealed by P.L. 115-97
+  let s1L2a = teRound(parseFloat(s1.alimonyReceived) || 0);
+
+  // Line 3 — Schedule C net profit/(loss) — computed above as scL31; auto, already in grossIncome
+  let s1L3display = teRound(parseFloat(sc.netProfit) || 0);  // display only; not added to sched1Extra
+
+  // Line 4 — Other gains/(losses) — Form 4797 / Form 4684
+  let s1L4  = teRound(parseFloat(s1.otherGains) || 0);
+
+  // Line 5 — Schedule E — auto from calc.scheduleENet (already in grossIncome) — display only
+  // Line 6 — Farm income/(loss) — auto from scheduleSE (already in grossIncome via netSEIncome) — display only
+  let seData_s1   = teCurrentReturn.scheduleSE || {};
+  let s1L6display = teRound((parseFloat(seData_s1.farmProfit)||0) + (parseFloat(seData_s1.crpPayments)||0));
+
+  // Line 7 — Unemployment compensation — IRC §85(a): gross taxable; repayment reduces amount
+  let s1L7gross  = teRound(Math.max(0, parseFloat(s1.unemployment) || 0));
+  let s1L7repaid = s1.unemploymentRepaid ? teRound(Math.abs(parseFloat(s1.unemploymentRepaidAmt) || 0)) : 0;
+  let s1L7net    = teRound(s1L7gross - s1L7repaid);
+
+  // Lines 8a–8v: Other Income sub-lines
+  // Negative lines (8a, 8d, 8s): stored as positive user-entered values, subtracted in line 9
+  let s1L8a = teRound(Math.abs(parseFloat(s1.l8a) || 0));  // NOL — IRC §172; subtracted
+  let s1L8b = teRound(Math.max(0, parseFloat(s1.l8b) || 0));  // Gambling — IRC §165(d)
+  let s1L8c = teRound(Math.max(0, parseFloat(s1.l8c) || 0));  // COD — IRC §61(a)(12)
+  let s1L8d = teRound(Math.abs(parseFloat(s1.l8d) || 0));  // FEIE Form 2555 — subtracted
+  let s1L8e = teRound(Math.max(0, parseFloat(s1.l8e) || 0));  // Form 8853 (MSA)
+  let s1L8f = teRound(Math.max(0, parseFloat(s1.l8f) || 0));  // Form 8889 (HSA)
+  let s1L8g = teRound(Math.max(0, parseFloat(s1.l8g) || 0));  // Alaska PFD — IRC §643(b)
+  let s1L8h = teRound(Math.max(0, parseFloat(s1.l8h) || 0));  // Jury duty
+  let s1L8i = teRound(Math.max(0, parseFloat(s1.l8i) || 0));  // Prizes/awards — IRC §74(a)
+  let s1L8j = teRound(Math.max(0, parseFloat(s1.l8j) || 0));  // Not-for-profit — IRC §183
+  let s1L8k = teRound(Math.max(0, parseFloat(s1.l8k) || 0));  // Stock options
+  let s1L8l = teRound(Math.max(0, parseFloat(s1.l8l) || 0));  // Rental of personal property
+  let s1L8m = teRound(Math.max(0, parseFloat(s1.l8m) || 0));  // Olympic/Paralympic — IRC §74(d)
+  let s1L8n = teRound(Math.max(0, parseFloat(s1.l8n) || 0));  // §951(a) Subpart F
+  let s1L8o = teRound(Math.max(0, parseFloat(s1.l8o) || 0));  // §951A(a) GILTI
+  let s1L8p = teRound(Math.max(0, parseFloat(s1.l8p) || 0));  // §461(l) excess business loss adj
+  let s1L8q = teRound(Math.max(0, parseFloat(s1.l8q) || 0));  // ABLE — IRC §529A
+  let s1L8r = teRound(Math.max(0, parseFloat(s1.l8r) || 0));  // Scholarship/fellowship not on W-2
+  let s1L8s = teRound(Math.abs(parseFloat(s1.l8s) || 0));  // Medicaid waiver (nontaxable) — subtracted
+  let s1L8t = teRound(Math.max(0, parseFloat(s1.l8t) || 0));  // Nonqualified deferred comp / §457
+  let s1L8u = teRound(Math.max(0, parseFloat(s1.l8u) || 0));  // Wages while incarcerated
+  let s1L8v = teRound(Math.max(0, parseFloat(s1.l8v) || 0));  // Digital assets as ordinary income
+
+  // Line 8z — dynamic other income rows
+  let s1OtherRows = s1.otherIncomeRows || [];
+  let s1L8z = teRound(s1OtherRows.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0));
+
+  // Line 9 — Total other income: 8a, 8d, 8s are negative (subtracted), all others added
+  let s1L9 = teRound(
+    s1L8b + s1L8c + s1L8e + s1L8f + s1L8g + s1L8h + s1L8i + s1L8j + s1L8k +
+    s1L8l + s1L8m + s1L8n + s1L8o + s1L8p + s1L8q + s1L8r + s1L8t + s1L8u + s1L8v + s1L8z
+    - s1L8a - s1L8d - s1L8s
+  );
+
+  // Line 10 — Total additional income (form display): includes all lines including auto-populated ones
+  // This is the value shown on 1040 Line 8 → Sch. 1 Line 10
+  let s1L10 = teRound(s1L1 + s1L2a + s1L3display + s1L4 + calc.scheduleENet + s1L6display + s1L7net + s1L9);
+
+  // Persist all lines for form renderer — ordered for targeted DOM updates
+  calc.sched1Lines = {
+    l1: s1L1, l2a: s1L2a, l3: s1L3display, l4: s1L4,
+    l5: calc.scheduleENet, l6: s1L6display,
+    l7gross: s1L7gross, l7net: s1L7net,
+    l8a: s1L8a, l8b: s1L8b, l8c: s1L8c, l8d: s1L8d, l8e: s1L8e, l8f: s1L8f,
+    l8g: s1L8g, l8h: s1L8h, l8i: s1L8i, l8j: s1L8j, l8k: s1L8k, l8l: s1L8l,
+    l8m: s1L8m, l8n: s1L8n, l8o: s1L8o, l8p: s1L8p, l8q: s1L8q, l8r: s1L8r,
+    l8s: s1L8s, l8t: s1L8t, l8u: s1L8u, l8v: s1L8v, l8z: s1L8z,
+    l9: s1L9, l10: s1L10
+  };
+
+  // sched1Extra: the NEW income items not previously in grossIncome (lines 1, 2a, 4, 7, 9)
+  // Lines 3 (SC) and 5 (SE) already flow through netSEIncome/scheduleENet.
+  // Line 6 (farm) already flows through netSEIncome via scheduleSE.farmProfit/crpPayments.
+  calc.sched1Extra = teRound(s1L1 + s1L2a + s1L4 + s1L7net + s1L9);
+
   // Gross income: all sources — IRC §61
   // Note: ordinaryDividends includes qualifiedDividends (QDs are a subset, not additive)
   calc.grossIncome = teRound(
@@ -391,6 +477,7 @@ function teRecalculate() {
     + calc.iraTaxable + calc.pensionTaxable
     + calc.interestIncome + calc.ordinaryDividends
     + calc.scheduleDNet + calc.scheduleENet
+    + calc.sched1Extra   // Sch. 1 Part I new items: lines 1, 2a, 4, 7, 8a–8z
   );
 
   // ── Step 2a: SE Tax — Schedule SE line-by-line ──────────────────────
@@ -1017,6 +1104,30 @@ function teRecalculate() {
         // Line 32 (at-risk checkbox row) — show only when there is a loss
         let riskRow = g('te-sc-risk-row');
         if (riskRow) riskRow.style.display = (sl.l31 || 0) < 0 ? '' : 'none';
+      } break;
+      case 'sched-1-pi': {
+        // Targeted DOM updates for Schedule 1 Part I computed lines — preserves input focus
+        let sl = calc.sched1Lines || {};
+        let g1 = id => document.getElementById(id);
+        let fmtPM = v => v === 0 ? '$0.00' : v > 0 ? teFmt(v) : '(' + teFmt(Math.abs(v)) + ')';
+        // Read-only auto lines
+        if (g1('te-s1-l3'))  g1('te-s1-l3').textContent  = fmtPM(sl.l3  || 0);
+        if (g1('te-s1-l5'))  g1('te-s1-l5').textContent  = fmtPM(sl.l5  || 0);
+        if (g1('te-s1-l6'))  g1('te-s1-l6').textContent  = teFmt(sl.l6  || 0);
+        // Auto-sum lines
+        if (g1('te-s1-l9'))  g1('te-s1-l9').textContent  = fmtPM(sl.l9  || 0);
+        // Line 10 total bar
+        let l10bar = g1('te-s1-l10-bar');
+        let l10el  = g1('te-s1-l10');
+        if (l10bar) {
+          let v = sl.l10 || 0;
+          l10bar.classList.toggle('te-sc-profit', v >= 0);
+          l10bar.classList.toggle('te-sc-loss',   v <  0);
+        }
+        if (l10el) {
+          let v = sl.l10 || 0;
+          l10el.textContent = v >= 0 ? teFmt(v) : '(' + teFmt(Math.abs(v)) + ')';
+        }
       } break;
       case 'sched-e':    if (totalValEl) totalValEl.textContent = teFmt(calc.scheduleENet                                          || 0); break;
       case 'ctc':        if (totalValEl) totalValEl.textContent = teFmt((calc.ctcNonRefundable || 0) + (calc.actcRefundable        || 0)); break;

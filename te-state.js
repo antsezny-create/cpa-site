@@ -11,6 +11,7 @@ let teNotesPanelOpen = false;
 let teDirty          = false;  // true when return has unsaved changes
 let teSchedCTimer    = null;   // debounce timer for Schedule C inputs (150ms)
 let teSchedDTimer    = null;   // debounce timer for Schedule D inputs (150ms)
+let teSchedS1Timer   = null;   // debounce timer for Schedule 1 Part I inputs (150ms)
 function teEmptyReturn(clientId, clientName, taxYear) {
   return {
     id:           null,
@@ -106,6 +107,46 @@ function teEmptyReturn(clientId, clientName, taxYear) {
     },
     scheduleE: [],              // Array of pass-through entities — IRC §702, §1366
                                 // Each: { name:'', ein:'', incomeAmount:'', isPassive:true }
+    schedule1: {
+      k1099Amount:           '',   // Form 1099-K — amounts in error or personal items sold at loss (informational)
+      // Part I — Additional Income
+      taxRefunds:            '',   // Line 1  — Taxable state/local refunds — IRC §111(a)
+      alimonyReceived:       '',   // Line 2a — Pre-2019 agreements only — IRC §71 (pre-TCJA)
+      alimonyDate:           '',   // Line 2b — Date of original divorce or separation agreement
+      // Line 3 = Schedule C net profit/(loss) — auto from scheduleC.netProfit — IRC §162
+      otherGains:            '',   // Line 4  — Form 4797 / Form 4684 gains/(losses)
+      otherGainsForm4797:    false,
+      otherGainsForm4684:    false,
+      // Line 5 = Schedule E — auto from calc.scheduleENet — IRC §702, §1366
+      // Line 6 = Farm income/(loss) — auto from scheduleSE (farmProfit + crpPayments)
+      unemployment:          '',   // Line 7  — IRC §85(a): gross unemployment compensation
+      unemploymentRepaid:    false,
+      unemploymentRepaidAmt: '',   // Repayment amount (reduces line 7)
+      // Lines 8a–8v — Other Income sub-lines
+      l8a: '',   // Net operating loss (negative — subtracted from line 9)
+      l8b: '',   // Gambling winnings — IRC §165(d)
+      l8c: '',   // Cancellation of debt — IRC §61(a)(12)
+      l8d: '',   // Foreign earned income exclusion from Form 2555 (negative — subtracted)
+      l8e: '',   // Income from Form 8853 (MSA/long-term care)
+      l8f: '',   // Income from Form 8889 (HSA)
+      l8g: '',   // Alaska Permanent Fund dividends — IRC §643(b)
+      l8h: '',   // Jury duty pay
+      l8i: '',   // Prizes and awards — IRC §74(a)
+      l8j: '',   // Activity not engaged in for profit — IRC §183
+      l8k: '',   // Stock options
+      l8l: '',   // Income from rental of personal property (for profit, not in business)
+      l8m: '',   // Olympic/Paralympic medals and USOC prize money — IRC §74(d)
+      l8n: '',   // Section 951(a) inclusion (Subpart F)
+      l8o: '',   // Section 951A(a) inclusion (GILTI)
+      l8p: '',   // Section 461(l) excess business loss adjustment
+      l8q: '',   // Taxable distributions from ABLE account — IRC §529A
+      l8r: '',   // Scholarship/fellowship grants not reported on W-2
+      l8s: '',   // Nontaxable Medicaid waiver payments included on Form 1040 Line 1a/1d (negative — subtracted)
+      l8t: '',   // Pension/annuity from nonqualified deferred comp or nongovernmental §457 plan
+      l8u: '',   // Wages earned while incarcerated
+      l8v: '',   // Digital assets received as ordinary income not reported elsewhere
+      otherIncomeRows: []   // Line 8z — dynamic rows: [{type:'', amount:''}]
+    },
     investmentInterest: {
       expense:              '',  // Investment interest expense — IRC §163(d)
       priorYearCarryforward:'', // §163(d)(2) — prior year excess carries forward
@@ -444,9 +485,17 @@ function teGetScheduleStatus(schedId) {
         || sd.stGainForm6252 || sd.stGainK1 || sd.stLossCarryover
         || sd.ltGainForm4797 || sd.ltGainK1 || sd.capitalGainDistributions || sd.ltLossCarryover) ? 'entered' : 'empty';
     }
-    case 'sched-c':  return parseFloat((r.scheduleC || {}).netProfit) > 0 ? 'entered' : 'empty';
-    case 'sched-e':  return (r.scheduleE || []).length > 0 ? 'entered' : 'empty';
-    default:         return 'empty';
+    case 'sched-c':    return parseFloat((r.scheduleC || {}).netProfit) > 0 ? 'entered' : 'empty';
+    case 'sched-e':    return (r.scheduleE || []).length > 0 ? 'entered' : 'empty';
+    case 'sched-1-pi': {
+      let _s = r.schedule1 || {};
+      return (parseFloat(_s.taxRefunds)||0) > 0 || (parseFloat(_s.alimonyReceived)||0) > 0
+        || (parseFloat(_s.otherGains)||0) > 0 || (parseFloat(_s.unemployment)||0) > 0
+        || ['l8a','l8b','l8c','l8d','l8e','l8f','l8g','l8h','l8i','l8j','l8k','l8l',
+            'l8m','l8n','l8o','l8p','l8q','l8r','l8s','l8t','l8u','l8v'].some(k => (parseFloat(_s[k])||0) !== 0)
+        || (_s.otherIncomeRows||[]).length > 0 ? 'entered' : 'empty';
+    }
+    default:           return 'empty';
   }
 }
 
@@ -626,6 +675,7 @@ function teSerialize(r) {
     schedule1099:       r.schedule1099       || { interestIncome: '', ordinaryDividends: '', qualifiedDividends: '' },
     scheduleD:          r.scheduleD          || { shortTermTransactions:[{id:'st-0',description:'',dateAcquired:'',dateSold:'',proceeds:'',cost:'',adjustments:''}], longTermTransactions:[{id:'lt-0',description:'',dateAcquired:'',dateSold:'',proceeds:'',cost:'',adjustments:''}], stGainForm6252:'',stGainK1:'',stLossCarryover:'',ltGainForm4797:'',ltGainK1:'',capitalGainDistributions:'',ltLossCarryover:'',rate28Gain:'',unrecaptured1250:'',qualifiedOpportunityFund:false,netSTCG:'',netLTCG:'',priorYearCarryforward:'' },
     scheduleE:          r.scheduleE          || [],
+    schedule1:          r.schedule1          || { k1099Amount:'', taxRefunds:'', alimonyReceived:'', alimonyDate:'', otherGains:'', otherGainsForm4797:false, otherGainsForm4684:false, unemployment:'', unemploymentRepaid:false, unemploymentRepaidAmt:'', l8a:'', l8b:'', l8c:'', l8d:'', l8e:'', l8f:'', l8g:'', l8h:'', l8i:'', l8j:'', l8k:'', l8l:'', l8m:'', l8n:'', l8o:'', l8p:'', l8q:'', l8r:'', l8s:'', l8t:'', l8u:'', l8v:'', otherIncomeRows:[] },
     investmentInterest: r.investmentInterest || { expense: '', priorYearCarryforward: '', includeQDinNII: false },
     deductionType:      r.deductionType      || 'standard',
     educationStudents: r.educationStudents || [],
@@ -680,6 +730,24 @@ function teDeserialize(data) {
   if (r.scheduleD.netLTCG               === undefined) r.scheduleD.netLTCG               = '';
   if (r.scheduleD.priorYearCarryforward  === undefined) r.scheduleD.priorYearCarryforward  = '';
   if (!r.scheduleE)          r.scheduleE          = [];
+  // Schedule 1 Part I backfill — existing returns predate this object
+  if (!r.schedule1) r.schedule1 = {};
+  let _s1 = r.schedule1;
+  if (_s1.k1099Amount          === undefined) _s1.k1099Amount          = '';
+  if (_s1.taxRefunds           === undefined) _s1.taxRefunds           = '';
+  if (_s1.alimonyReceived      === undefined) _s1.alimonyReceived      = '';
+  if (_s1.alimonyDate          === undefined) _s1.alimonyDate          = '';
+  if (_s1.otherGains           === undefined) _s1.otherGains           = '';
+  if (_s1.otherGainsForm4797   === undefined) _s1.otherGainsForm4797   = false;
+  if (_s1.otherGainsForm4684   === undefined) _s1.otherGainsForm4684   = false;
+  if (_s1.unemployment         === undefined) _s1.unemployment         = '';
+  if (_s1.unemploymentRepaid   === undefined) _s1.unemploymentRepaid   = false;
+  if (_s1.unemploymentRepaidAmt=== undefined) _s1.unemploymentRepaidAmt= '';
+  ['l8a','l8b','l8c','l8d','l8e','l8f','l8g','l8h','l8i','l8j','l8k','l8l',
+   'l8m','l8n','l8o','l8p','l8q','l8r','l8s','l8t','l8u','l8v'].forEach(k => {
+    if (_s1[k] === undefined) _s1[k] = '';
+  });
+  if (!_s1.otherIncomeRows) _s1.otherIncomeRows = [];
   if (!r.investmentInterest) r.investmentInterest = { expense: '', priorYearCarryforward: '', includeQDinNII: false };
   if (!r.annotations)        r.annotations        = [];
   // Track 5 backfill — existing returns predate EIC field

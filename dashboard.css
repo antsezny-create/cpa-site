@@ -5492,3 +5492,111 @@ input[type="number"].te-input {
   font-weight: 600;
   font-size: 11px;
 }
+
+/* ── Schedule 1 Part I ─────────────────────────────────────────────── */
+
+/* Form wrapper — constrain width, left-align */
+.te-s1-form {
+  max-width: 900px;
+}
+
+/* Condensed header — title + subtitle on same row */
+.te-s1-header {
+  flex-direction: row !important;
+  align-items: baseline !important;
+  flex-wrap: wrap;
+  gap: 0 10px !important;
+  padding: 9px 14px !important;
+  margin-bottom: 12px !important;
+}
+
+/* Tighter rows for Schedule 1 Part I (lines 1–7 and 8z) */
+.te-s1-row {
+  min-height: 30px !important;
+  padding: 3px 0 !important;
+}
+
+/* Read-only auto-populated row */
+.te-s1-ro-row .te-sc-val {
+  font-family: var(--mono, monospace);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* Clickable read-only link (opens backing schedule) */
+.te-s1-ro-link {
+  cursor: pointer;
+  color: var(--accent);
+  text-decoration: underline;
+  font-family: var(--mono, monospace);
+  font-size: 13px;
+}
+.te-s1-ro-link:hover { color: #fff; }
+
+/* "negative" tag on lines 8a, 8d, 8s */
+.te-s1-neg-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  background: rgba(220,50,50,0.15);
+  border: 1px solid rgba(220,50,50,0.35);
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #dc6060;
+  vertical-align: middle;
+}
+
+/* ── Two-column grid for lines 8a–8v ──────────────────────────────── */
+.te-s1-8av-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+  margin-top: 4px;
+}
+/* Rows inside the two-column grid — slightly tighter, smaller font */
+.te-s1-col-row {
+  min-height: 28px !important;
+  padding: 2px 6px !important;
+}
+.te-s1-col-lbl {
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+}
+.te-s1-col-inp {
+  width: 96px !important;
+}
+/* Group-start border — first row of each logical cluster in the flat grid */
+.te-s1-group-start {
+  border-top: 1px solid rgba(255,255,255,0.12) !important;
+}
+/* Vertical separator between left and right columns */
+.te-s1-8av-grid .te-s1-col-row:nth-child(odd) {
+  border-right: 1px solid rgba(255,255,255,0.07);
+  padding-right: 8px !important;
+}
+.te-s1-8av-grid .te-s1-col-row:nth-child(even) {
+  padding-left: 8px !important;
+}
+
+/* ── Line 9 subtotal visual weight ────────────────────────────────── */
+.te-sc-row-subtotal {
+  background: rgba(255,255,255,0.04);
+  border-top: 2px solid rgba(255,255,255,0.12) !important;
+  margin-top: 8px;
+}
+
+/* ── Line 9 / total computed rows ────────────────────────────────── */
+.te-sc-row-total {
+  background: rgba(255,255,255,0.04);
+  border-top: 1px solid var(--border);
+  font-weight: 700;
+}
+.te-sc-row-total .te-sc-lbl { font-weight: 700; }
+.te-sc-row-total .te-sc-val {
+  font-family: var(--mono, monospace);
+  font-size: 13px;
+  font-weight: 700;
+}
