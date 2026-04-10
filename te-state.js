@@ -13,6 +13,7 @@ let teSchedCTimer    = null;   // debounce timer for Schedule C inputs (150ms)
 let teSchedDTimer    = null;   // debounce timer for Schedule D inputs (150ms)
 let teSchedS1Timer   = null;   // debounce timer for Schedule 1 Part I inputs (150ms)
 let teSchedS1PiiTimer = null;  // debounce timer for Schedule 1 Part II inputs (150ms)
+let teW2Timers = {};            // debounce timers for W-2 inputs, keyed by 'i_field'
 function teEmptyReturn(clientId, clientName, taxYear) {
   return {
     id:           null,
@@ -730,6 +731,36 @@ function teDeserialize(data) {
   if (!r.spouse)              r.spouse              = {};
   if (!r.dependents)          r.dependents          = [];
   if (!r.w2)                  r.w2                  = [];
+  // Migrate legacy W-2 entries ({ employer, wages, federalWithheld }) to full box-level structure
+  r.w2 = r.w2.map(w => {
+    if (w.box1 === undefined) {
+      // Legacy single-field entry — lift into full W-2 object
+      return {
+        ssn: '', ein: '', empName: w.employer || '', empAddr: '',
+        controlNum: '', eeName: '', eeMI: '', eeLastName: '', eeSuffix: '', eeAddr: '',
+        box1: w.wages || '', box2: w.federalWithheld || '',
+        box3: '', box4: '', box5: '', box6: '', box7: '', box8: '', box10: '', box11: '',
+        box12: [{ code: '', amount: '' }, { code: '', amount: '' }, { code: '', amount: '' }, { code: '', amount: '' }],
+        box13Statutory: false, box13Retirement: false, box13ThirdParty: false,
+        box14: [],
+        stateRows: [{ state: '', stateId: '', stateWages: '', stateTax: '', localWages: '', localTax: '', locality: '' }],
+        collapsed: false
+      };
+    }
+    // Backfill any fields missing on partially-migrated entries
+    if (!w.box12)     w.box12 = [{ code: '', amount: '' }, { code: '', amount: '' }, { code: '', amount: '' }, { code: '', amount: '' }];
+    else while (w.box12.length < 4) w.box12.push({ code: '', amount: '' });
+    if (!w.box14)     w.box14 = [];
+    if (!w.stateRows) w.stateRows = [{ state: '', stateId: '', stateWages: '', stateTax: '', localWages: '', localTax: '', locality: '' }];
+    ['box3','box4','box5','box6','box7','box8','box10','box11',
+     'ssn','ein','empName','empAddr','controlNum','eeName','eeMI','eeLastName','eeSuffix','eeAddr'
+    ].forEach(k => { if (w[k] === undefined) w[k] = ''; });
+    if (w.box13Statutory  === undefined) w.box13Statutory  = false;
+    if (w.box13Retirement === undefined) w.box13Retirement = false;
+    if (w.box13ThirdParty === undefined) w.box13ThirdParty = false;
+    if (w.collapsed       === undefined) w.collapsed       = false;
+    return w;
+  });
   if (!r.scheduleC)               r.scheduleC           = { netProfit: '' };
   if (!r.scheduleC.businessInfo)  r.scheduleC.businessInfo  = {};
   if (!r.scheduleC.expenses)      r.scheduleC.expenses      = {};

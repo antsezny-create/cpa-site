@@ -145,19 +145,6 @@ function teRenderDeductionsMenu() {
     <p class="te-sec-sub">Select a schedule to enter data &mdash; <span class="te-cite">IRC §62, §63</span></p></div>
     <div class="te-menu-section-lbl">Above-the-Line Adjustments <span class="te-cite">IRC §62</span></div>
     <div class="te-menu-grid">
-      ${(function() {
-        let ln = c.sched1PII_lines || {};
-        let l26 = ln.l26 || 0;
-        let hasP2 = teGetScheduleStatus('sched-1') === 'entered'
-                    || (c.seTaxDeduction||0) > 0
-                    || (c.hsaDeduction||0) > 0
-                    || (c.iraDeduction||0) > 0
-                    || (c.sliDeduction||0) > 0
-                    || (c.alimonyDeduction||0) > 0;
-        return teMenuCard('sched-1', 'Schedule 1', 'Adjustments to Income (Part II)',
-          'All above-the-line deductions — educator expenses, SE deductions, alimony, IRA, SLI, and more. IRC §62.',
-          hasP2, l26 > 0 ? teFmt(l26) : '', src);
-      })()}
       ${teMenuCard('sli',     'Schedule 1', 'Student Loan Interest',
           'Up to $2,500. Phases out by MAGI. IRC §221.',
           (c.sliDeduction||0) > 0, teFmt(c.sliDeduction||0), src)}
@@ -299,16 +286,22 @@ function teRenderMiniScreen(schedId) {
     case 'w2':
       return nav + `
         <div class="te-sec-hdr"><h2>W-2 — Wages &amp; Salaries</h2>
-        <p class="te-sec-sub"><span class="te-cite">IRC §61(a)(1), §3401 &mdash; 1040 Line 1a</span></p></div>
+        <p class="te-sec-sub"><span class="te-cite">IRC §61(a)(1), §3401 &mdash; 1040 Lines 1a &amp; 25a</span></p></div>
         <div class="te-subsec">
           <div class="te-subsec-row">
-            <div class="te-subsec-desc">Enter each employer's W-2 separately. Box 1 = wages, Box 2 = federal withholding.</div>
+            <div class="te-subsec-desc">Enter each employer&rsquo;s W-2 separately. All boxes from the actual form. Box 1 feeds 1040 Line 1a; Box 2 feeds Line 25a.</div>
             <button class="ghost-btn te-sm-btn" onclick="teAddW2()">+ Add W-2</button>
           </div>
           <div id="te-w2-list"></div>
-          <div class="te-total-bar" id="te-w2-total-bar" style="display:none;">
-            <span>Total W-2 Wages <span class="te-cite">1040 Line 1a</span></span>
-            <span class="te-total-val" id="te-w2-total-val">$0</span>
+          <div class="te-total-bar te-w2-total-bar-2col" id="te-w2-total-bar" style="display:none;">
+            <div class="te-w2-total-item">
+              <span>Total W-2 Wages <span class="te-cite">Box 1 &rarr; 1040 Line 1a</span></span>
+              <span class="te-total-val te-mono" id="te-w2-total-val">$0</span>
+            </div>
+            <div class="te-w2-total-item">
+              <span>Total Federal Withholding <span class="te-cite">Box 2 &rarr; 1040 Line 25a</span></span>
+              <span class="te-total-val te-mono" id="te-w2-total-val2">$0</span>
+            </div>
           </div>
         </div>`;
 
@@ -1295,9 +1288,15 @@ function teRenderIncome() {
         <button class="ghost-btn te-sm-btn" onclick="teAddW2()">+ Add W-2</button>
       </div>
       <div id="te-w2-list"></div>
-      <div class="te-total-bar" id="te-w2-total-bar" style="display:none;">
-        <span>Total W-2 Wages <span class="te-cite">IRC §61(a)(1)</span></span>
-        <span class="te-total-val" id="te-w2-total-val">$0</span>
+      <div class="te-total-bar te-w2-total-bar-2col" id="te-w2-total-bar" style="display:none;">
+        <div class="te-w2-total-item">
+          <span>Total W-2 Wages <span class="te-cite">Box 1 &rarr; 1040 Line 1a</span></span>
+          <span class="te-total-val te-mono" id="te-w2-total-val">$0</span>
+        </div>
+        <div class="te-w2-total-item">
+          <span>Total Federal Withholding <span class="te-cite">Box 2 &rarr; 1040 Line 25a</span></span>
+          <span class="te-total-val te-mono" id="te-w2-total-val2">$0</span>
+        </div>
       </div>
     </div>
 
@@ -1392,51 +1391,254 @@ function teRenderIncome() {
     </div>`;
 }
 
+// ── W-2 — Full Box-Level Entry ────────────────────────────────────────────
+// IRC §61(a)(1), §3401 — 1040 Lines 1a (Box 1) & 25a (Box 2)
+
+function teW2Box12CodeOptions(selected) {
+  let codes = [
+    ['',   '— None —'],
+    ['A',  'A \u2014 Uncollected SS/RRTA tax on tips'],
+    ['B',  'B \u2014 Uncollected Medicare tax on tips'],
+    ['C',  'C \u2014 Taxable cost group-term life ins >$50K'],
+    ['D',  'D \u2014 Elective deferrals to 401(k)'],
+    ['E',  'E \u2014 Elective deferrals to 403(b)'],
+    ['F',  'F \u2014 Elective deferrals to 408(k)(6) SEP'],
+    ['G',  'G \u2014 Elective deferrals to 457(b)'],
+    ['H',  'H \u2014 Elective deferrals to 501(c)(18)(D)'],
+    ['J',  'J \u2014 Nontaxable sick pay'],
+    ['K',  'K \u2014 20% excise tax on excess golden parachute'],
+    ['L',  'L \u2014 Employee business expense reimbursements'],
+    ['M',  'M \u2014 Uncollected SS tax on group-term life ins'],
+    ['N',  'N \u2014 Uncollected Medicare tax on group-term life ins'],
+    ['P',  'P \u2014 Excludable moving expense reimbursements'],
+    ['Q',  'Q \u2014 Nontaxable combat pay'],
+    ['R',  'R \u2014 Employer contributions to Archer MSA'],
+    ['S',  'S \u2014 Employee salary reduction to SIMPLE'],
+    ['T',  'T \u2014 Adoption benefits'],
+    ['V',  'V \u2014 Income from nonstatutory stock options'],
+    ['W',  'W \u2014 Employer contributions to HSA'],
+    ['Y',  'Y \u2014 Deferrals under \u00a7409A nonqualified deferred comp'],
+    ['Z',  'Z \u2014 Income under \u00a7409A nonqualified deferred comp'],
+    ['AA', 'AA \u2014 Designated Roth contributions to 401(k)'],
+    ['BB', 'BB \u2014 Designated Roth contributions to 403(b)'],
+    ['DD', 'DD \u2014 Cost of employer-sponsored health coverage'],
+    ['EE', 'EE \u2014 Designated Roth contributions to govt 457(b)'],
+    ['FF', 'FF \u2014 Benefits under qualified small employer HRA'],
+    ['GG', 'GG \u2014 Income from qualified equity grants \u00a783(i)'],
+    ['HH', 'HH \u2014 Aggregate deferrals under \u00a783(i) elections']
+  ];
+  return codes.map(([v, l]) => `<option value="${v}"${selected === v ? ' selected' : ''}>${l}</option>`).join('');
+}
+
+function teRenderW2Card(w, i) {
+  let nv = v => (v !== '' && v !== undefined && v !== null) ? esc(String(v)) : '';
+  let tv = v => esc(String(v || ''));
+  let ck = v => v ? ' checked' : '';
+  let b12Labels = ['12a', '12b', '12c', '12d'];
+  let empDisplay = w.empName ? (' \u2014 ' + esc(w.empName)) : '';
+
+  let b12Html = (w.box12 || []).slice(0, 4).map((b, s) => `
+    <div class="te-w2-b12-row">
+      <span class="te-w2-b12-lbl">${b12Labels[s]}</span>
+      <select class="te-input te-w2-b12-code" onchange="teOnW2B12Code(${i},${s},this.value)">${teW2Box12CodeOptions(b.code || '')}</select>
+      <input type="number" class="te-input te-mono te-w2-b12-amt" id="te-w2-${i}-b12amt-${s}" value="${nv(b.amount)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2B12Amt(${i},${s})">
+    </div>`).join('');
+
+  let b14Html = (w.box14 || []).map((b, j) => `
+    <div class="te-w2-b14-row">
+      <input type="text" class="te-input te-w2-b14-desc" id="te-w2-${i}-b14txt-${j}" value="${tv(b.desc)}" placeholder="Description (e.g. NY SDI, Union Dues)" oninput="teOnW2B14Txt(${i},${j})">
+      <input type="number" class="te-input te-mono te-w2-b14-amt" id="te-w2-${i}-b14amt-${j}" value="${nv(b.amount)}" placeholder="0.00" step="0.01" oninput="teOnW2B14Amt(${i},${j})">
+      <button class="te-rm-btn" onclick="teW2RmB14(${i},${j})">&#10005;</button>
+    </div>`).join('');
+
+  let srLen = (w.stateRows || []).length;
+  let srHtml = (w.stateRows || []).map((sr, j) => `
+    <div class="te-w2-state-row">
+      <div class="te-w2-state-fields">
+        <div class="te-w2-state-cell">
+          <label class="te-lbl">Box 15 &mdash; State</label>
+          <select class="te-select" id="te-w2-${i}-sr-${j}-state" onchange="teOnW2StateField(${i},${j},'state')">
+            <option value="">—</option>
+            ${['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'].map(s=>`<option value="${s}"${(sr.state||'')=== s?' selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="te-w2-state-cell">
+          <label class="te-lbl">Employer State ID</label>
+          <input type="text" class="te-input te-mono" id="te-w2-${i}-sr-${j}-stateId" value="${tv(sr.stateId)}" placeholder="State ID #" oninput="teOnW2StateField(${i},${j},'stateId')">
+        </div>
+        <div class="te-w2-state-cell">
+          <label class="te-lbl">Box 16 &mdash; State Wages</label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-sr-${j}-stateWages" value="${nv(sr.stateWages)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2StateField(${i},${j},'stateWages')">
+        </div>
+        <div class="te-w2-state-cell">
+          <label class="te-lbl">Box 17 &mdash; State Tax</label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-sr-${j}-stateTax" value="${nv(sr.stateTax)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2StateField(${i},${j},'stateTax')">
+        </div>
+        <div class="te-w2-state-cell">
+          <label class="te-lbl">Box 18 &mdash; Local Wages</label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-sr-${j}-localWages" value="${nv(sr.localWages)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2StateField(${i},${j},'localWages')">
+        </div>
+        <div class="te-w2-state-cell">
+          <label class="te-lbl">Box 19 &mdash; Local Tax</label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-sr-${j}-localTax" value="${nv(sr.localTax)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2StateField(${i},${j},'localTax')">
+        </div>
+        <div class="te-w2-state-cell te-w2-state-wide">
+          <label class="te-lbl">Box 20 &mdash; Locality</label>
+          <input type="text" class="te-input" id="te-w2-${i}-sr-${j}-locality" value="${tv(sr.locality)}" placeholder="e.g. New York City" oninput="teOnW2StateField(${i},${j},'locality')">
+        </div>
+      </div>
+      ${srLen > 1 ? `<button class="te-rm-btn" style="align-self:flex-start;margin-top:18px;" onclick="teW2RmState(${i},${j})">&#10005;</button>` : ''}
+    </div>`).join('');
+
+  return `
+  <div class="te-w2-card" id="te-w2-card-${i}">
+    <div class="te-w2-card-hdr">
+      <div class="te-w2-card-title">
+        <span class="te-w2-num">W-2 #${i + 1}</span>
+        <span id="te-w2-hdr-name-${i}" class="te-w2-hdr-employer">${empDisplay}</span>
+      </div>
+      <div class="te-w2-card-btns">
+        <button class="ghost-btn te-sm-btn te-w2-toggle-btn" onclick="teToggleW2Card(${i})">${w.collapsed ? '&#9658; Expand' : '&#9660; Collapse'}</button>
+        <button class="te-rm-btn" onclick="teRmW2(${i})">&#10005;</button>
+      </div>
+    </div>
+    <div class="te-w2-card-body" id="te-w2-body-${i}"${w.collapsed ? ' style="display:none;"' : ''}>
+
+      <div class="te-w2-sect-lbl">Employee &amp; Employer Information</div>
+      <div class="te-w2-info-grid">
+        <div class="te-w2-info-cell">
+          <label class="te-lbl">a &mdash; Employee&rsquo;s SSN</label>
+          <input type="text" class="te-input te-mono" id="te-w2-${i}-ssn" value="${tv(w.ssn)}" placeholder="XXX-XX-XXXX" oninput="teOnW2Txt(${i},'ssn')">
+        </div>
+        <div class="te-w2-info-cell">
+          <label class="te-lbl">b &mdash; Employer&rsquo;s EIN</label>
+          <input type="text" class="te-input te-mono" id="te-w2-${i}-ein" value="${tv(w.ein)}" placeholder="XX-XXXXXXX" oninput="teOnW2Txt(${i},'ein')">
+        </div>
+        <div class="te-w2-info-cell te-w2-full">
+          <label class="te-lbl">c &mdash; Employer Name, Address &amp; ZIP</label>
+          <div style="display:flex;gap:6px;">
+            <input type="text" class="te-input" style="flex:2;min-width:0;" id="te-w2-${i}-empName" value="${tv(w.empName)}" placeholder="Employer name" oninput="teOnW2Txt(${i},'empName')">
+            <input type="text" class="te-input" style="flex:3;min-width:0;" id="te-w2-${i}-empAddr" value="${tv(w.empAddr)}" placeholder="Street, City, State ZIP" oninput="teOnW2Txt(${i},'empAddr')">
+          </div>
+        </div>
+        <div class="te-w2-info-cell">
+          <label class="te-lbl">d &mdash; Control Number <span class="te-sc-sub">(optional)</span></label>
+          <input type="text" class="te-input" id="te-w2-${i}-controlNum" value="${tv(w.controlNum)}" placeholder="Optional" oninput="teOnW2Txt(${i},'controlNum')">
+        </div>
+        <div class="te-w2-info-cell">
+          <label class="te-lbl">e &mdash; Employee Name</label>
+          <div style="display:flex;gap:5px;">
+            <input type="text" class="te-input" style="flex:2;min-width:0;" id="te-w2-${i}-eeName" value="${tv(w.eeName)}" placeholder="First" oninput="teOnW2Txt(${i},'eeName')">
+            <input type="text" class="te-input" style="flex:0 0 34px;min-width:0;" id="te-w2-${i}-eeMI" value="${tv(w.eeMI)}" placeholder="MI" oninput="teOnW2Txt(${i},'eeMI')">
+            <input type="text" class="te-input" style="flex:2;min-width:0;" id="te-w2-${i}-eeLastName" value="${tv(w.eeLastName)}" placeholder="Last" oninput="teOnW2Txt(${i},'eeLastName')">
+            <input type="text" class="te-input" style="flex:0 0 44px;min-width:0;" id="te-w2-${i}-eeSuffix" value="${tv(w.eeSuffix)}" placeholder="Suf." oninput="teOnW2Txt(${i},'eeSuffix')">
+          </div>
+        </div>
+        <div class="te-w2-info-cell te-w2-full">
+          <label class="te-lbl">f &mdash; Employee Address &amp; ZIP</label>
+          <input type="text" class="te-input" id="te-w2-${i}-eeAddr" value="${tv(w.eeAddr)}" placeholder="Street, City, State ZIP" oninput="teOnW2Txt(${i},'eeAddr')">
+        </div>
+      </div>
+
+      <div class="te-w2-sect-lbl">Income &amp; Tax <span class="te-cite">IRC §3401</span></div>
+      <div class="te-w2-box-grid">
+        <div class="te-w2-box-cell">
+          <label class="te-lbl">Box 1 &mdash; Wages, tips, other compensation <span class="te-cite">&rarr; 1040 Line 1a</span></label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-box1" value="${nv(w.box1)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2Num(${i},'box1')">
+        </div>
+        <div class="te-w2-box-cell">
+          <label class="te-lbl">Box 2 &mdash; Federal income tax withheld <span class="te-cite">&rarr; 1040 Line 25a</span></label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-box2" value="${nv(w.box2)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2Num(${i},'box2')">
+        </div>
+        <div class="te-w2-box-cell">
+          <label class="te-lbl">Box 3 &mdash; Social security wages <span class="te-cite">IRC §3121</span></label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-box3" value="${nv(w.box3)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2Num(${i},'box3')">
+        </div>
+        <div class="te-w2-box-cell">
+          <label class="te-lbl">Box 4 &mdash; Social security tax withheld</label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-box4" value="${nv(w.box4)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2Num(${i},'box4')">
+        </div>
+        <div class="te-w2-box-cell">
+          <label class="te-lbl">Box 5 &mdash; Medicare wages and tips <span class="te-cite">IRC §3101(b)</span></label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-box5" value="${nv(w.box5)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2Num(${i},'box5')">
+        </div>
+        <div class="te-w2-box-cell">
+          <label class="te-lbl">Box 6 &mdash; Medicare tax withheld</label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-box6" value="${nv(w.box6)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2Num(${i},'box6')">
+        </div>
+        <div class="te-w2-box-cell">
+          <label class="te-lbl">Box 7 &mdash; Social security tips <span class="te-cite">IRC §3402(k)</span></label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-box7" value="${nv(w.box7)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2Num(${i},'box7')">
+        </div>
+        <div class="te-w2-box-cell">
+          <label class="te-lbl">Box 8 &mdash; Allocated tips <span class="te-cite">IRC §3402(k)</span></label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-box8" value="${nv(w.box8)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2Num(${i},'box8')">
+        </div>
+        <div class="te-w2-box-cell">
+          <label class="te-lbl">Box 10 &mdash; Dependent care benefits <span class="te-cite">IRC §129</span></label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-box10" value="${nv(w.box10)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2Num(${i},'box10')">
+        </div>
+        <div class="te-w2-box-cell">
+          <label class="te-lbl">Box 11 &mdash; Nonqualified plans <span class="te-cite">IRC §457</span></label>
+          <input type="number" class="te-input te-mono" id="te-w2-${i}-box11" value="${nv(w.box11)}" placeholder="0.00" step="0.01" min="0" oninput="teOnW2Num(${i},'box11')">
+        </div>
+      </div>
+
+      <div class="te-w2-sect-lbl">Box 12 &mdash; Coded Entries</div>
+      <div class="te-w2-b12-grid">${b12Html}</div>
+
+      <div class="te-w2-sect-lbl">Box 13</div>
+      <div class="te-w2-b13-row">
+        <label class="te-w2-b13-chk"><input type="checkbox"${ck(w.box13Statutory)} onchange="teOnW2Bool(${i},'box13Statutory',this.checked)"><span>Statutory employee</span></label>
+        <label class="te-w2-b13-chk"><input type="checkbox"${ck(w.box13Retirement)} onchange="teOnW2Bool(${i},'box13Retirement',this.checked)"><span>Retirement plan <span class="te-cite">IRC §219(g)</span></span></label>
+        <label class="te-w2-b13-chk"><input type="checkbox"${ck(w.box13ThirdParty)} onchange="teOnW2Bool(${i},'box13ThirdParty',this.checked)"><span>Third-party sick pay</span></label>
+      </div>
+
+      <div class="te-w2-sect-lbl">Box 14 &mdash; Other <span class="te-sc-sub">(employer-entered: state disability, union dues, etc.)</span></div>
+      ${b14Html ? `<div class="te-w2-b14-list">${b14Html}</div>` : ''}
+      <button class="ghost-btn te-sm-btn" style="margin-top:6px;" onclick="teW2AddB14(${i})">+ Add Box 14 Item</button>
+
+      <div class="te-w2-sect-lbl" style="margin-top:14px;">State &amp; Local Tax <span class="te-cite">Boxes 15&ndash;20</span></div>
+      <div class="te-w2-state-list">${srHtml}</div>
+      ${srLen < 2 ? `<button class="ghost-btn te-sm-btn" style="margin-top:6px;" onclick="teW2AddState(${i})">+ Add State/Local Row</button>` : ''}
+
+    </div>
+  </div>`;
+}
+
 function teRenderW2List() {
   let c   = document.getElementById('te-w2-list');
   let bar = document.getElementById('te-w2-total-bar');
   if (!c) return;
   let w2s = teCurrentReturn.w2 || [];
   if (w2s.length === 0) {
-    c.innerHTML = '<div class="te-empty">No W-2s added. Click "+ Add W-2" to add wages.</div>';
+    c.innerHTML = '<div class="te-empty">No W-2s added. Click &quot;+ Add W-2&quot; to begin.</div>';
     if (bar) bar.style.display = 'none';
     return;
   }
   if (bar) bar.style.display = 'flex';
-  c.innerHTML = `
-    <div class="te-w2-tbl">
-      <div class="te-w2-hdr">
-        <span>Employer Name</span><span>Box 1: Wages</span><span>Box 2: Fed. Withheld</span><span></span>
-      </div>
-      ${w2s.map((w, i) => `
-        <div class="te-w2-row">
-          <input type="text"   class="te-input"          value="${esc(w.employer||'')}"       placeholder="Employer name" oninput="teUpdW2(${i},'employer',this.value)">
-          <input type="number" class="te-input te-mono"  value="${w.wages||''}"               placeholder="0.00" step="0.01" min="0" oninput="teUpdW2(${i},'wages',this.value)">
-          <input type="number" class="te-input te-mono"  value="${w.federalWithheld||''}"     placeholder="0.00" step="0.01" min="0" oninput="teUpdW2(${i},'federalWithheld',this.value)">
-          <button class="te-rm-btn" onclick="teRmW2(${i})">✕</button>
-        </div>`).join('')}
-    </div>`;
-  let tot = w2s.reduce((s, w) => s + (parseFloat(w.wages)||0), 0);
-  let tv  = document.getElementById('te-w2-total-val');
-  if (tv) tv.textContent = teFmt(tot);
+  c.innerHTML = `<div class="te-w2-cards">${w2s.map((w, i) => teRenderW2Card(w, i)).join('')}</div>`;
+  let tv1 = document.getElementById('te-w2-total-val');
+  let tv2 = document.getElementById('te-w2-total-val2');
+  if (tv1) tv1.textContent = teFmt(w2s.reduce((s, w) => s + (parseFloat(w.box1) || 0), 0));
+  if (tv2) tv2.textContent = teFmt(w2s.reduce((s, w) => s + (parseFloat(w.box2) || 0), 0));
 }
 
 function teAddW2() {
   teMarkDirty();
-  teCurrentReturn.w2.push({ employer: '', wages: '', federalWithheld: '' });
+  if (!teCurrentReturn.w2) teCurrentReturn.w2 = [];
+  teCurrentReturn.w2.push({
+    ssn: '', ein: '', empName: '', empAddr: '',
+    controlNum: '', eeName: '', eeMI: '', eeLastName: '', eeSuffix: '', eeAddr: '',
+    box1: '', box2: '', box3: '', box4: '', box5: '', box6: '',
+    box7: '', box8: '', box10: '', box11: '',
+    box12: [{ code: '', amount: '' }, { code: '', amount: '' }, { code: '', amount: '' }, { code: '', amount: '' }],
+    box13Statutory: false, box13Retirement: false, box13ThirdParty: false,
+    box14: [],
+    stateRows: [{ state: '', stateId: '', stateWages: '', stateTax: '', localWages: '', localTax: '', locality: '' }],
+    collapsed: false
+  });
   teRenderW2List();
-  teRecalculate();
-}
-
-function teUpdW2(i, field, val) {
-  if (!teCurrentReturn.w2[i]) return;
-  teMarkDirty();
-  teCurrentReturn.w2[i][field] = val;
-  if (field === 'wages') {
-    let tot = teCurrentReturn.w2.reduce((s, w) => s + (parseFloat(w.wages)||0), 0);
-    let tv  = document.getElementById('te-w2-total-val');
-    if (tv) tv.textContent = teFmt(tot);
-  }
   teRecalculate();
 }
 
@@ -1445,6 +1647,138 @@ function teRmW2(i) {
   teCurrentReturn.w2.splice(i, 1);
   teRenderW2List();
   teRecalculate();
+}
+
+function teToggleW2Card(i) {
+  if (!teCurrentReturn.w2[i]) return;
+  teCurrentReturn.w2[i].collapsed = !teCurrentReturn.w2[i].collapsed;
+  let body = document.getElementById('te-w2-body-' + i);
+  let card = document.getElementById('te-w2-card-' + i);
+  if (body) body.style.display = teCurrentReturn.w2[i].collapsed ? 'none' : '';
+  let btn = card ? card.querySelector('.te-w2-toggle-btn') : null;
+  if (btn) btn.innerHTML = teCurrentReturn.w2[i].collapsed ? '&#9658; Expand' : '&#9660; Collapse';
+}
+
+// ── W-2 Input Handlers ────────────────────────────────────────────────────
+
+function teOnW2Num(i, field) {
+  clearTimeout(teW2Timers[i + '_' + field]);
+  teW2Timers[i + '_' + field] = setTimeout(() => {
+    let el = document.getElementById('te-w2-' + i + '-' + field);
+    if (!el || !teCurrentReturn.w2[i]) return;
+    teMarkDirty();
+    teCurrentReturn.w2[i][field] = el.value;
+    teRecalculate();
+  }, 150);
+}
+
+function teOnW2Txt(i, field) {
+  clearTimeout(teW2Timers[i + '_' + field]);
+  teW2Timers[i + '_' + field] = setTimeout(() => {
+    let el = document.getElementById('te-w2-' + i + '-' + field);
+    if (!el || !teCurrentReturn.w2[i]) return;
+    teMarkDirty();
+    teCurrentReturn.w2[i][field] = el.value;
+    if (field === 'empName') {
+      let nameEl = document.getElementById('te-w2-hdr-name-' + i);
+      if (nameEl) nameEl.textContent = el.value ? (' \u2014 ' + el.value) : '';
+    }
+  }, 150);
+}
+
+function teOnW2Bool(i, field, val) {
+  if (!teCurrentReturn.w2[i]) return;
+  teMarkDirty();
+  teCurrentReturn.w2[i][field] = val;
+  teRecalculate();
+}
+
+function teOnW2B12Code(i, slot, val) {
+  if (!teCurrentReturn.w2[i] || !teCurrentReturn.w2[i].box12) return;
+  teMarkDirty();
+  teCurrentReturn.w2[i].box12[slot].code = val;
+  teRecalculate();
+}
+
+function teOnW2B12Amt(i, slot) {
+  let key = i + '_b12_' + slot;
+  clearTimeout(teW2Timers[key]);
+  teW2Timers[key] = setTimeout(() => {
+    let el = document.getElementById('te-w2-' + i + '-b12amt-' + slot);
+    let w  = teCurrentReturn.w2[i];
+    if (!el || !w || !w.box12 || !w.box12[slot]) return;
+    teMarkDirty();
+    w.box12[slot].amount = el.value;
+    teRecalculate();
+  }, 150);
+}
+
+function teW2AddB14(i) {
+  if (!teCurrentReturn.w2[i]) return;
+  teMarkDirty();
+  teCurrentReturn.w2[i].box14.push({ desc: '', amount: '' });
+  teRenderW2List();
+}
+
+function teW2RmB14(i, j) {
+  if (!teCurrentReturn.w2[i]) return;
+  teMarkDirty();
+  teCurrentReturn.w2[i].box14.splice(j, 1);
+  teRenderW2List();
+}
+
+function teOnW2B14Txt(i, j) {
+  let key = i + '_b14txt_' + j;
+  clearTimeout(teW2Timers[key]);
+  teW2Timers[key] = setTimeout(() => {
+    let el = document.getElementById('te-w2-' + i + '-b14txt-' + j);
+    let w  = teCurrentReturn.w2[i];
+    if (!el || !w || !w.box14 || !w.box14[j]) return;
+    teMarkDirty();
+    w.box14[j].desc = el.value;
+  }, 150);
+}
+
+function teOnW2B14Amt(i, j) {
+  let key = i + '_b14amt_' + j;
+  clearTimeout(teW2Timers[key]);
+  teW2Timers[key] = setTimeout(() => {
+    let el = document.getElementById('te-w2-' + i + '-b14amt-' + j);
+    let w  = teCurrentReturn.w2[i];
+    if (!el || !w || !w.box14 || !w.box14[j]) return;
+    teMarkDirty();
+    w.box14[j].amount = el.value;
+  }, 150);
+}
+
+function teW2AddState(i) {
+  if (!teCurrentReturn.w2[i]) return;
+  teMarkDirty();
+  if (!teCurrentReturn.w2[i].stateRows) teCurrentReturn.w2[i].stateRows = [];
+  teCurrentReturn.w2[i].stateRows.push({ state: '', stateId: '', stateWages: '', stateTax: '', localWages: '', localTax: '', locality: '' });
+  teRenderW2List();
+}
+
+function teW2RmState(i, j) {
+  let w = teCurrentReturn.w2[i];
+  if (!w || (w.stateRows || []).length <= 1) return;
+  teMarkDirty();
+  w.stateRows.splice(j, 1);
+  teRenderW2List();
+  teRecalculate();
+}
+
+function teOnW2StateField(i, j, field) {
+  let key = i + '_sr_' + j + '_' + field;
+  clearTimeout(teW2Timers[key]);
+  teW2Timers[key] = setTimeout(() => {
+    let el = document.getElementById('te-w2-' + i + '-sr-' + j + '-' + field);
+    let w  = teCurrentReturn.w2[i];
+    if (!el || !w || !w.stateRows || !w.stateRows[j]) return;
+    teMarkDirty();
+    w.stateRows[j][field] = el.value;
+    teRecalculate();
+  }, 150);
 }
 
 // ── Social Security Benefits — IRC §86 — 1040 Lines 6a/6b ────────────────

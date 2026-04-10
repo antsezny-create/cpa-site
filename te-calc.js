@@ -260,7 +260,7 @@ function teRecalculate() {
   if (sc.grossReceipts !== undefined) sc.netProfit = String(scL31);
 
   let seData_       = teCurrentReturn.scheduleSE || {};
-  calc.w2Wages      = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.wages)||0), 0));
+  calc.w2Wages      = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.box1)||parseFloat(w.wages)||0), 0));
   // netSEIncome = Schedule C + Schedule F farm profit + CRP payments (all SE sources)
   // IRC §1402(a): net earnings from self-employment includes all trade/business net income
   calc.netSEIncome  = teRound(Math.max(0,
@@ -977,7 +977,27 @@ function teRecalculate() {
   calc.totalTax        = calc.taxAfterCredits;  // alias — used by meter and flags
 
   // ── Step 11: Payments — IRC §3402, §6654 ────────────────────────────
-  calc.w2Withholding = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.federalWithheld)||0), 0));
+  calc.w2Withholding = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.box2)||parseFloat(w.federalWithheld)||0), 0));
+  // ── W-2 Informational Aggregates ──────────────────────────────────────
+  // IRC §3121: SS/Medicare wage verification (informational — not in downstream calc)
+  calc.w2Box3  = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+(parseFloat(w.box3 )||0), 0));
+  calc.w2Box4  = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+(parseFloat(w.box4 )||0), 0));
+  calc.w2Box5  = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+(parseFloat(w.box5 )||0), 0));
+  calc.w2Box6  = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+(parseFloat(w.box6 )||0), 0));
+  // TODO: Wire w2Box10 to Form 2441 (Dependent Care Benefits) — IRC §129
+  calc.w2Box10 = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+(parseFloat(w.box10)||0), 0));
+  // TODO: Wire w2Box12W to Form 8889 (HSA employer contributions) — IRC §223(d)(2)
+  calc.w2Box12W   = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+((w.box12||[]).reduce((a,r) => a+(r.code==='W'?(parseFloat(r.amount)||0):0), 0)), 0));
+  // TODO: Wire w2Box12Ret to IRA deduction active participant phase-out — IRC §219(g)
+  let _retCodes = new Set(['D','E','F','G','H','S','AA','BB','EE']);
+  calc.w2Box12Ret = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+((w.box12||[]).reduce((a,r) => a+(_retCodes.has(r.code)?(parseFloat(r.amount)||0):0), 0)), 0));
+  // IRC §6051(a)(14): employer health coverage cost — ACA informational reporting only
+  calc.w2Box12DD  = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+((w.box12||[]).reduce((a,r) => a+(r.code==='DD'?(parseFloat(r.amount)||0):0), 0)), 0));
+  // TODO: Wire w2Box13Ret to IRA deduction phase-out — IRC §219(g)(5): active participant flag
+  calc.w2Box13Ret = (teCurrentReturn.w2||[]).some(w => w.box13Retirement);
+  // TODO: Wire w2Box17/w2Box19 to Schedule A SALT — IRC §164(a)(3)
+  calc.w2Box17 = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+((w.stateRows||[]).reduce((a,r) => a+(parseFloat(r.stateTax)||0), 0)), 0));
+  calc.w2Box19 = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+((w.stateRows||[]).reduce((a,r) => a+(parseFloat(r.localTax)||0), 0)), 0));
   let ep = teCurrentReturn.estimatedPayments || {};
   calc.estQ1         = teRound(parseFloat(ep.q1) || 0);
   calc.estQ2         = teRound(parseFloat(ep.q2) || 0);
@@ -1072,7 +1092,12 @@ function teRecalculate() {
     let miniId = teActiveSection.slice(5);
     let totalValEl = document.getElementById('te-mini-total-val');
     switch (miniId) {
-      case 'w2':         if (totalValEl) totalValEl.textContent = teFmt(calc.w2Wages                                              || 0); break;
+      case 'w2': {
+        let tv1 = document.getElementById('te-w2-total-val');
+        let tv2 = document.getElementById('te-w2-total-val2');
+        if (tv1) tv1.textContent = teFmt(calc.w2Wages       || 0);
+        if (tv2) tv2.textContent = teFmt(calc.w2Withholding || 0);
+      } break;
       case 'retirement': {
         // Two independent total bars — update each by specific ID (no te-mini-total-val on this screen)
         let iraTV = document.getElementById('te-ira-total-val');
