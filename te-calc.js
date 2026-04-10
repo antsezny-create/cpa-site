@@ -246,10 +246,18 @@ function teRecalculate() {
     l48:scL48
   };
 
-  // Override sc.netProfit if the user is using the detailed form
-  // (any income or expense field is non-zero = detailed form is active)
+  // Sync sc.netProfit from the computed line 31 whenever the return was created with the
+  // detailed Schedule C form. Detection: sc.grossReceipts is undefined ONLY on pre-engine
+  // legacy returns (created before the detailed form existed) that store a hand-entered
+  // netProfit as a single field. All current returns have sc.grossReceipts = '' (from
+  // teEmptyReturn) so the check is always true for them.
+  //
+  // BUG FIX: the previous guard `if (scDetailedActive)` (non-zero fields only) caused
+  // sc.netProfit to retain its last computed value when the user cleared all fields back to
+  // empty — scDetailedActive became false, the override was skipped, and the stale
+  // netProfit flowed through to grossIncome and Schedule 1 Line 3.
   let scDetailedActive = scL1 > 0 || scL6 > 0 || scL42 > 0 || scL28 > 0 || scL48 > 0;
-  if (scDetailedActive) sc.netProfit = String(scL31);
+  if (sc.grossReceipts !== undefined) sc.netProfit = String(scL31);
 
   let seData_       = teCurrentReturn.scheduleSE || {};
   calc.w2Wages      = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.wages)||0), 0));
@@ -603,6 +611,103 @@ function teRecalculate() {
   calc.alimonyDeduction = teCalcAlimony(teCurrentReturn.alimony || {});
 
   calc.adjustments = teRound(calc.hsaDeduction + calc.sliDeduction + calc.iraDeduction + calc.seTaxDeduction + calc.alimonyDeduction);
+
+  // ── Schedule 1, Part II — Adjustments to Income — IRC §62 ───────────────
+  // Lines 13 (HSA), 15 (SE tax deduction), 19a (alimony), 20 (IRA), 21 (SLI)
+  // are already in calc.adjustments above. Only new user-entered lines add to the total.
+
+  // Line 11 — Educator expenses — IRC §62(a)(2)(D); Rev. Proc. 2025-30
+  // MFJ: each eligible spouse can claim up to $300 (total $600 if both educators)
+  // Non-MFJ: max $300. Engine applies cap at point of entry.
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section62
+  let s2L11max = (fs === 'mfj') ? 600 : 300;
+  let s2L11 = teRound(Math.min(Math.max(0, parseFloat(s1.p2L11)||0), s2L11max));
+
+  // Line 12 — Certain business expenses: reservists, performing artists, fee-basis govt officials
+  // Form 2106 — IRC §62(a)(2)(B),(C),(D)
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section62
+  let s2L12 = teRound(Math.max(0, parseFloat(s1.p2L12)||0));
+
+  // Line 13 = calc.hsaDeduction (display only — already in calc.adjustments above)
+
+  // Line 14 — Moving expenses for Armed Forces members — IRC §217(g)
+  // TCJA §11049: suspended for non-military taxpayers through 2025 (and forward under OBBBA)
+  // For qualified Armed Forces members: Form 3903 required
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section217
+  let s2L14 = teRound(Math.max(0, parseFloat(s1.p2L14)||0));
+
+  // Line 15 = calc.seTaxDeduction (display only — already in calc.adjustments above)
+
+  // Line 16 — Self-employed SEP, SIMPLE, and qualified plan contributions
+  // IRC §§219, 404 — deduction for contributions to own plan as both employer and employee
+  // Deductible portion limited to 25% of net SE income (complex; engine accepts user-entered value)
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section404
+  let s2L16 = teRound(Math.max(0, parseFloat(s1.p2L16)||0));
+
+  // Line 17 — Self-employed health insurance deduction — IRC §162(l)
+  // Limited to net profit from self-employment; cannot exceed earned income. Engine: user-entered.
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section162
+  let s2L17 = teRound(Math.max(0, parseFloat(s1.p2L17)||0));
+
+  // Line 18 — Penalty on early withdrawal of savings
+  // Forfeited interest/penalty imposed by bank/institution for early withdrawal from time deposit (CD)
+  // Reported on 1099-INT Box 2. DISTINCT from IRC §72(t) 10% early distribution tax (which is a tax, not a deduction).
+  // Source: IRS Publication 550 — Investment Income and Expenses
+  let s2L18 = teRound(Math.max(0, parseFloat(s1.p2L18)||0));
+
+  // Line 19a = calc.alimonyDeduction (display only — already in calc.adjustments above)
+  // Line 20  = calc.iraDeduction    (display only — already in calc.adjustments above)
+  // Line 21  = calc.sliDeduction    (display only — already in calc.adjustments above)
+  // Line 22  = Reserved for future use
+
+  // Line 23 — Archer MSA deduction — IRC §220
+  // Form 8853; for self-employed taxpayers or employees of small employers with HDHP coverage
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section220
+  let s2L23 = teRound(Math.max(0, parseFloat(s1.p2L23)||0));
+
+  // Lines 24a–24k — Other Adjustments to Income
+  let s2L24a = teRound(Math.max(0, parseFloat(s1.p2L24a)||0));  // Jury duty pay
+  let s2L24b = teRound(Math.max(0, parseFloat(s1.p2L24b)||0));  // Deductible expenses re: rental of personal property
+  let s2L24c = teRound(Math.max(0, parseFloat(s1.p2L24c)||0));  // Nontaxable Olympic/Paralympic medals/USOC prize money
+  let s2L24d = teRound(Math.max(0, parseFloat(s1.p2L24d)||0));  // Reforestation amortization and expenses — IRC §194
+  let s2L24e = teRound(Math.max(0, parseFloat(s1.p2L24e)||0));  // Repayment of supplemental unemployment benefits
+  let s2L24f = teRound(Math.max(0, parseFloat(s1.p2L24f)||0));  // Contributions to §501(c)(18)(D) pension plans
+  let s2L24g = teRound(Math.max(0, parseFloat(s1.p2L24g)||0));  // Contributions by chaplains to §403(b) plans
+  let s2L24h = teRound(Math.max(0, parseFloat(s1.p2L24h)||0));  // Attorney fees — unlawful discrimination — IRC §62(a)(20)
+  let s2L24i = teRound(Math.max(0, parseFloat(s1.p2L24i)||0));  // Attorney fees — IRS whistleblower — IRC §62(a)(21)
+  let s2L24j = teRound(Math.max(0, parseFloat(s1.p2L24j)||0));  // Housing deduction from Form 2555 — IRC §911(c)
+  let s2L24k = teRound(Math.max(0, parseFloat(s1.p2L24k)||0));  // Excess §67(e) deductions from K-1 (Form 1041)
+
+  // Line 24z — dynamic other adjustment rows
+  let s2OtherAdjRows = s1.p2OtherAdjRows || [];
+  let s2L24z = teRound(s2OtherAdjRows.reduce((sum, row) => sum + (parseFloat(row.amount)||0), 0));
+
+  // Line 25 — Total other adjustments: sum of 24a through 24z
+  let s2L25 = teRound(s2L24a+s2L24b+s2L24c+s2L24d+s2L24e+s2L24f+s2L24g+s2L24h+s2L24i+s2L24j+s2L24k+s2L24z);
+
+  // Line 26 — Total adjustments to income (form display value — all Part II lines combined)
+  // = 11+12+13+14+15+16+17+18+19a+20+21+23+25  (line 22 reserved — skip)
+  let s2L26 = teRound(
+    s2L11 + s2L12 + calc.hsaDeduction + s2L14 + calc.seTaxDeduction +
+    s2L16 + s2L17 + s2L18 + calc.alimonyDeduction + calc.iraDeduction +
+    calc.sliDeduction + s2L23 + s2L25
+  );
+
+  // Persist all Part II lines for form renderer and targeted DOM updates
+  calc.sched1PII_lines = {
+    l11: s2L11, l11max: s2L11max, l12: s2L12, l13: calc.hsaDeduction,
+    l14: s2L14, l15: calc.seTaxDeduction, l16: s2L16, l17: s2L17, l18: s2L18,
+    l19a: calc.alimonyDeduction, l20: calc.iraDeduction, l21: calc.sliDeduction,
+    l23: s2L23,
+    l24a: s2L24a, l24b: s2L24b, l24c: s2L24c, l24d: s2L24d, l24e: s2L24e, l24f: s2L24f,
+    l24g: s2L24g, l24h: s2L24h, l24i: s2L24i, l24j: s2L24j, l24k: s2L24k, l24z: s2L24z,
+    l25: s2L25, l26: s2L26
+  };
+
+  // sched1PII_extra: the NEW adjustment items not in the original calc.adjustments
+  // (lines 11, 12, 14, 16, 17, 18, 23, and 24a–24z via line 25)
+  calc.sched1PII_extra = teRound(s2L11 + s2L12 + s2L14 + s2L16 + s2L17 + s2L18 + s2L23 + s2L25);
+  calc.adjustments = teRound(calc.adjustments + calc.sched1PII_extra);
 
   // ── Step 3: Adjusted Gross Income — IRC §62 ─────────────────────────
   calc.agi = teRound(calc.grossIncome - calc.adjustments);
@@ -1105,11 +1210,12 @@ function teRecalculate() {
         let riskRow = g('te-sc-risk-row');
         if (riskRow) riskRow.style.display = (sl.l31 || 0) < 0 ? '' : 'none';
       } break;
-      case 'sched-1-pi': {
-        // Targeted DOM updates for Schedule 1 Part I computed lines — preserves input focus
+      case 'sched-1': {
+        // Targeted DOM updates for Schedule 1 (Part I + Part II) computed lines — preserves input focus
         let sl = calc.sched1Lines || {};
         let g1 = id => document.getElementById(id);
         let fmtPM = v => v === 0 ? '$0.00' : v > 0 ? teFmt(v) : '(' + teFmt(Math.abs(v)) + ')';
+        // --- Part I ---
         // Read-only auto lines
         if (g1('te-s1-l3'))  g1('te-s1-l3').textContent  = fmtPM(sl.l3  || 0);
         if (g1('te-s1-l5'))  g1('te-s1-l5').textContent  = fmtPM(sl.l5  || 0);
@@ -1128,6 +1234,16 @@ function teRecalculate() {
           let v = sl.l10 || 0;
           l10el.textContent = v >= 0 ? teFmt(v) : '(' + teFmt(Math.abs(v)) + ')';
         }
+        // --- Part II ---
+        let sl2 = calc.sched1PII_lines || {};
+        let g2  = id => document.getElementById(id);
+        // Line 25 — total other adjustments
+        if (g2('te-s2-l25')) g2('te-s2-l25').textContent = teFmt(sl2.l25 || 0);
+        // Line 26 — total bar + value
+        let l26bar = g2('te-s2-l26-bar');
+        let l26el  = g2('te-s2-l26');
+        if (l26bar) { let v = sl2.l26 || 0; l26bar.classList.toggle('te-sc-profit', v >= 0); l26bar.classList.toggle('te-sc-loss', v < 0); }
+        if (l26el)  { l26el.textContent = teFmt(sl2.l26 || 0); }
       } break;
       case 'sched-e':    if (totalValEl) totalValEl.textContent = teFmt(calc.scheduleENet                                          || 0); break;
       case 'ctc':        if (totalValEl) totalValEl.textContent = teFmt((calc.ctcNonRefundable || 0) + (calc.actcRefundable        || 0)); break;

@@ -12,6 +12,7 @@ let teDirty          = false;  // true when return has unsaved changes
 let teSchedCTimer    = null;   // debounce timer for Schedule C inputs (150ms)
 let teSchedDTimer    = null;   // debounce timer for Schedule D inputs (150ms)
 let teSchedS1Timer   = null;   // debounce timer for Schedule 1 Part I inputs (150ms)
+let teSchedS1PiiTimer = null;  // debounce timer for Schedule 1 Part II inputs (150ms)
 function teEmptyReturn(clientId, clientName, taxYear) {
   return {
     id:           null,
@@ -145,7 +146,33 @@ function teEmptyReturn(clientId, clientName, taxYear) {
       l8t: '',   // Pension/annuity from nonqualified deferred comp or nongovernmental §457 plan
       l8u: '',   // Wages earned while incarcerated
       l8v: '',   // Digital assets received as ordinary income not reported elsewhere
-      otherIncomeRows: []   // Line 8z — dynamic rows: [{type:'', amount:''}]
+      otherIncomeRows: [],  // Line 8z — dynamic rows: [{type:'', amount:''}]
+      // ── Part II — Adjustments to Income — IRC §62 ──────────────────────
+      // Lines 13 (HSA), 15 (SE tax), 19a (alimony), 20 (IRA), 21 (SLI)
+      // are auto-populated from existing engine computations — no state here.
+      p2L11:  '',   // Line 11 — Educator expenses — IRC §62(a)(2)(D); max $300 ($600 MFJ)
+      p2L12:  '',   // Line 12 — Certain business expenses (reservists, performing artists, fee-basis govt) — Form 2106
+      p2L14:  '',   // Line 14 — Moving expenses — Armed Forces only post-TCJA — IRC §217(g); Form 3903
+      p2L14StorageOnly: false,  // Checkbox: claiming only storage fees (Form 3903)
+      p2L16:  '',   // Line 16 — SEP, SIMPLE, and qualified plan contributions — IRC §§219, 404
+      p2L17:  '',   // Line 17 — Self-employed health insurance deduction — IRC §162(l)
+      p2L18:  '',   // Line 18 — Penalty on early withdrawal of savings — IRC §165; 1099-INT Box 2
+      p2L19b: '',   // Line 19b — Alimony recipient's SSN (informational; alimony.paid drives computation)
+      p2L19c: '',   // Line 19c — Date of original divorce or separation agreement
+      p2L23:  '',   // Line 23 — Archer MSA deduction — IRC §220; Form 8853
+      // Lines 24a–24k — Other Adjustments to Income
+      p2L24a: '',   // Jury duty pay (amounts turned over to employer)
+      p2L24b: '',   // Deductible expenses related to rental of personal property (from line 8l income)
+      p2L24c: '',   // Nontaxable Olympic/Paralympic medals and USOC prize money (from line 8m)
+      p2L24d: '',   // Reforestation amortization and expenses — IRC §194
+      p2L24e: '',   // Repayment of supplemental unemployment benefits (Trade Act of 1974)
+      p2L24f: '',   // Contributions to section 501(c)(18)(D) pension plans
+      p2L24g: '',   // Contributions by certain chaplains to section 403(b) plans
+      p2L24h: '',   // Attorney fees and court costs — unlawful discrimination claims — IRC §62(a)(20)
+      p2L24i: '',   // Attorney fees and court costs — IRS whistleblower award — IRC §62(a)(21)
+      p2L24j: '',   // Housing deduction from Form 2555 — IRC §911(c)
+      p2L24k: '',   // Excess deductions of section 67(e) expenses from Schedule K-1 (Form 1041)
+      p2OtherAdjRows: []  // Line 24z — dynamic rows: [{type:'', amount:''}]
     },
     investmentInterest: {
       expense:              '',  // Investment interest expense — IRC §163(d)
@@ -487,13 +514,20 @@ function teGetScheduleStatus(schedId) {
     }
     case 'sched-c':    return parseFloat((r.scheduleC || {}).netProfit) > 0 ? 'entered' : 'empty';
     case 'sched-e':    return (r.scheduleE || []).length > 0 ? 'entered' : 'empty';
-    case 'sched-1-pi': {
+    case 'sched-1':
+    case 'sched-1-pi':    // legacy alias
+    case 'sched-1-pii': { // legacy alias
       let _s = r.schedule1 || {};
-      return (parseFloat(_s.taxRefunds)||0) > 0 || (parseFloat(_s.alimonyReceived)||0) > 0
+      let p1 = (parseFloat(_s.taxRefunds)||0) > 0 || (parseFloat(_s.alimonyReceived)||0) > 0
         || (parseFloat(_s.otherGains)||0) > 0 || (parseFloat(_s.unemployment)||0) > 0
         || ['l8a','l8b','l8c','l8d','l8e','l8f','l8g','l8h','l8i','l8j','l8k','l8l',
             'l8m','l8n','l8o','l8p','l8q','l8r','l8s','l8t','l8u','l8v'].some(k => (parseFloat(_s[k])||0) !== 0)
-        || (_s.otherIncomeRows||[]).length > 0 ? 'entered' : 'empty';
+        || (_s.otherIncomeRows||[]).length > 0;
+      let p2 = ['p2L11','p2L12','p2L14','p2L16','p2L17','p2L18','p2L23',
+              'p2L24a','p2L24b','p2L24c','p2L24d','p2L24e','p2L24f',
+              'p2L24g','p2L24h','p2L24i','p2L24j','p2L24k'].some(k => (parseFloat(_s[k])||0) !== 0)
+        || (_s.p2OtherAdjRows||[]).length > 0;
+      return (p1 || p2) ? 'entered' : 'empty';
     }
     default:           return 'empty';
   }
@@ -748,6 +782,14 @@ function teDeserialize(data) {
     if (_s1[k] === undefined) _s1[k] = '';
   });
   if (!_s1.otherIncomeRows) _s1.otherIncomeRows = [];
+  // Schedule 1 Part II backfill — existing returns predate these fields
+  ['p2L11','p2L12','p2L14','p2L16','p2L17','p2L18','p2L19b','p2L19c','p2L23',
+   'p2L24a','p2L24b','p2L24c','p2L24d','p2L24e','p2L24f',
+   'p2L24g','p2L24h','p2L24i','p2L24j','p2L24k'].forEach(k => {
+    if (_s1[k] === undefined) _s1[k] = '';
+  });
+  if (_s1.p2L14StorageOnly === undefined) _s1.p2L14StorageOnly = false;
+  if (!_s1.p2OtherAdjRows) _s1.p2OtherAdjRows = [];
   if (!r.investmentInterest) r.investmentInterest = { expense: '', priorYearCarryforward: '', includeQDinNII: false };
   if (!r.annotations)        r.annotations        = [];
   // Track 5 backfill — existing returns predate EIC field

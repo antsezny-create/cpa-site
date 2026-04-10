@@ -124,7 +124,7 @@ function teRenderIncomeMenu() {
               'l8m','l8n','l8o','l8p','l8q','l8r','l8s','l8t','l8u','l8v'].some(k => (parseFloat(s1[k])||0) !== 0)
           || (s1.otherIncomeRows||[]).length > 0;
         let s1Extra = c.sched1Extra || 0;
-        return teMenuCard('sched-1-pi', 'Schedule 1', 'Additional Income',
+        return teMenuCard('sched-1', 'Schedule 1', 'Additional Income',
           'Taxable refunds, alimony, other gains, unemployment, other income. Sch. 1 Part I → 1040 Line 8.',
           hasS1, hasS1 ? teFmt(Math.abs(s1Extra)) : null, src);
       })()}
@@ -145,6 +145,19 @@ function teRenderDeductionsMenu() {
     <p class="te-sec-sub">Select a schedule to enter data &mdash; <span class="te-cite">IRC §62, §63</span></p></div>
     <div class="te-menu-section-lbl">Above-the-Line Adjustments <span class="te-cite">IRC §62</span></div>
     <div class="te-menu-grid">
+      ${(function() {
+        let ln = c.sched1PII_lines || {};
+        let l26 = ln.l26 || 0;
+        let hasP2 = teGetScheduleStatus('sched-1') === 'entered'
+                    || (c.seTaxDeduction||0) > 0
+                    || (c.hsaDeduction||0) > 0
+                    || (c.iraDeduction||0) > 0
+                    || (c.sliDeduction||0) > 0
+                    || (c.alimonyDeduction||0) > 0;
+        return teMenuCard('sched-1', 'Schedule 1', 'Adjustments to Income (Part II)',
+          'All above-the-line deductions — educator expenses, SE deductions, alimony, IRA, SLI, and more. IRC §62.',
+          hasP2, l26 > 0 ? teFmt(l26) : '', src);
+      })()}
       ${teMenuCard('sli',     'Schedule 1', 'Student Loan Interest',
           'Up to $2,500. Phases out by MAGI. IRC §221.',
           (c.sliDeduction||0) > 0, teFmt(c.sliDeduction||0), src)}
@@ -368,11 +381,11 @@ function teRenderMiniScreen(schedId) {
         <p class="te-sec-sub"><span class="te-cite">IRC §1221, §1222 &mdash; 1040 Line 7a</span></p></div>
         <div class="te-subsec">${teRenderScheduleD()}</div>`;
 
-    case 'sched-1-pi':
+    case 'sched-1':
       return nav + `
-        <div class="te-sec-hdr"><h2>Schedule 1, Part I — Additional Income</h2>
-        <p class="te-sec-sub"><span class="te-cite">IRC §61 &mdash; 1040 Line 8</span></p></div>
-        <div class="te-subsec">${teRenderSchedule1PI()}</div>`;
+        <div class="te-sec-hdr"><h2>Schedule 1 &mdash; Additional Income and Adjustments</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §61, §62 &mdash; 1040 Lines 8 &amp; 10</span></p></div>
+        <div class="te-subsec">${teRenderSchedule1()}</div>`;
 
     case 'sched-e':
       return nav + `
@@ -464,7 +477,7 @@ function teMiniPostRender(schedId) {
   switch (schedId) {
     case 'w2':         teRenderW2List();              break;
     case 'sched-c':    teRenderSchedCOtherExpRows();  break;  // re-render Part V rows after screen loads
-    case 'sched-1-pi': teRenderS1OtherIncomeRows();   break;  // re-render 8z rows after screen loads
+    case 'sched-1': teRenderS1OtherIncomeRows(); teRenderS1PiiOtherAdjRows(); break;  // re-render 8z and 24z dynamic rows after screen loads
     case 'sched-d':    /* rows rendered inline on initial render — no post-render needed */ break;
     case 'sched-se':   /* all lines computed on render — no list post-render needed */ break;
     case 'retirement': teRender1099RList('ira'); teRender1099RList('pension'); break;
@@ -854,12 +867,13 @@ function teRenderDashboard1040() {
       ${line('6a',  'Social security benefits &mdash; gross',        fv(c.ssBenefitsGross),    { badges: badge('ss', 'SSA-1099') })}
       ${line('6b',  '— taxable amount &nbsp;<span class="te-cite">IRC §86</span>', fv(c.ssBenefitsTaxable), { indent: true, sub: true })}
       ${line('7a',  'Capital gain or (loss) &nbsp;<span class="te-cite">Sch. D, line 16 or 21</span>', fvPM(c.scheduleDNet), { badges: badge('sched-d', 'Sch. D') })}
-      ${line('8',   'Additional income &nbsp;<span class="te-cite">Sch. 1, line 10</span>',            fvPM(sched1PartI),    { badges: badge('sched-1-pi', 'Sch. 1') })}
+      ${line('8',   'Additional income &nbsp;<span class="te-cite">Sch. 1, line 10</span>',            fvPM(sched1PartI),    { badges: badge('sched-1', 'Sch. 1') })}
 
       ${tot('9', 'Total income &nbsp;<span class="te-cite">add lines 1z, 2b, 3b, 4b, 5b, 6b, 7a, 8</span>', fv(c.grossIncome))}
 
       ${line('10',  'Adjustments to income &nbsp;<span class="te-cite">Sch. 1, line 26</span>',
-          sched1PartII > 0 ? fvNeg(sched1PartII) : '—', {})}
+          sched1PartII > 0 ? fvNeg(sched1PartII) : '—',
+          { badges: badge('sched-1', 'Sch. 1') })}
 
       ${tot('11a', 'Adjusted Gross Income', fv(c.agi))}
 
@@ -2005,7 +2019,7 @@ function teRenderSchedule1PI() {
   // Read-only auto-populated row — id always on the inner span for live DOM updates
   let rRow = (num, label, valId, displayVal, linkSched='', note='') => {
     let inner = linkSched
-      ? `<span id="${valId}" class="te-s1-ro-link" onclick="teOpenSchedule('${linkSched}','sched-1-pi')">${displayVal}</span>`
+      ? `<span id="${valId}" class="te-s1-ro-link" onclick="teOpenSchedule('${linkSched}','sched-1')">${displayVal}</span>`
       : `<span id="${valId}">${displayVal}</span>`;
     return `<div class="te-sc-row te-s1-row te-s1-ro-row">
        <span class="te-sc-num">${num}</span>
@@ -2043,14 +2057,6 @@ function teRenderSchedule1PI() {
   let l10 = ln.l10 || 0;
 
   return `
-  <div class="te-s1-form">
-
-    <!-- Header — single condensed row -->
-    <div class="te-sc-header-bar te-s1-header">
-      <span class="te-sc-title">Schedule 1 &mdash; Additional Income</span>
-      <span class="te-sc-subtitle">Part I &nbsp;&middot;&nbsp; Tax Year ${yr} &nbsp;&middot;&nbsp; <span class="te-cite">IRC §61</span> &nbsp;&middot;&nbsp; 1040 Line 8</span>
-    </div>
-
     <!-- 1099-K — compact inline row -->
     <div class="te-sc-section-label">Form(s) 1099-K &mdash; Amounts Included in Error or Personal Items Sold at a Loss</div>
     <div class="te-sc-row te-s1-row">
@@ -2183,6 +2189,20 @@ function teRenderSchedule1PI() {
       <span class="te-sc-net-amt" id="te-s1-l10">${l10 >= 0 ? teFmt(l10) : '(' + teFmt(Math.abs(l10)) + ')'}</span>
     </div>
 
+  `;
+}
+
+// ── SCHEDULE 1 — COMBINED SCREEN ─────────────────────────────────────
+function teRenderSchedule1() {
+  let r  = teCurrentReturn;
+  let yr = r ? (r.taxYear || teActiveYear) : teActiveYear;
+  return `<div class="te-s1-form">
+    <div class="te-sc-header-bar te-s1-header">
+      <span class="te-sc-title">Schedule 1 &mdash; Additional Income and Adjustments</span>
+      <span class="te-sc-subtitle">Tax Year ${yr} &nbsp;&middot;&nbsp; <span class="te-cite">IRC §61, §62</span> &nbsp;&middot;&nbsp; 1040 Lines 8 &amp; 10</span>
+    </div>
+    ${teRenderSchedule1PI()}
+    ${teRenderSchedule1PII()}
   </div>`;
 }
 
@@ -2262,6 +2282,251 @@ function teRenderS1OtherIncomeRows() {
          value="${esc(String(row.amount||''))}" placeholder="0.00"
          oninput="teOnS1OtherIncome(${i},'amount',this.value)">
        <button class="te-sc-del-btn" onclick="teS1DelOtherIncome(${i})" title="Remove row">✕</button>
+     </div>`).join('');
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// SCHEDULE 1, PART II — Adjustments to Income (Lines 11–26)
+// ──────────────────────────────────────────────────────────────────────
+
+function teRenderSchedule1PII() {
+  let r  = teCurrentReturn;
+  let c  = r._calc || {};
+  let s1 = r.schedule1 || {};
+  let ln = c.sched1PII_lines || {};
+  let fs = r.filingStatus || 'single';
+  let yr = r.taxYear || teActiveYear;
+  let isMFJ = (fs === 'mfj');
+
+  let fmtRO = v => teFmt(v || 0);  // read-only display formatter
+
+  // ── Row helpers ────────────────────────────────────────────────────
+
+  // Standard single-column editable row
+  let iRow = (num, label, stateKey, val, note='') =>
+    `<div class="te-sc-row te-s1-row">
+       <span class="te-sc-num">${num}</span>
+       <span class="te-sc-lbl">${label}${note ? `<span class="te-sc-note">${note}</span>` : ''}</span>
+       <input type="number" class="te-input te-mono te-sc-inp" step="0.01" min="0"
+         value="${esc(String(val||''))}" placeholder="0.00"
+         oninput="teOnSched1PII('${stateKey}',this.value)">
+     </div>`;
+
+  // Read-only row with optional clickable link to another screen
+  let rRow = (num, label, valId, displayVal, linkSched='', note='') => {
+    let inner = linkSched
+      ? `<span id="${valId}" class="te-s1-ro-link" onclick="teOpenSchedule('${linkSched}','sched-1')">${displayVal}</span>`
+      : `<span id="${valId}">${displayVal}</span>`;
+    return `<div class="te-sc-row te-s1-row te-s1-ro-row">
+       <span class="te-sc-num">${num}</span>
+       <span class="te-sc-lbl">${label}${note ? `<span class="te-sc-note">${note}</span>` : ''}</span>
+       <span class="te-sc-val">${inner}</span>
+     </div>`;
+  };
+
+  // Two-column editable row (same grid as Part I lines 8a–8v)
+  let iRow2 = (num, label, stateKey, val, groupStart=false) =>
+    `<div class="te-sc-row te-s1-row te-s1-col-row${groupStart ? ' te-s1-group-start' : ''}">
+       <span class="te-sc-num">${num}</span>
+       <span class="te-sc-lbl te-s1-col-lbl">${label}</span>
+       <input type="number" class="te-input te-mono te-sc-inp te-s1-col-inp" step="0.01" min="0"
+         value="${esc(String(val||''))}" placeholder="0.00"
+         oninput="teOnSched1PII('${stateKey}',this.value)">
+     </div>`;
+
+  let l25 = ln.l25 || 0;
+  let l26 = ln.l26 || 0;
+
+  return `
+    <!-- Part II — Lines 11–26 -->
+    <div class="te-sc-section-label" style="margin-top:28px;border-top:2px solid var(--border);padding-top:14px;">Part II &mdash; Adjustments to Income &nbsp;<span class="te-cite" style="font-weight:400;">IRC §62 &middot; 1040 Line 10</span></div>
+
+    ${iRow('11', 'Educator expenses', 'p2L11', s1.p2L11,
+        isMFJ ? 'Max $600 (MFJ) &mdash; IRC §62(a)(2)(D)' : 'Max $300 &mdash; IRC §62(a)(2)(D)')}
+
+    ${iRow('12', 'Certain business expenses of reservists, performing artists, and fee-basis government officials &nbsp;<span class="te-cite">(Form 2106)</span>', 'p2L12', s1.p2L12, 'IRC §62(a)(2)(B),(C),(D)')}
+
+    ${rRow('13', 'Health savings account deduction &nbsp;<span class="te-cite">(Form 8889)</span>',
+        'te-s2-l13', fmtRO(ln.l13), 'hsa', 'Auto from Form 8889 &mdash; click to edit')}
+
+    <div class="te-sc-row te-s1-row">
+      <span class="te-sc-num">14</span>
+      <span class="te-sc-lbl">Moving expenses for members of the Armed Forces &nbsp;<span class="te-cite">(Form 3903)</span>
+        <span class="te-sc-note">Post-TCJA: available only to active-duty Armed Forces members &mdash; IRC §217(g)</span>
+      </span>
+      <input type="number" class="te-input te-mono te-sc-inp" step="0.01" min="0"
+        value="${esc(String(s1.p2L14||''))}" placeholder="0.00"
+        oninput="teOnSched1PII('p2L14',this.value)">
+    </div>
+    <div style="padding-left:40px;margin-top:-4px;margin-bottom:4px;">
+      <label class="te-sc-radio-lbl">
+        <input type="checkbox" ${s1.p2L14StorageOnly?'checked':''}
+          onchange="teOnSched1PII('p2L14StorageOnly',this.checked)">
+        Claiming only storage fees
+      </label>
+    </div>
+
+    ${rRow('15', 'Deductible part of self-employment tax &mdash; Schedule SE',
+        'te-s2-l15', fmtRO(ln.l15), 'sched-se', 'Auto from Schedule SE &mdash; click to edit')}
+
+    ${iRow('16', 'Self-employed SEP, SIMPLE, and qualified plans', 'p2L16', s1.p2L16, 'IRC §§219, 404')}
+
+    ${iRow('17', 'Self-employed health insurance deduction', 'p2L17', s1.p2L17, 'IRC §162(l)')}
+
+    ${iRow('18', 'Penalty on early withdrawal of savings', 'p2L18', s1.p2L18, 'Bank/CD penalty &mdash; reported on 1099-INT Box 2')}
+
+    <!-- Line 19a/19b/19c — Alimony -->
+    ${rRow('19a', 'Alimony paid', 'te-s2-l19a', fmtRO(ln.l19a), 'alimony', 'Auto from alimony schedule &mdash; click to edit')}
+    <div class="te-sc-row te-s1-row" style="padding-left:28px;">
+      <span class="te-sc-num">19b</span>
+      <span class="te-sc-lbl">Recipient&#39;s SSN <span class="te-sc-note">XXX-XX-XXXX (required if 19a &gt; 0)</span></span>
+      <input type="text" class="te-input te-mono te-sc-inp" maxlength="11" placeholder="XXX-XX-XXXX"
+        value="${esc(s1.p2L19b||'')}"
+        oninput="teOnSched1PII('p2L19b',this.value)">
+    </div>
+    <div class="te-sc-row te-s1-row" style="padding-left:28px;">
+      <span class="te-sc-num">19c</span>
+      <span class="te-sc-lbl">Date of original divorce or separation agreement <span class="te-sc-note">mm/dd/yyyy</span></span>
+      <input type="text" class="te-input te-mono te-sc-inp" maxlength="10" placeholder="mm/dd/yyyy"
+        value="${esc(s1.p2L19c||'')}"
+        oninput="teOnSched1PII('p2L19c',this.value)">
+    </div>
+
+    ${rRow('20', 'IRA deduction', 'te-s2-l20', fmtRO(ln.l20), 'ira-ded', 'Auto from IRA deduction screen &mdash; click to edit')}
+
+    ${rRow('21', 'Student loan interest deduction', 'te-s2-l21', fmtRO(ln.l21), 'sli', 'Auto from SLI screen &mdash; click to edit')}
+
+    <!-- Line 22 — Reserved -->
+    <div class="te-sc-row te-s1-row" style="opacity:0.45;pointer-events:none;">
+      <span class="te-sc-num">22</span>
+      <span class="te-sc-lbl">Reserved for future use</span>
+    </div>
+
+    ${iRow('23', 'Archer MSA deduction &nbsp;<span class="te-cite">(Form 8853)</span>', 'p2L23', s1.p2L23, 'IRC §220')}
+
+    <!-- Lines 24a–24k — Two-column grid (same pattern as Part I lines 8a–8v) -->
+    <div class="te-sc-section-label" style="margin-top:12px;">Other Adjustments &mdash; Lines 24a&ndash;24z</div>
+
+    <div class="te-s1-8av-grid">
+      ${iRow2('24a', 'Jury duty pay (amounts turned over to employer)', 'p2L24a', s1.p2L24a)}
+      ${iRow2('24g', 'Contributions by certain chaplains to section 403(b) plans', 'p2L24g', s1.p2L24g)}
+
+      ${iRow2('24b', 'Deductible expenses related to rental of personal property (line 8l income)', 'p2L24b', s1.p2L24b)}
+      ${iRow2('24h', 'Attorney fees and court costs — unlawful discrimination claims &nbsp;<span class="te-cite">IRC §62(a)(20)</span>', 'p2L24h', s1.p2L24h)}
+
+      ${iRow2('24c', 'Nontaxable Olympic/Paralympic medals and USOC prize money (from line 8m)', 'p2L24c', s1.p2L24c)}
+      ${iRow2('24i', 'Attorney fees and court costs — IRS whistleblower award &nbsp;<span class="te-cite">IRC §62(a)(21)</span>', 'p2L24i', s1.p2L24i)}
+
+      ${iRow2('24d', 'Reforestation amortization and expenses &nbsp;<span class="te-cite">IRC §194</span>', 'p2L24d', s1.p2L24d)}
+      ${iRow2('24j', 'Housing deduction from Form 2555 &nbsp;<span class="te-cite">IRC §911(c)</span>', 'p2L24j', s1.p2L24j)}
+
+      ${iRow2('24e', 'Repayment of supplemental unemployment benefits (Trade Act of 1974)', 'p2L24e', s1.p2L24e)}
+      ${iRow2('24k', 'Excess deductions of section 67(e) expenses from Schedule K-1 (Form 1041)', 'p2L24k', s1.p2L24k)}
+
+      ${iRow2('24f', 'Contributions to section 501(c)(18)(D) pension plans', 'p2L24f', s1.p2L24f)}
+      <div></div>
+    </div>
+
+    <!-- Line 24z — dynamic other adjustment rows -->
+    <div class="te-sc-row te-s1-row" style="margin-top:4px;">
+      <span class="te-sc-num">24z</span>
+      <span class="te-sc-lbl">Other adjustments — describe below</span>
+      <button class="ghost-btn te-sm-btn" onclick="teS1PiiAddOtherAdj()" style="margin-left:auto;">+ Add</button>
+    </div>
+    <div id="te-s2-24z-rows"></div>
+
+    <!-- Line 25 — Total other adjustments (subtotal visual) -->
+    <div class="te-sc-row te-sc-row-subtotal" style="margin-top:8px;">
+      <span class="te-sc-num">25</span>
+      <span class="te-sc-lbl">Total other adjustments &nbsp;<span class="te-sc-note">Add lines 24a&ndash;24z</span></span>
+      <span class="te-sc-val te-mono" id="te-s2-l25">${teFmt(l25)}</span>
+    </div>
+
+    <!-- Line 26 — Total adjustments to income (highlighted box) -->
+    <div class="te-sc-net-bar ${l26 >= 0 ? 'te-sc-profit' : 'te-sc-loss'}" id="te-s2-l26-bar" style="margin-top:12px;">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;">
+          Line 26 &mdash; Total Adjustments to Income &nbsp;<span class="te-cite">1040 Line 10</span>
+        </span>
+        <span style="font-size:11px;color:var(--text-dim);">Lines 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19a + 20 + 21 + 23 + 25</span>
+      </div>
+      <span class="te-sc-net-amt" id="te-s2-l26">${teFmt(l26)}</span>
+    </div>
+
+  `;
+}
+
+// ── SCHEDULE 1 PART II HANDLERS ───────────────────────────────────────
+
+function teOnSched1PII(field, value) {
+  if (!teCurrentReturn) return;
+  if (!teCurrentReturn.schedule1) teCurrentReturn.schedule1 = {};
+  let s1 = teCurrentReturn.schedule1;
+
+  // Boolean fields — immediate recalc
+  if (field === 'p2L14StorageOnly') {
+    s1[field] = value;
+    teMarkDirty();
+    teRecalculate();
+    return;
+  }
+
+  // Text fields (SSN, date) — immediate save, no recalc needed
+  if (field === 'p2L19b' || field === 'p2L19c') {
+    s1[field] = value;
+    teMarkDirty();
+    return;
+  }
+
+  // Number fields — 150ms debounce
+  s1[field] = value;
+  teMarkDirty();
+  clearTimeout(teSchedS1PiiTimer);
+  teSchedS1PiiTimer = setTimeout(teRecalculate, 150);
+}
+
+function teS1PiiAddOtherAdj() {
+  if (!teCurrentReturn) return;
+  if (!teCurrentReturn.schedule1) teCurrentReturn.schedule1 = {};
+  if (!teCurrentReturn.schedule1.p2OtherAdjRows) teCurrentReturn.schedule1.p2OtherAdjRows = [];
+  teCurrentReturn.schedule1.p2OtherAdjRows.push({ type: '', amount: '' });
+  teMarkDirty();
+  teRenderS1PiiOtherAdjRows();
+}
+
+function teS1PiiDelOtherAdj(idx) {
+  if (!teCurrentReturn || !teCurrentReturn.schedule1) return;
+  let rows = teCurrentReturn.schedule1.p2OtherAdjRows || [];
+  rows.splice(idx, 1);
+  teMarkDirty();
+  teRenderS1PiiOtherAdjRows();
+  teRecalculate();
+}
+
+function teOnS1PiiOtherAdj(idx, field, value) {
+  if (!teCurrentReturn || !teCurrentReturn.schedule1) return;
+  let rows = teCurrentReturn.schedule1.p2OtherAdjRows || [];
+  if (!rows[idx]) return;
+  rows[idx][field] = value;
+  teMarkDirty();
+  if (field === 'amount') {
+    clearTimeout(teSchedS1PiiTimer);
+    teSchedS1PiiTimer = setTimeout(teRecalculate, 150);
+  }
+}
+
+function teRenderS1PiiOtherAdjRows() {
+  let wrap = document.getElementById('te-s2-24z-rows');
+  if (!wrap) return;
+  let rows = (teCurrentReturn && teCurrentReturn.schedule1 && teCurrentReturn.schedule1.p2OtherAdjRows) || [];
+  wrap.innerHTML = rows.map((row, i) =>
+    `<div class="te-sc-row" style="gap:8px;padding-left:40px;">
+       <input type="text" class="te-input te-sc-lbl-inp" style="flex:1;" placeholder="Type of adjustment"
+         value="${esc(row.type||'')}" oninput="teOnS1PiiOtherAdj(${i},'type',this.value)">
+       <input type="number" class="te-input te-mono te-sc-inp" step="0.01"
+         value="${esc(String(row.amount||''))}" placeholder="0.00"
+         oninput="teOnS1PiiOtherAdj(${i},'amount',this.value)">
+       <button class="te-sc-del-btn" onclick="teS1PiiDelOtherAdj(${i})" title="Remove row">✕</button>
      </div>`).join('');
 }
 
