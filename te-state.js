@@ -13,6 +13,7 @@ let teSchedCTimer    = null;   // debounce timer for Schedule C inputs (150ms)
 let teSchedDTimer    = null;   // debounce timer for Schedule D inputs (150ms)
 let teSchedS1Timer   = null;   // debounce timer for Schedule 1 Part I inputs (150ms)
 let teSchedS1PiiTimer = null;  // debounce timer for Schedule 1 Part II inputs (150ms)
+let teSchedATimer    = null;   // debounce timer for Schedule A inputs (150ms)
 let teW2Timers = {};            // debounce timers for W-2 inputs, keyed by 'i_field'
 function teEmptyReturn(clientId, clientName, taxYear) {
   return {
@@ -191,18 +192,43 @@ function teEmptyReturn(clientId, clientName, taxYear) {
       iraSpouseActive:      false
     },
     scheduleA: {
-      stateIncomeTax:      '',
-      localIncomeTax:      '',
-      realEstateTax:       '',
-      personalPropertyTax: '',
-      mortgageInterest:    '',
-      mortgageBalance:     '',
-      mortgageLoanDate:    'post2017',
-      mortgagePurpose:     'acquisition',  // IRC §163(h)(3)(C): 'acquisition' or 'home_equity_personal'
-      cashCharitable:      '',
-      nonCashCharitable:   '',
-      medicalExpenses:     '',
-      mfsSpouseItemizes:   false           // IRC §63(e): if true, standard deduction overridden to $0
+      // ── Part I — Medical ─────────────────────────────────────────────
+      medicalExpenses:      '',         // IRC §213(a) — unreimbursed medical & dental
+      // ── Part II — Taxes (SALT) ────────────────────────────────────────
+      useSalesTax:          false,      // false = use state income tax; true = general sales tax — IRC §164(b)(5)
+      salesTax:             '',         // general sales tax override (IRS tables used if blank)
+      stateIncomeTax:       '',
+      localIncomeTax:       '',
+      realEstateTax:        '',
+      personalPropertyTax:  '',
+      otherTaxes:           [],         // dynamic rows: [{desc:'', amount:''}] — Line 6 other deductible taxes
+      // ── Part III — Interest ───────────────────────────────────────────
+      mortgageInterest:     '',         // Form 1098 Box 1 — primary mortgage
+      mortgageBalance:      '',         // Form 1098 Box 2 — outstanding principal for proration
+      mortgageLoanDate:     'post2017',
+      mortgagePurpose:      'acquisition', // IRC §163(h)(3)(C): 'acquisition' or 'home_equity_personal'
+      mortgagePoints:       '',         // deductible points not reported on Form 1098
+      mortgageInterestOther:'',         // interest on other qualified loans not on Form 1098 — Line 8b
+      pmiPremiums:          '',         // qualified mortgage insurance premiums — OBBBA §70108 (TY2026+)
+      // ── Part IV — Charitable Contributions ───────────────────────────
+      cashCharitable:       '',         // cash to 50%/60% orgs — Line 11 — IRC §170(b)(1)(G)
+      nonCashCharitable:    '',         // non-cash property to 50% orgs — Line 12 — IRC §170(b)(1)(A)
+      capGainCharitable30:  '',         // cap gain property to 50% orgs — 30% limit — IRC §170(b)(1)(C)
+      capGainCharitable20:  '',         // cap gain property to private foundations — 20% limit — IRC §170(b)(1)(D)
+      charCarryover: {                  // prior-year contribution carryovers — IRC §170(d)(1)
+        cash60:    '',
+        noncash50: '',
+        capgain30: '',
+        private20: ''
+      },
+      // ── Part V — Casualty & Theft Losses ─────────────────────────────
+      casualtyEvents:       [],         // dynamic rows: [{desc:'', fmvBefore:'', fmvAfter:'', insurance:'', federallyDeclared:false, stateDeclared:false}]
+      // ── Part VI — Other Itemized Deductions ──────────────────────────
+      gamblingLosses:       '',         // IRC §165(d) — cross-referenced with schedule1.l8b (gambling winnings)
+      otherDeductions:      [],         // dynamic rows: [{desc:'', amount:''}] — Line 17 other deductions
+      // ── Overrides ─────────────────────────────────────────────────────
+      mfsSpouseItemizes:    false,      // IRC §63(e): if true, standard deduction overridden to $0
+      electToItemize:       false       // taxpayer elects itemized even when standard is higher
     },
     // ── Track 5: EIC ──────────────────────────────────────────────────────
     eic: {
@@ -530,6 +556,19 @@ function teGetScheduleStatus(schedId) {
         || (_s.p2OtherAdjRows||[]).length > 0;
       return (p1 || p2) ? 'entered' : 'empty';
     }
+    case 'sched-a': {
+      let sa = r.scheduleA || {};
+      let hasData = (parseFloat(sa.stateIncomeTax)||0) > 0 || (parseFloat(sa.localIncomeTax)||0) > 0
+        || (parseFloat(sa.realEstateTax)||0) > 0 || (parseFloat(sa.personalPropertyTax)||0) > 0
+        || (parseFloat(sa.mortgageInterest)||0) > 0 || (parseFloat(sa.mortgageInterestOther)||0) > 0
+        || (parseFloat(sa.mortgagePoints)||0) > 0 || (parseFloat(sa.pmiPremiums)||0) > 0
+        || (parseFloat(sa.cashCharitable)||0) > 0 || (parseFloat(sa.nonCashCharitable)||0) > 0
+        || (parseFloat(sa.capGainCharitable30)||0) > 0 || (parseFloat(sa.capGainCharitable20)||0) > 0
+        || (parseFloat(sa.medicalExpenses)||0) > 0 || (parseFloat(sa.gamblingLosses)||0) > 0
+        || (sa.otherTaxes||[]).length > 0 || (sa.casualtyEvents||[]).length > 0
+        || (sa.otherDeductions||[]).length > 0;
+      return hasData ? 'entered' : 'empty';
+    }
     default:           return 'empty';
   }
 }
@@ -715,7 +754,7 @@ function teSerialize(r) {
     deductionType:      r.deductionType      || 'standard',
     educationStudents: r.educationStudents || [],
     agiAdjustments:    r.agiAdjustments    || { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false },
-    scheduleA:         r.scheduleA         || { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', mortgagePurpose: 'acquisition', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '', mfsSpouseItemizes: false },
+    scheduleA:         r.scheduleA         || { medicalExpenses: '', useSalesTax: false, salesTax: '', stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', otherTaxes: [], mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', mortgagePurpose: 'acquisition', mortgagePoints: '', mortgageInterestOther: '', pmiPremiums: '', cashCharitable: '', nonCashCharitable: '', capGainCharitable30: '', capGainCharitable20: '', charCarryover: { cash60: '', noncash50: '', capgain30: '', private20: '' }, casualtyEvents: [], gamblingLosses: '', otherDeductions: [], mfsSpouseItemizes: false, electToItemize: false },
     eic:               r.eic               || { claimChildless: false },
     cdcc:              r.cdcc              || { qualifyingPersons: '', careExpenses: '', fsaBenefits: '', spouseEarnedIncome: '', spouseIsStudentOrDisabled: false, studentDisabledMonths: '' },
     savers:            r.savers            || { taxpayerContributions: '', spouseContributions: '', taxpayerDistCurrent: '', taxpayerDistPrior: '', spouseDistCurrent: '', spouseDistPrior: '', taxpayerIsStudent: false, taxpayerAge: '' },
@@ -771,10 +810,40 @@ function teDeserialize(data) {
   if (!r.estimatedPayments)   r.estimatedPayments   = { q1: '', q2: '', q3: '', q4: '' };
   if (!r.educationStudents)   r.educationStudents   = [];
   if (!r.agiAdjustments)      r.agiAdjustments      = { studentLoanInterest: '', hsaCoverageType: 'self', hsaContributions: '', hsaTaxpayerAge55: false, iraContributions: '', iraAge50Plus: false, iraActiveParticipant: false, iraSpouseActive: false };
-  if (!r.scheduleA)           r.scheduleA           = { stateIncomeTax: '', localIncomeTax: '', realEstateTax: '', personalPropertyTax: '', mortgageInterest: '', mortgageBalance: '', mortgageLoanDate: 'post2017', mortgagePurpose: 'acquisition', cashCharitable: '', nonCashCharitable: '', medicalExpenses: '', mfsSpouseItemizes: false };
-  // Backfill fields on existing returns that predate this update
-  if (!r.scheduleA.mortgagePurpose)   r.scheduleA.mortgagePurpose   = 'acquisition';
-  if (r.scheduleA.mfsSpouseItemizes === undefined) r.scheduleA.mfsSpouseItemizes = false;
+  if (!r.scheduleA) r.scheduleA = {};
+  // Backfill all Schedule A fields — handles existing returns that predate this update
+  let _sa = r.scheduleA;
+  if (_sa.medicalExpenses       === undefined) _sa.medicalExpenses       = '';
+  if (_sa.useSalesTax           === undefined) _sa.useSalesTax           = false;
+  if (_sa.salesTax              === undefined) _sa.salesTax              = '';
+  if (_sa.stateIncomeTax        === undefined) _sa.stateIncomeTax        = '';
+  if (_sa.localIncomeTax        === undefined) _sa.localIncomeTax        = '';
+  if (_sa.realEstateTax         === undefined) _sa.realEstateTax         = '';
+  if (_sa.personalPropertyTax   === undefined) _sa.personalPropertyTax   = '';
+  if (!_sa.otherTaxes)                         _sa.otherTaxes            = [];
+  if (_sa.mortgageInterest      === undefined) _sa.mortgageInterest      = '';
+  if (_sa.mortgageBalance       === undefined) _sa.mortgageBalance       = '';
+  if (!_sa.mortgageLoanDate)                   _sa.mortgageLoanDate      = 'post2017';
+  if (!_sa.mortgagePurpose)                    _sa.mortgagePurpose       = 'acquisition';
+  if (_sa.mortgagePoints        === undefined) _sa.mortgagePoints        = '';
+  if (_sa.mortgageInterestOther === undefined) _sa.mortgageInterestOther = '';
+  if (_sa.pmiPremiums           === undefined) _sa.pmiPremiums           = '';
+  if (_sa.cashCharitable        === undefined) _sa.cashCharitable        = '';
+  if (_sa.nonCashCharitable     === undefined) _sa.nonCashCharitable     = '';
+  if (_sa.capGainCharitable30   === undefined) _sa.capGainCharitable30   = '';
+  if (_sa.capGainCharitable20   === undefined) _sa.capGainCharitable20   = '';
+  if (!_sa.charCarryover)                      _sa.charCarryover         = { cash60: '', noncash50: '', capgain30: '', private20: '' };
+  else {
+    if (_sa.charCarryover.cash60    === undefined) _sa.charCarryover.cash60    = '';
+    if (_sa.charCarryover.noncash50 === undefined) _sa.charCarryover.noncash50 = '';
+    if (_sa.charCarryover.capgain30 === undefined) _sa.charCarryover.capgain30 = '';
+    if (_sa.charCarryover.private20 === undefined) _sa.charCarryover.private20 = '';
+  }
+  if (!_sa.casualtyEvents)                     _sa.casualtyEvents        = [];
+  if (_sa.gamblingLosses        === undefined) _sa.gamblingLosses        = '';
+  if (!_sa.otherDeductions)                    _sa.otherDeductions       = [];
+  if (_sa.mfsSpouseItemizes     === undefined) _sa.mfsSpouseItemizes     = false;
+  if (_sa.electToItemize        === undefined) _sa.electToItemize        = false;
   // Track 4 backfill
   if (!r.schedule1099)       r.schedule1099       = { interestIncome: '', ordinaryDividends: '', qualifiedDividends: '' };
   if (!r.scheduleD) r.scheduleD = {};

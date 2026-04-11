@@ -64,10 +64,17 @@ function teCalcAlimony(alimony) {
 }
 function teCalcSALT(schedA, agi, K, fs) {
   let Ks = K.scheduleA.salt;
-  let paid = (parseFloat(schedA.stateIncomeTax)      || 0)
-           + (parseFloat(schedA.localIncomeTax)       || 0)
+  // State income tax OR general sales tax — cannot use both — IRC §164(b)(5)(B)
+  let stateTax = schedA.useSalesTax
+    ? (parseFloat(schedA.salesTax) || 0)
+    : (parseFloat(schedA.stateIncomeTax) || 0);
+  // Other deductible taxes — IRC §164(a): ad valorem property taxes, foreign taxes, etc.
+  let otherTaxesTotal = ((schedA.otherTaxes || []).reduce((s, row) => s + (parseFloat(row.amount) || 0), 0));
+  let paid = stateTax
+           + (parseFloat(schedA.localIncomeTax)      || 0)
            + (parseFloat(schedA.realEstateTax)        || 0)
-           + (parseFloat(schedA.personalPropertyTax)  || 0);
+           + (parseFloat(schedA.personalPropertyTax)  || 0)
+           + otherTaxesTotal;
   if (paid <= 0) return 0;
   // Determine cap and phase-out threshold by filing status
   let cap       = (fs === 'mfs') ? Ks.mfsCap               : Ks.cap;
@@ -78,35 +85,173 @@ function teCalcSALT(schedA, agi, K, fs) {
   effectiveCap     = Math.max(Ks.floor, effectiveCap);
   return Math.min(paid, effectiveCap);
 }
-function teCalcMortgageInterest(schedA, K) {
-  let interest = parseFloat(schedA.mortgageInterest) || 0;
-  if (interest <= 0) return 0;
-  // IRC §163(h)(3)(C): Home equity interest is deductible ONLY if the debt was used to
-  // acquire, build, or substantially improve the qualified residence. Interest on home
-  // equity debt used for personal purposes (car, vacation, debt consolidation, etc.)
-  // is not deductible under TCJA. Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section163
-  if (schedA.mortgagePurpose === 'home_equity_personal') return 0;
-  let balance = parseFloat(schedA.mortgageBalance) || 0;
-  let limit   = (schedA.mortgageLoanDate === 'pre2018')
-    ? K.scheduleA.mortgage.pre2018Limit
-    : K.scheduleA.mortgage.post2017Limit;
-  // If balance not entered or within limit: all interest deductible
-  if (balance <= 0 || balance <= limit) return interest;
-  // Balance exceeds limit: prorate — IRC §163(h)(3)(F)(i)
-  return Math.round(interest * (limit / balance) * 100) / 100;
+function teCalcMortgageInterest(schedA, agi, K, fs) {
+  let Km = K.scheduleA.mortgage;
+
+  // IRC §163(h)(3)(C): primary Form 1098 interest is deductible ONLY if debt was used to
+  // acquire, build, or substantially improve the qualified residence.
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section163
+  let primaryInterest = (schedA.mortgagePurpose !== 'home_equity_personal')
+    ? (parseFloat(schedA.mortgageInterest) || 0)
+    : 0;
+
+  // Prorate primary interest if outstanding balance exceeds acquisition debt limit
+  if (primaryInterest > 0) {
+    let balance  = parseFloat(schedA.mortgageBalance) || 0;
+    let loanDate = schedA.mortgageLoanDate || 'post2017';
+    // MFS limits: half the joint/single limits — IRC §163(h)(3)(F) proration applies equally
+    let limit = (fs === 'mfs')
+      ? ((loanDate === 'pre2018') ? Km.mfsPre2018Limit  : Km.mfsPost2017Limit)
+      : ((loanDate === 'pre2018') ? Km.pre2018Limit      : Km.post2017Limit);
+    if (balance > 0 && balance > limit) {
+      primaryInterest = Math.round(primaryInterest * (limit / balance) * 100) / 100;
+    }
+  }
+
+  // Other qualified home loan interest not on Form 1098 — Line 8b
+  let otherInterest = parseFloat(schedA.mortgageInterestOther) || 0;
+  // Deductible points not reported on Form 1098 — IRC §461
+  let points        = parseFloat(schedA.mortgagePoints) || 0;
+
+  // PMI — OBBBA §70108: IRC §163(h)(3)(E) reinstated for TY beginning after 12/31/2025
+  // Phases out at 10% per $1,000 of AGI above start; fully phased at end — OBBBA §70108
+  let pmiDeductible = 0;
+  if (Km.pmi && (parseFloat(schedA.pmiPremiums) || 0) > 0) {
+    let pmiAmt   = parseFloat(schedA.pmiPremiums);
+    let pmiStart = (fs === 'mfs') ? Km.pmi.phaseoutStartMfs : Km.pmi.phaseoutStart;
+    let pmiEnd   = (fs === 'mfs') ? Km.pmi.phaseoutEndMfs   : Km.pmi.phaseoutEnd;
+    if (agi <= pmiStart) {
+      pmiDeductible = pmiAmt;
+    } else if (agi < pmiEnd) {
+      // Each $1,000 (or fraction thereof) of AGI above start reduces deductible PMI by 10%
+      let fullThousands = Math.ceil((agi - pmiStart) / 1000);
+      pmiDeductible = Math.max(0, pmiAmt * (1 - fullThousands * Km.pmi.ratePerThousand));
+      pmiDeductible = Math.round(pmiDeductible * 100) / 100;
+    }
+    // agi >= pmiEnd: pmiDeductible remains 0
+  }
+
+  return teRound(primaryInterest + otherInterest + points + pmiDeductible);
 }
 function teCalcCharitable(schedA, agi, K) {
-  if (agi <= 0) return 0;
-  let cash    = Math.min(parseFloat(schedA.cashCharitable)    || 0, agi * K.scheduleA.charitable.cashAgiLimit);
-  let nonCash = Math.min(parseFloat(schedA.nonCashCharitable) || 0, agi * K.scheduleA.charitable.nonCashAgiLimit);
-  // Combined cannot exceed the 60% AGI limit — IRC §170(b)(1)
-  return Math.min(cash + nonCash, agi * K.scheduleA.charitable.cashAgiLimit);
+  // Returns { total, cash60, noncash50, cg30, priv20, totalBuckets, floorReduction }
+  let zero = { total: 0, cash60: 0, noncash50: 0, cg30: 0, priv20: 0, totalBuckets: 0, floorReduction: 0 };
+  if (agi <= 0) return zero;
+  let Kc = K.scheduleA.charitable;
+
+  // Include prior-year carryovers with current-year contributions — IRC §170(d)(1)
+  let co = schedA.charCarryover || {};
+  let cashRaw   = (parseFloat(schedA.cashCharitable)     || 0) + (parseFloat(co.cash60)    || 0);
+  let ncRaw     = (parseFloat(schedA.nonCashCharitable)  || 0) + (parseFloat(co.noncash50) || 0);
+  let cg30Raw   = (parseFloat(schedA.capGainCharitable30)|| 0) + (parseFloat(co.capgain30) || 0);
+  let priv20Raw = (parseFloat(schedA.capGainCharitable20)|| 0) + (parseFloat(co.private20) || 0);
+
+  if (cashRaw <= 0 && ncRaw <= 0 && cg30Raw <= 0 && priv20Raw <= 0) return zero;
+
+  // IRC §170 AGI limits — applied in priority order per IRS Pub. 526
+  let cap60  = agi * Kc.cashAgiLimit;                                          // 60% overall combined cap
+  let cap50  = agi * Kc.nonCashAgiLimit;                                       // 50% non-cash to 50% orgs
+  let cap30  = Kc.capGain30Limit  ? agi * Kc.capGain30Limit  : 0;             // 30% cap gain to 50% orgs
+  let cap20  = Kc.private20Limit  ? agi * Kc.private20Limit  : 0;             // 20% cap gain to private fndns
+
+  // Step 1: Cash — limited to 60% of AGI — IRC §170(b)(1)(G)
+  let cash60 = Math.min(cashRaw, cap60);
+  let rem60  = cap60 - cash60;
+
+  // Step 2: Non-cash to 50% orgs — limited to 50% of AGI and remaining 60% room — IRC §170(b)(1)(A)
+  let noncash50 = Math.min(ncRaw, cap50, rem60);
+  let rem60b    = rem60 - noncash50;
+  let rem50     = cap50 - noncash50;
+
+  // Step 3: Capital gain property to 50% orgs — limited to 30% of AGI and remaining 50%/60% room
+  // IRC §170(b)(1)(C): cap gain property to 50% orgs uses remaining capacity from the 50% non-cash bucket
+  let cg30 = cap30 > 0 ? Math.min(cg30Raw, cap30, rem50, rem60b) : 0;
+  let rem60c = rem60b - cg30;
+  let rem30  = cap30 - cg30;
+
+  // Step 4: Capital gain to private foundations — limited to 20% of AGI, remaining 30%/60% room
+  // IRC §170(b)(1)(D)
+  let priv20 = cap20 > 0 ? Math.min(priv20Raw, cap20, rem30, rem60c) : 0;
+
+  let totalBuckets = teRound(cash60 + noncash50 + cg30 + priv20);
+
+  // OBBBA §70115 — 0.5% AGI floor: first 0.5% of AGI in charitable contributions not deductible
+  // Effective TY2026+. For TY2025, Kc.agiFloor is undefined — no floor applies.
+  let floorReduction = 0;
+  if (Kc.agiFloor && totalBuckets > 0) {
+    floorReduction = teRound(Math.min(totalBuckets, agi * Kc.agiFloor));
+  }
+
+  let total = teRound(Math.max(0, totalBuckets - floorReduction));
+  return { total, cash60, noncash50, cg30, priv20, totalBuckets, floorReduction };
 }
 function teCalcMedical(schedA, agi, K) {
   let expenses = parseFloat(schedA.medicalExpenses) || 0;
   if (expenses <= 0 || agi <= 0) return 0;
   let floor = agi * K.scheduleA.medical.agiFloor;  // 7.5% of AGI
   return Math.max(0, Math.round((expenses - floor) * 100) / 100);
+}
+function teCalcCasualty(schedA, agi, K) {
+  // IRC §165(h) — Casualty and Theft Losses
+  // TY2025: federally declared disasters only — IRC §165(h)(5)(A) (TCJA §11044)
+  // TY2026+: federally OR state-declared disasters — OBBBA §70112 expanded IRC §165(h)(5)
+  // Per-event floor: IRC §165(h)(1) — $100 per event — STATUTORY
+  // AGI floor: IRC §165(h)(2)(A)(ii) — 10% of AGI applied to aggregate after per-event floors — STATUTORY
+  let events = schedA.casualtyEvents || [];
+  if (events.length === 0 || agi <= 0) return 0;
+  let Kc = K.scheduleA.casualty;
+  let totalLoss = 0;
+  events.forEach(ev => {
+    if (!ev.federallyDeclared && !ev.stateDeclared) return;  // must be qualifying disaster
+    let fmvBefore = parseFloat(ev.fmvBefore)  || 0;
+    let fmvAfter  = parseFloat(ev.fmvAfter)   || 0;
+    let insurance = parseFloat(ev.insurance)  || 0;
+    // IRC §165(h): loss = min(adjusted basis, decline in FMV) minus insurance
+    // Engine uses FMV decline (most common basis; taxpayer-certified)
+    let decline = Math.max(0, fmvBefore - fmvAfter);
+    let loss = Math.max(0, decline - insurance);
+    // IRC §165(h)(1): $100 per-event floor
+    loss = Math.max(0, loss - Kc.perEventFloor);
+    totalLoss += loss;
+  });
+  if (totalLoss <= 0) return 0;
+  // IRC §165(h)(2)(A)(ii): 10% of AGI floor applied to aggregate
+  return teRound(Math.max(0, totalLoss - agi * Kc.agiFloor));
+}
+function teCalcGambling(schedA, schedule1, K) {
+  // IRC §165(d): gambling losses deductible only to the extent of gambling winnings.
+  // OBBBA §70114: effective TY2026+, losses limited to 90% of winnings (was 100%).
+  // Winnings source: Schedule 1, Line 8b — must be entered separately in income section.
+  let losses   = parseFloat(schedA.gamblingLosses)       || 0;
+  let winnings = parseFloat((schedule1 || {}).l8b)        || 0;
+  if (losses <= 0 || winnings <= 0) return 0;
+  let Kg = (K.scheduleA.gambling) || { lossRate: 1.00 };
+  let allowedWinnings = teRound(winnings * Kg.lossRate);
+  return teRound(Math.min(losses, allowedWinnings));
+}
+function teCalcItemizedHaircut(itemizedRaw, agi, K, fs) {
+  // OBBBA §70111: 2/37ths haircut on itemized deductions for 37%-bracket taxpayers.
+  // Reduction = (2/37) × min(itemizedTotal, income taxed at 37% rate)
+  // "Income at 37%" = max(0, taxable income − 37% bracket threshold)
+  // Circular dependency resolved with single-pass AGI approximation:
+  //   taxableEstimate = max(0, AGI − itemizedRaw) — not actual taxableIncome (avoids circularity)
+  // Source: OBBBA P.L. 119-21 §70111
+  let Kh = (K.scheduleA && K.scheduleA.itemizedHaircut);
+  if (!Kh || itemizedRaw <= 0) return 0;  // No haircut for TY2025 (Kh undefined)
+  // Approximate taxable income using itemizedRaw (pre-QBI, single-pass)
+  let taxableEst = Math.max(0, agi - itemizedRaw);
+  if (taxableEst <= 0) return 0;
+  // Find the floor of the 37% bracket from tax brackets
+  let bKey = (fs === 'qss') ? 'mfj' : fs;
+  let brackets = K.brackets[bKey] || K.brackets.single;
+  let threshold37 = 0;
+  for (let i = 0; i < brackets.length; i++) {
+    if (brackets[i][1] === 0.37 && i > 0) { threshold37 = brackets[i-1][0]; break; }
+  }
+  let incomeAt37 = Math.max(0, taxableEst - threshold37);
+  if (incomeAt37 <= 0) return 0;  // Taxpayer not in 37% bracket — no haircut
+  let haircutBase = Math.min(itemizedRaw, incomeAt37);
+  return teRound(haircutBase * Kh.numerator / Kh.denominator);
 }
 function teCalcSS86(benefits, prelimAGI, taxExemptInterest, fs, mfsLivedWithSpouse) {
   benefits = teRound(Math.max(0, parseFloat(benefits) || 0));
@@ -792,16 +937,37 @@ function teRecalculate() {
   // Track 2: Schedule A itemized deductions — automatically compared to standard
   let schedA = teCurrentReturn.scheduleA || {};
   calc.saltDeduction       = teCalcSALT(schedA, calc.agi, K, fs);
-  calc.mortgageDeduction   = teCalcMortgageInterest(schedA, K);
-  calc.charitableDeduction = teCalcCharitable(schedA, calc.agi, K);
+  calc.mortgageDeduction   = teCalcMortgageInterest(schedA, calc.agi, K, fs);
+  let charResult           = teCalcCharitable(schedA, calc.agi, K);
+  calc.charitableDeduction = charResult.total;
+  calc.charBreakdown       = charResult;                    // bucket detail for Schedule A screen
   calc.medicalDeduction    = teCalcMedical(schedA, calc.agi, K);
-  // IRC §163(d) investment interest included in Schedule A itemized deductions
-  calc.itemizedTotal       = teRound(calc.saltDeduction + calc.mortgageDeduction + calc.charitableDeduction + calc.medicalDeduction + calc.investmentInterestAllowed);
+  calc.casualtyDeduction   = teCalcCasualty(schedA, calc.agi, K);
+  calc.gamblingDeduction   = teCalcGambling(schedA, teCurrentReturn.schedule1, K);
+  // Line 17 other deductions (dynamic rows: impairment-related, etc.)
+  calc.otherDeductionsTotal = teRound(
+    (schedA.otherDeductions || []).reduce((s, row) => s + (parseFloat(row.amount) || 0), 0)
+  );
+
+  // IRC §163(d) investment interest is also an itemized deduction — included in total
+  calc.itemizedRaw = teRound(
+    calc.saltDeduction + calc.mortgageDeduction + calc.charitableDeduction +
+    calc.medicalDeduction + calc.investmentInterestAllowed +
+    calc.casualtyDeduction + calc.gamblingDeduction + calc.otherDeductionsTotal
+  );
+
+  // OBBBA §70111 — 2/37ths haircut: applies TY2026+ only (itemizedHaircut undefined for TY2025)
+  // Single-pass approximation: taxableEstimate = max(0, AGI − itemizedRaw) — avoids circular dependency
+  calc.itemizedHaircut = teCalcItemizedHaircut(calc.itemizedRaw, calc.agi, K, fs);
+  calc.itemizedNet     = teRound(Math.max(0, calc.itemizedRaw - calc.itemizedHaircut));
+  // itemizedTotal: net amount used for comparison and display (matches 1040 Line 12e when itemizing)
+  calc.itemizedTotal   = calc.itemizedNet;
 
   // Engine picks whichever is higher — IRC §63(b)
-  // No taxpayer toggle: the engine always applies the more beneficial deduction
-  calc.deductionType  = calc.itemizedTotal > calc.stdDed ? 'itemized' : 'standard';
-  calc.deductionUsed  = calc.itemizedTotal > calc.stdDed ? calc.itemizedTotal : calc.stdDed;
+  // electToItemize: taxpayer may elect itemized even when standard deduction is higher
+  let forceItemized = (schedA.electToItemize === true);
+  calc.deductionType  = (calc.itemizedNet > calc.stdDed || forceItemized) ? 'itemized' : 'standard';
+  calc.deductionUsed  = (calc.deductionType === 'itemized') ? calc.itemizedNet : calc.stdDed;
   calc.mfsItemizedRequired = false;
 
   // IRC §63(e): If one MFS spouse itemizes, the other MUST also itemize.
@@ -810,7 +976,7 @@ function teRecalculate() {
   if (fs === 'mfs' && schedA.mfsSpouseItemizes === true) {
     calc.stdDed              = 0;
     calc.deductionType       = 'itemized';
-    calc.deductionUsed       = calc.itemizedTotal;
+    calc.deductionUsed       = calc.itemizedNet;
     calc.mfsItemizedRequired = true;
   }
   teCurrentReturn.deductionType = calc.deductionType;
@@ -1284,6 +1450,47 @@ function teRecalculate() {
       case 'mortgage':   if (totalValEl) totalValEl.textContent = teFmt(calc.mortgageDeduction                                     || 0); break;
       case 'charitable': if (totalValEl) totalValEl.textContent = teFmt(calc.charitableDeduction                                   || 0); break;
       case 'medical':    if (totalValEl) totalValEl.textContent = teFmt(calc.medicalDeduction                                      || 0); break;
+      case 'sched-a': {
+        // Targeted DOM updates for unified Schedule A — preserves input focus; no innerHTML rebuilds on input elements
+        let g2 = id => document.getElementById(id);
+        let cb = calc.charBreakdown || {};
+        let K2 = teGetConstants();
+        // Medical
+        let l2El = g2('te-sa-l2'); if (l2El) l2El.textContent = teFmt(teRound((calc.agi || 0) * (K2.scheduleA?.medical?.agiFloor || 0.075)));
+        let l4El = g2('te-sa-l4'); if (l4El) l4El.textContent = teFmt(calc.medicalDeduction || 0);
+        // SALT
+        let l6El = g2('te-sa-l6'); if (l6El) l6El.textContent = teFmt(calc.saltDeduction || 0);
+        // Mortgage
+        let l8El = g2('te-sa-l8tot'); if (l8El) l8El.textContent = teFmt(calc.mortgageDeduction || 0);
+        // Charitable buckets
+        let l11El = g2('te-sa-l11'); if (l11El) l11El.textContent = teFmt(cb.cash60   || 0);
+        let l12El = g2('te-sa-l12'); if (l12El) l12El.textContent = teFmt(cb.noncash50 || 0);
+        let l13El = g2('te-sa-l13'); if (l13El) l13El.textContent = teFmt(cb.cg30      || 0);
+        let l14El = g2('te-sa-l14'); if (l14El) l14El.textContent = teFmt(cb.priv20    || 0);
+        let l14fEl = g2('te-sa-l14f'); if (l14fEl) l14fEl.textContent = teFmt(cb.totalBuckets || 0);
+        let l14gEl = g2('te-sa-l14g'); if (l14gEl) l14gEl.textContent = teFmt(calc.charitableDeduction || 0);
+        // Casualty + Other
+        let l15El = g2('te-sa-l15'); if (l15El) l15El.textContent = teFmt(calc.casualtyDeduction || 0);
+        let l16gEl = g2('te-sa-l16g'); if (l16gEl) l16gEl.textContent = teFmt(calc.gamblingDeduction || 0);
+        let l17El = g2('te-sa-l17'); if (l17El) l17El.textContent = teFmt(calc.otherDeductionsTotal || 0);
+        // Summary totals
+        let rawEl = g2('te-sa-raw'); if (rawEl) rawEl.textContent = teFmt(calc.itemizedRaw || 0);
+        let hcEl  = g2('te-sa-haircut'); if (hcEl) hcEl.textContent = teFmt(calc.itemizedHaircut || 0);
+        let netEl = g2('te-sa-net-total'); if (netEl) netEl.textContent = teFmt(calc.itemizedNet || 0);
+        // Comparison bar — safe to rebuild (no inputs inside)
+        let barEl = g2('te-sa-comparison-bar');
+        if (barEl) {
+          let std = calc.stdDed || 0;
+          let itm = calc.itemizedNet || 0;
+          let using = calc.deductionType === 'itemized' ? 'itemized' : 'standard';
+          barEl.innerHTML =
+            '<span style="margin-right:16px">Std: <strong>' + teFmt(std) + '</strong></span>' +
+            '<span style="margin-right:16px">Itemized: <strong>' + teFmt(itm) + '</strong></span>' +
+            '<span style="color:' + (using === 'itemized' ? '#4fc3f7' : '#81c784') + '">Using: <strong>' +
+            (using === 'itemized' ? 'Itemized' : 'Standard') + '</strong></span>';
+        }
+        if (totalValEl) totalValEl.textContent = teFmt(calc.itemizedNet || 0);
+      } break;
     }
   }
   // ── Menu page live updates (recalc while on a menu page) ─────────────

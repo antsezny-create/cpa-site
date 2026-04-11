@@ -233,19 +233,31 @@ const TAX_CONSTANTS = {
       // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section163
       // TCJA §11043: acquisition debt cap $750,000 for post-12/15/2017 loans (permanent per OBBBA).
       // Pre-2018 acquisition debt grandfathered at $1,000,000 — IRC §163(h)(3)(B)(ii).
+      // MFS limits: half the joint/single limits — IRC §163(h)(3)(F) proration applies equally.
+      // PMI: not available for TY2025 — OBBBA §70108 reinstates for TY beginning after 12/31/2025.
       mortgage: {
-        post2017Limit: 750000,   // IRC §163(h)(3)(F)(i)(II) — TCJA, made permanent by OBBBA
-        pre2018Limit:  1000000   // IRC §163(h)(3)(B)(ii) — grandfathered pre-TCJA loans
+        post2017Limit:    750000,  // IRC §163(h)(3)(F)(i)(II) — TCJA, made permanent by OBBBA
+        pre2018Limit:    1000000,  // IRC §163(h)(3)(B)(ii) — grandfathered pre-TCJA loans
+        mfsPost2017Limit: 375000,  // MFS: half of post-2017 limit — IRC §163(h)(3)(F) proration
+        mfsPre2018Limit:  500000,  // MFS: half of grandfathered limit — IRC §163(h)(3)(B)(ii)
+        pmi: null                  // Not available for TY2025 — OBBBA §70108 effective TY2026+
       },
 
-      // IRC §170(b)(1)(A),(G) — Charitable Contributions
+      // IRC §170(b)(1)(A),(C),(D),(G) — Charitable Contributions
       // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section170
-      // 60% AGI limit for cash donations to public charities — IRC §170(b)(1)(G) (TCJA, permanent)
-      // 50% AGI limit for non-cash property to public charities — IRC §170(b)(1)(A)
-      // OBBBA P.L. 119-21 did not modify §170 AGI percentage limits.
+      // 60% AGI limit: cash to public charities — IRC §170(b)(1)(G) (TCJA, permanent)
+      // 50% AGI limit: non-cash property to 50% public orgs — IRC §170(b)(1)(A)
+      // 30% AGI limit: appreciated capital gain property to 50% orgs — IRC §170(b)(1)(C)
+      // 20% AGI limit: capital gain property to private non-operating foundations — IRC §170(b)(1)(D)
+      // 5-year carryover: excess contributions — IRC §170(d)(1)
+      // OBBBA P.L. 119-21 did not modify §170 AGI percentage limits for TY2025.
       charitable: {
         cashAgiLimit:    0.60,  // IRC §170(b)(1)(G) — statutory
-        nonCashAgiLimit: 0.50   // IRC §170(b)(1)(A) — statutory
+        nonCashAgiLimit: 0.50,  // IRC §170(b)(1)(A) — statutory
+        capGain30Limit:  0.30,  // IRC §170(b)(1)(C) — capital gain property to 50% orgs
+        private20Limit:  0.20,  // IRC §170(b)(1)(D) — capital gain property to private foundations
+        carryoverYears:  5      // IRC §170(d)(1) — statutory 5-year carryover
+        // agiFloor: N/A for TY2025 — OBBBA charitable 0.5% floor effective TY2026+
       },
 
       // IRC §213(a) — Medical and Dental Expenses
@@ -254,6 +266,26 @@ const TAX_CONSTANTS = {
       // OBBBA P.L. 119-21 did not modify §213(a).
       medical: {
         agiFloor: 0.075  // IRC §213(a) — statutory 7.5% floor
+      },
+
+      // IRC §165(h) — Casualty and Theft Losses (2025)
+      // TCJA §11044: limited to federally declared disasters for TY2018–2025.
+      // OBBBA P.L. 119-21 §70112 expanded to state-declared disasters effective TY2026.
+      // TY2025: federally declared disasters only — IRC §165(h)(5)(A) (TCJA).
+      // Per-event floor — IRC §165(h)(1) — STATUTORY $100.
+      // AGI floor — IRC §165(h)(2)(A)(ii) — STATUTORY 10%.
+      casualty: {
+        perEventFloor: 100,  // IRC §165(h)(1) — $100 per-event floor — statutory
+        agiFloor:      0.10  // IRC §165(h)(2)(A)(ii) — 10% of AGI floor — statutory
+      },
+
+      // IRC §165(d) — Gambling Losses (2025)
+      // Gambling losses deductible only to the extent of gambling winnings.
+      // TY2025: losses deductible at 100% of winnings (pre-OBBBA rate).
+      // OBBBA §70114 reduces allowable loss rate to 90% of winnings effective TY2026+.
+      // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section165
+      gambling: {
+        lossRate: 1.00  // IRC §165(d) — 2025: 100% of winnings (pre-OBBBA §70114)
       }
     },
 
@@ -633,16 +665,64 @@ const TAX_CONSTANTS = {
         phaseoutRate:           0.30,  // Statutory — OBBBA P.L. 119-21
         floor:                10000    // Statutory — OBBBA P.L. 119-21
       },
+      // IRC §163(h)(3) — Mortgage Interest (2026)
+      // PMI reinstated by OBBBA §70108 (IRC §163(h)(3)(E) reinstated) — effective TY beginning after 12/31/2025.
+      // Phase-out: AGI $100K–$110K (non-MFS); $50K–$55K (MFS); 10% per $1,000 excess — OBBBA §70108.
+      // MFS limits: half the non-MFS limits — IRC §163(h)(3)(F) proration.
       mortgage: {
-        post2017Limit: 750000,   // IRC §163(h)(3)(F)(i)(II) — not CPI-adjusted
-        pre2018Limit:  1000000   // IRC §163(h)(3)(B)(ii) — grandfathered
+        post2017Limit:    750000,  // IRC §163(h)(3)(F)(i)(II) — not CPI-adjusted
+        pre2018Limit:    1000000,  // IRC §163(h)(3)(B)(ii) — grandfathered
+        mfsPost2017Limit: 375000,  // MFS: half of post-2017 limit — IRC §163(h)(3)(F)
+        mfsPre2018Limit:  500000,  // MFS: half of grandfathered limit — IRC §163(h)(3)(B)(ii)
+        pmi: {
+          // OBBBA §70108: IRC §163(h)(3)(E) reinstated for TY beginning after 12/31/2025
+          phaseoutStart:    100000,  // AGI at which phase-out begins (non-MFS) — OBBBA §70108
+          phaseoutStartMfs:  50000,  // MFS: half of non-MFS start — OBBBA §70108
+          phaseoutEnd:      110000,  // AGI at which PMI = $0 (non-MFS) — OBBBA §70108
+          phaseoutEndMfs:    55000,  // MFS: half of non-MFS end — OBBBA §70108
+          ratePerThousand:    0.10   // 10% reduction per $1,000 (or fraction) of AGI over start — OBBBA §70108
+        }
       },
+
+      // IRC §170 — Charitable Contributions (2026)
+      // OBBBA P.L. 119-21 §70115: 0.5% AGI floor — first 0.5% of AGI not deductible.
+      // Effective TY beginning after 12/31/2025. All §170 percentage limits otherwise unchanged.
       charitable: {
-        cashAgiLimit:    0.60,   // IRC §170(b)(1)(G) — statutory
-        nonCashAgiLimit: 0.50    // IRC §170(b)(1)(A) — statutory
+        cashAgiLimit:    0.60,   // IRC §170(b)(1)(G) — statutory — unchanged
+        nonCashAgiLimit: 0.50,   // IRC §170(b)(1)(A) — statutory — unchanged
+        capGain30Limit:  0.30,   // IRC §170(b)(1)(C) — capital gain property to 50% orgs
+        private20Limit:  0.20,   // IRC §170(b)(1)(D) — capital gain property to private foundations
+        carryoverYears:  5,      // IRC §170(d)(1) — statutory 5-year carryover
+        agiFloor:        0.005   // OBBBA §70115: 0.5% AGI floor — first 0.5% not deductible (TY2026+)
       },
+
+      // IRC §213(a) — Medical (2026 — unchanged from 2025)
       medical: {
-        agiFloor: 0.075          // IRC §213(a) — statutory
+        agiFloor: 0.075          // IRC §213(a) — statutory 7.5% floor
+      },
+
+      // IRC §165(h) — Casualty and Theft Losses (2026)
+      // OBBBA P.L. 119-21 §70112: expanded to include federally OR state-declared disasters (TY2026+).
+      // Per-event floor and AGI floor are STATUTORY — IRC §165(h)(1),(h)(2)(A)(ii).
+      casualty: {
+        perEventFloor: 100,  // IRC §165(h)(1) — $100 per-event floor — statutory
+        agiFloor:      0.10  // IRC §165(h)(2)(A)(ii) — 10% of AGI floor — statutory
+      },
+
+      // IRC §165(d) — Gambling Losses (2026)
+      // OBBBA §70114: losses limited to 90% of gambling winnings effective TY beginning after 12/31/2025.
+      // Source: OBBBA P.L. 119-21 §70114; uscode.house.gov 26 U.S.C. §165(d) (as amended)
+      gambling: {
+        lossRate: 0.90  // OBBBA §70114 — 2026: losses limited to 90% of winnings (was 100%)
+      },
+
+      // OBBBA P.L. 119-21 §70111 — 2/37ths Itemized Deduction Haircut (2026+)
+      // Reduces itemized deductions for 37%-bracket taxpayers by (2/37) × income in 37% bracket.
+      // haircutBase = min(itemizedTotal, max(0, taxableIncome − 37% bracket threshold))
+      // Haircut = haircutBase × (2/37) — applied after summing all itemized deductions.
+      itemizedHaircut: {
+        numerator:   2,  // OBBBA §70111 — 2/37ths rate
+        denominator: 37  // OBBBA §70111
       }
     },
 
@@ -713,19 +793,20 @@ const TAX_CONSTANTS = {
     // maxCredit[1],[2] and threshold/bonus figures: estimated via confirmed 2.28% CPI factor —
     //   factor = $664/$649 = 1.02311 — TODO:VERIFY vs Rev. Proc. 2025-32 §4.06
     eic: {
-      // maxCredit[0]: $664 — confirmed IRS newsroom 2026-04-08
-      // maxCredit[3]: $8,231 — confirmed IRS newsroom 2026-04-08
-      // maxCredit[1],[2]: estimated ($4,328 × 1.02311 ≈ $4,428; $7,152 × 1.02311 ≈ $7,317) — TODO:VERIFY
-      maxCredit:         { 0: 664, 1: 4428, 2: 7317, 3: 8231 },
+      // Source: IRS IRB 2025-45 (Rev. Proc. 2025-32) — verified 2026-04-11
+      // maxCredit[0]: $664 — IRS newsroom + IRB 2025-45 confirmed
+      // maxCredit[1],[2],[3]: IRB 2025-45 confirmed — verified 2026-04-11
+      maxCredit:         { 0: 664, 1: 4427, 2: 7316, 3: 8231 },
       phaseInRate:       { 0: 0.0765, 1: 0.34, 2: 0.40, 3: 0.40 },  // IRC §32(b)(1)(A) — statutory
       phaseOutRate:      { 0: 0.0765, 1: 0.1598, 2: 0.2106, 3: 0.2106 }, // IRC §32(b)(1)(B) — statutory
-      // phaseOutThreshold[0]: estimated ($10,620 × 1.023 ≈ $10,860) — TODO:VERIFY vs Rev. Proc. 2025-32
-      // phaseOutThreshold[1,2,3]: estimated — TODO:VERIFY vs Rev. Proc. 2025-32
-      phaseOutThreshold: { 0: 10860, 1: 24035, 2: 24035, 3: 24035 }, // TODO:VERIFY vs Rev. Proc. 2025-32
-      // jointBonus: estimated ($7,120 × 1.023 ≈ $7,280) — TODO:VERIFY vs Rev. Proc. 2025-32
-      // Cross-check: MFJ 3+QC completed phaseout = $70,244 (confirmed Rev. Proc. 2025-32)
-      jointBonus:        7280,    // TODO:VERIFY vs Rev. Proc. 2025-32
-      investmentIncomeLimit: 11950 // TODO:VERIFY vs Rev. Proc. 2025-32
+      // phaseOutThreshold[1,2,3]: single $23,890 (IRB 2025-45 confirmed 2026-04-11)
+      // phaseOutThreshold[0]: estimated ~$10,907 (IRB 2025-45 confirms full table for 1+ QC;
+      //   0-QC threshold interpolated at 2.28% CPI factor from 2025 $10,620) — TODO:VERIFY 0-QC row
+      phaseOutThreshold: { 0: 10907, 1: 23890, 2: 23890, 3: 23890 },
+      // jointBonus: $31,160 (MFJ 1-QC) − $23,890 (Single 1-QC) = $7,270 — IRB 2025-45 confirmed 2026-04-11
+      jointBonus:        7270,
+      // investmentIncomeLimit: IRB 2025-45 confirmed 2026-04-11
+      investmentIncomeLimit: 12200
     },
 
     // ── TRACK 5B: Child & Dependent Care Credit (2026) ───────────────────

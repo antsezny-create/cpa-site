@@ -166,18 +166,10 @@ function teRenderDeductionsMenu() {
     </div>
     <div class="te-menu-section-lbl" style="margin-top:20px;">Schedule A — Itemized Deductions <span class="te-cite">IRC §63(d)</span></div>
     <div class="te-menu-grid">
-      ${teMenuCard('salt',       'Schedule A', 'State &amp; Local Taxes (SALT)',
-          'State income, local income, real estate, personal property. $10K–$40K cap.',
-          (c.saltDeduction||0) > 0, teFmt(c.saltDeduction||0), src)}
-      ${teMenuCard('mortgage',   'Schedule A', 'Mortgage Interest',
-          'Form 1098 interest on acquisition debt. $750K / $1M limit. IRC §163(h).',
-          (c.mortgageDeduction||0) > 0, teFmt(c.mortgageDeduction||0), src)}
-      ${teMenuCard('charitable', 'Schedule A', 'Charitable Contributions',
-          'Cash and non-cash contributions. 60% / 50% of AGI limits. IRC §170.',
-          (c.charitableDeduction||0) > 0, teFmt(c.charitableDeduction||0), src)}
-      ${teMenuCard('medical',    'Schedule A', 'Medical Expenses',
-          'Unreimbursed medical & dental exceeding 7.5% of AGI. IRC §213.',
-          (c.medicalDeduction||0) > 0, teFmt(c.medicalDeduction||0), src)}
+      ${teMenuCard('sched-a', 'Schedule A', 'Itemized Deductions',
+          'Medical, SALT, mortgage interest, charitable, casualty, gambling &amp; other. IRC §63(d).',
+          (c.itemizedRaw||0) > 0,
+          teFmt(c.deductionType === 'itemized' ? (c.itemizedNet||0) : (c.itemizedRaw||0)), src)}
     </div>
     <div class="te-menu-total">
       <span>${c.deductionType === 'itemized' ? 'Itemized' : 'Standard'} Deduction Applied <span class="te-cite">1040 Line 12e</span></span>
@@ -398,11 +390,15 @@ function teRenderMiniScreen(schedId) {
     case 'hsa':
     case 'ira-ded':
     case 'alimony':
-    case 'salt':
-    case 'mortgage':
-    case 'charitable':
-    case 'medical':
       return nav + teRenderMiniDeductionSection(schedId);
+
+    // ── SCHEDULE A — unified form (replaces individual salt/mortgage/charitable/medical mini-screens)
+    case 'sched-a':
+    case 'salt':       // legacy alias — reroutes to unified screen
+    case 'mortgage':   // legacy alias
+    case 'charitable': // legacy alias
+    case 'medical':    // legacy alias
+      return nav + teRenderScheduleA();
 
     // ── CREDITS ───────────────────────────────────────────────────
     case 'ctc':
@@ -471,6 +467,12 @@ function teMiniPostRender(schedId) {
     case 'w2':         teRenderW2List();              break;
     case 'sched-c':    teRenderSchedCOtherExpRows();  break;  // re-render Part V rows after screen loads
     case 'sched-1': teRenderS1OtherIncomeRows(); teRenderS1PiiOtherAdjRows(); break;  // re-render 8z and 24z dynamic rows after screen loads
+    case 'sched-a':
+    case 'salt':
+    case 'mortgage':
+    case 'charitable':
+    case 'medical':
+      teRenderSAOtherTaxRows(); teRenderSACasualtyRows(); teRenderSAOtherDedRows(); break;
     case 'sched-d':    /* rows rendered inline on initial render — no post-render needed */ break;
     case 'sched-se':   /* all lines computed on render — no list post-render needed */ break;
     case 'retirement': teRender1099RList('ira'); teRender1099RList('pension'); break;
@@ -4293,34 +4295,514 @@ function teOnEstPay() {
 
 // IRC §170(b)(1) — Charitable Contribution Deduction
 // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section170
-// Cash: capped at 60% of AGI; Non-cash: capped at 50% of AGI.
-// Combined total: capped at 60% of AGI (higher-tier cash limit governs).
+// Cash: capped at 60% of AGI; Non-cash: capped at 50% of AGI; 30% cap-gain bucket; 20% private foundation bucket.
+// 5-year carryover IRC §170(d)(1). OBBBA §70115: 0.5% AGI floor for TY2026+.
 
 // IRC §213(a) — Medical Expense Deduction
 // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section213
-// Deductible amount = medical expenses exceeding 7.5% of AGI.
+// Deductible amount = medical expenses exceeding 7.5% of AGI. ARP §9222 — floor made permanent.
+
+// ── Unified Schedule A form screen ───────────────────────────────────────
+function teRenderScheduleA() {
+  let r    = teCurrentReturn;
+  let sa   = r.scheduleA     || {};
+  let calc = r._calc         || {};
+  let fs   = r.filingStatus  || 'single';
+  let yr   = r.taxYear       || teActiveYear;
+  let K    = TAX_CONSTANTS[yr];
+  if (!K) return '<div class="te-empty">Tax constants not available for ' + yr + '.</div>';
+  let agi   = calc.agi  || 0;
+  let isMFS = (fs === 'mfs');
+  let Ksa   = K.scheduleA    || {};
+  let Km    = Ksa.mortgage   || {};
+  let Kc    = Ksa.charitable || {};
+  let Kca   = Ksa.casualty   || {};
+  let Kg    = Ksa.gambling   || {};
+  let Kh    = Ksa.itemizedHaircut;   // undefined for TY2025; defined for TY2026 (OBBBA §70111)
+  let Ks    = K.salt         || {};
+  let cb    = calc.charBreakdown || {};
+  let sl1   = r.schedule1   || {};
+  let gambleWin = parseFloat(sl1.l8b) || 0;
+  let std   = calc.stdDed   || 0;
+  let itm   = calc.itemizedNet || 0;
+  let using = calc.deductionType === 'itemized' ? 'itemized' : 'standard';
+
+  // Sub-section header
+  let subHdr = (title, cite) =>
+    `<div style="font-weight:600;font-size:0.82rem;letter-spacing:0.05em;text-transform:uppercase;
+       color:var(--accent);margin:20px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border);">
+       ${title} <span class="te-cite">${cite}</span></div>`;
+
+  // Read-only computed line row
+  let cLine = (label, valId, val) =>
+    `<div class="te-subsec-row" style="margin-top:4px;">
+       <span class="te-subsec-desc">${label}</span>
+       <span class="te-mono" id="${valId}" style="font-size:0.92rem;">${teFmt(val)}</span>
+     </div>`;
+
+  // ── Comparison bar (rebuilt by case 'sched-a' on every recalc) ────────
+  let barHtml =
+    '<span style="margin-right:16px">Std: <strong>' + teFmt(std) + '</strong></span>' +
+    '<span style="margin-right:16px">Itemized: <strong>' + teFmt(itm) + '</strong></span>' +
+    '<span style="color:' + (using === 'itemized' ? '#4fc3f7' : '#81c784') + '">Using: <strong>' +
+    (using === 'itemized' ? 'Itemized' : 'Standard') + '</strong></span>';
+
+  let compSection = `
+    <div id="te-sa-comparison-bar" class="te-total-bar" style="margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+      ${barHtml}
+    </div>
+    <div class="te-frow" style="gap:24px;margin-bottom:4px;flex-wrap:wrap;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.88rem;cursor:pointer;">
+        <input type="checkbox" id="te-sa-elect" ${sa.electToItemize ? 'checked' : ''}
+          onchange="teOnScheduleA()">
+        Elect to itemize even if standard deduction is higher
+        <span class="te-cite">IRC §63(e)</span>
+      </label>
+      ${isMFS ? `<label style="display:flex;align-items:center;gap:6px;font-size:0.88rem;cursor:pointer;">
+        <input type="checkbox" id="te-sa-mfsi" ${sa.mfsSpouseItemizes ? 'checked' : ''}
+          onchange="teOnScheduleA()">
+        MFS — spouse is also itemizing <span class="te-cite">IRC §63(e)(3)</span>
+      </label>` : ''}
+    </div>`;
+
+  // ── Section 1: Medical ───────────────────────────────────────────────
+  let medFloor = teRound(agi * ((Ksa.medical && Ksa.medical.agiFloor) || 0.075));
+  let medSection = subHdr('Medical and Dental Expenses', 'IRC §213 — Lines 1–4') + `
+    <div class="te-subsec">
+      <div class="te-frow" style="gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="te-field-group" style="max-width:220px;">
+          <label class="te-lbl">Line 1 — Unreimbursed medical &amp; dental expenses</label>
+          <input type="number" id="te-sa-med" class="te-input te-mono"
+            value="${esc(String(sa.medicalExpenses||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+      </div>
+      ${cLine('Line 2 — 7.5% of AGI floor (ARP §9222 — permanent)', 'te-sa-l2', medFloor)}
+      ${cLine('Line 3 / 4 — Medical deduction (Line 1 minus Line 2, if positive)', 'te-sa-l4', calc.medicalDeduction || 0)}
+    </div>`;
+
+  // ── Section 2: Taxes (SALT) ──────────────────────────────────────────
+  let saltNote = yr >= 2026
+    ? 'OBBBA §70201: $40,000 cap phases down at 30% of AGI above threshold; floor $10,000. IRC §164(b)(6).'
+    : 'TCJA §11042: Limited to $10,000 ($5,000 MFS). IRC §164(b)(6).';
+  let taxSection = subHdr('State and Local Taxes', 'IRC §164 — Lines 5a–6') + `
+    <div class="te-subsec">
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.88rem;margin-bottom:10px;cursor:pointer;">
+        <input type="checkbox" id="te-sa-use-st" ${sa.useSalesTax ? 'checked' : ''}
+          onchange="teOnScheduleA()">
+        Elect to deduct state &amp; local <strong>sales tax</strong> instead of income tax
+        <span class="te-cite">IRC §164(b)(5)</span>
+      </label>
+      <div class="te-frow" style="gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        ${!sa.useSalesTax
+          ? `<div class="te-field-group" style="max-width:200px;">
+               <label class="te-lbl">Line 5a — State income tax withheld</label>
+               <input type="number" id="te-sa-sit" class="te-input te-mono"
+                 value="${esc(String(sa.stateIncomeTax||''))}" placeholder="0.00" step="0.01" min="0"
+                 oninput="teOnScheduleA(true)">
+             </div>`
+          : `<div class="te-field-group" style="max-width:200px;">
+               <label class="te-lbl">Line 5a — General sales taxes (§164(b)(5))</label>
+               <input type="number" id="te-sa-st" class="te-input te-mono"
+                 value="${esc(String(sa.salesTax||''))}" placeholder="0.00" step="0.01" min="0"
+                 oninput="teOnScheduleA(true)">
+             </div>`}
+        <div class="te-field-group" style="max-width:200px;">
+          <label class="te-lbl">Line 5b — Local income taxes</label>
+          <input type="number" id="te-sa-lit" class="te-input te-mono"
+            value="${esc(String(sa.localIncomeTax||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+        <div class="te-field-group" style="max-width:200px;">
+          <label class="te-lbl">Line 5c — Real estate taxes</label>
+          <input type="number" id="te-sa-ret" class="te-input te-mono"
+            value="${esc(String(sa.realEstateTax||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+        <div class="te-field-group" style="max-width:200px;">
+          <label class="te-lbl">Line 5d — Personal property taxes</label>
+          <input type="number" id="te-sa-ppt" class="te-input te-mono"
+            value="${esc(String(sa.personalPropertyTax||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <div style="font-size:0.82rem;color:var(--muted);margin-bottom:4px;">
+          Line 5e — Other taxes paid (e.g., foreign income taxes on investment income)
+          <button class="ghost-btn te-sm-btn" style="margin-left:8px;" onclick="teAddSAOtherTax()">+ Add Row</button>
+        </div>
+        <div id="te-sa-other-tax-rows"></div>
+      </div>
+      ${cLine('Line 6 — SALT deduction (capped per IRC §164(b)(6))', 'te-sa-l6', calc.saltDeduction || 0)}
+      <div class="te-ded-note">${saltNote}</div>
+    </div>`;
+
+  // ── Section 3: Mortgage Interest ─────────────────────────────────────
+  let isPost2017 = (sa.mortgageLoanDate !== 'pre2018');
+  let miLimit = isMFS
+    ? (isPost2017 ? (Km.mfsPost2017Limit || 375000) : (Km.mfsPre2018Limit || 500000))
+    : (isPost2017 ? (Km.post2017Limit    || 750000) : (Km.pre2018Limit    || 1000000));
+  let miBalance  = parseFloat(sa.mortgageBalance) || 0;
+  let miProrated = miBalance > miLimit && miBalance > 0;
+  let pmiBlock   = Km.pmi ? `
+        <div class="te-field-group" style="max-width:200px;">
+          <label class="te-lbl">Line 8d — Mortgage insurance premiums <span class="te-cite">OBBBA §70108</span></label>
+          <input type="number" id="te-sa-pmi" class="te-input te-mono"
+            value="${esc(String(sa.pmiPremiums||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>` : '';
+  let mortSection = subHdr('Interest You Paid', 'IRC §163(h) — Lines 8–8d') + `
+    <div class="te-subsec">
+      <div class="te-frow" style="gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="te-field-group" style="max-width:200px;">
+          <label class="te-lbl">Line 8a — Home mortgage interest (Form 1098)</label>
+          <input type="number" id="te-sa-mi" class="te-input te-mono"
+            value="${esc(String(sa.mortgageInterest||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+        <div class="te-field-group" style="max-width:200px;">
+          <label class="te-lbl">Outstanding loan balance (Box 2, Form 1098)</label>
+          <input type="number" id="te-sa-mb" class="te-input te-mono"
+            value="${esc(String(sa.mortgageBalance||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+        <div class="te-field-group" style="max-width:210px;">
+          <label class="te-lbl">Loan origination date</label>
+          <select id="te-sa-mld" class="te-select" onchange="teOnScheduleA()">
+            <option value="post2017" ${isPost2017 ? 'selected' : ''}>Post-2017 — $750K limit ($375K MFS)</option>
+            <option value="pre2018"  ${!isPost2017 ? 'selected' : ''}>Pre-2018 grandfathered — $1M ($500K MFS)</option>
+          </select>
+        </div>
+        <div class="te-field-group" style="max-width:200px;">
+          <label class="te-lbl">Loan purpose</label>
+          <select id="te-sa-mp" class="te-select" onchange="teOnScheduleA()">
+            <option value="acquisition" ${(sa.mortgagePurpose||'acquisition')==='acquisition' ? 'selected':''}>Acquisition debt</option>
+            <option value="home-equity" ${sa.mortgagePurpose==='home-equity' ? 'selected':''}>Home equity — non-deductible post-TCJA</option>
+            <option value="mixed"       ${sa.mortgagePurpose==='mixed'       ? 'selected':''}>Mixed (partial acquisition)</option>
+          </select>
+        </div>
+        <div class="te-field-group" style="max-width:200px;">
+          <label class="te-lbl">Line 8c — Points not on Form 1098</label>
+          <input type="number" id="te-sa-pts" class="te-input te-mono"
+            value="${esc(String(sa.mortgagePoints||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+        <div class="te-field-group" style="max-width:200px;">
+          <label class="te-lbl">Line 8b — Other home mortgage interest</label>
+          <input type="number" id="te-sa-mio" class="te-input te-mono"
+            value="${esc(String(sa.mortgageInterestOther||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+        ${pmiBlock}
+      </div>
+      ${miProrated ? `<div class="te-ded-note" style="color:#ffb74d;">
+        Loan balance ($${miBalance.toLocaleString()}) exceeds ${teFmt(miLimit)} limit — interest prorated per IRC §163(h)(3)(F)(i).
+      </div>` : ''}
+      ${cLine('Line 8 — Total mortgage interest deduction', 'te-sa-l8tot', calc.mortgageDeduction || 0)}
+    </div>`;
+
+  // ── Section 4: Charitable ─────────────────────────────────────────────
+  let co = sa.charCarryover || {};
+  let floorNote = Kc.agiFloor
+    ? `<div class="te-ded-note" style="color:#ffb74d;">
+         OBBBA §70115: 0.5% AGI floor (${teFmt(teRound(agi * Kc.agiFloor))}) reduces charitable deduction by ${teFmt(cb.floorReduction || 0)}.
+       </div>` : '';
+  let charSection = subHdr('Gifts to Charity', 'IRC §170 — Lines 11–14g') + `
+    <div class="te-subsec">
+      <div class="te-frow" style="gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="te-field-group" style="max-width:220px;">
+          <label class="te-lbl">Line 11 — Cash contributions <span class="te-cite">60% AGI cap</span></label>
+          <input type="number" id="te-sa-cc" class="te-input te-mono"
+            value="${esc(String(sa.cashCharitable||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+        <div class="te-field-group" style="max-width:220px;">
+          <label class="te-lbl">Line 12 — Non-cash contributions <span class="te-cite">50% AGI cap</span></label>
+          <input type="number" id="te-sa-nc" class="te-input te-mono"
+            value="${esc(String(sa.nonCashCharitable||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+        <div class="te-field-group" style="max-width:220px;">
+          <label class="te-lbl">Line 13 — Cap. gain property to 50% orgs <span class="te-cite">IRC §170(b)(1)(C) — 30% cap</span></label>
+          <input type="number" id="te-sa-cg30" class="te-input te-mono"
+            value="${esc(String(sa.capGainCharitable30||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+        <div class="te-field-group" style="max-width:220px;">
+          <label class="te-lbl">Line 14 — Cap. gain property to private foundations <span class="te-cite">IRC §170(b)(1)(D) — 20% cap</span></label>
+          <input type="number" id="te-sa-priv20" class="te-input te-mono"
+            value="${esc(String(sa.capGainCharitable20||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+      </div>
+      <div style="margin-top:14px;font-size:0.82rem;color:var(--muted);margin-bottom:4px;">
+        Carryovers from prior years <span class="te-cite">IRC §170(d)(1) — 5-year carryover</span>
+      </div>
+      <div class="te-frow" style="gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="te-field-group" style="max-width:175px;">
+          <label class="te-lbl">Cash 60% carryover</label>
+          <input type="number" id="te-sa-co-c60" class="te-input te-mono"
+            value="${esc(String(co.cash60||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+        <div class="te-field-group" style="max-width:175px;">
+          <label class="te-lbl">Non-cash 50% carryover</label>
+          <input type="number" id="te-sa-co-nc50" class="te-input te-mono"
+            value="${esc(String(co.noncash50||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+        <div class="te-field-group" style="max-width:175px;">
+          <label class="te-lbl">Cap. gain 30% carryover</label>
+          <input type="number" id="te-sa-co-cg30" class="te-input te-mono"
+            value="${esc(String(co.capgain30||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+        <div class="te-field-group" style="max-width:175px;">
+          <label class="te-lbl">Private 20% carryover</label>
+          <input type="number" id="te-sa-co-p20" class="te-input te-mono"
+            value="${esc(String(co.private20||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        ${cLine('Line 11 allowed — Cash (after 60% AGI cap)', 'te-sa-l11', cb.cash60 || 0)}
+        ${cLine('Line 12 allowed — Non-cash (after 50% AGI cap)', 'te-sa-l12', cb.noncash50 || 0)}
+        ${cLine('Line 13 allowed — Cap. gain 30% (after limit)', 'te-sa-l13', cb.cg30 || 0)}
+        ${cLine('Line 14 allowed — Private found. 20% (after limit)', 'te-sa-l14', cb.priv20 || 0)}
+        ${cLine('Line 14f — Total contributions before OBBBA floor', 'te-sa-l14f', cb.totalBuckets || 0)}
+        ${cLine('Line 14g — Charitable deduction (after 0.5% AGI floor if TY2026+)', 'te-sa-l14g', calc.charitableDeduction || 0)}
+      </div>
+      ${floorNote}
+    </div>`;
+
+  // ── Section 5: Casualty ───────────────────────────────────────────────
+  let casNote = yr >= 2026
+    ? 'Federally OR state-declared disasters qualify (OBBBA §70112). IRC §165(h).'
+    : 'Federal disaster declarations only (TCJA). IRC §165(h)(5).';
+  let casSection = subHdr('Casualty and Theft Losses', 'IRC §165(h) — Line 15') + `
+    <div class="te-subsec">
+      <div style="font-size:0.82rem;color:var(--muted);margin-bottom:6px;">
+        ${casNote} Each event reduced by $100 floor; aggregate reduced by 10% of AGI.
+        <button class="ghost-btn te-sm-btn" style="margin-left:8px;" onclick="teAddSACasualty()">+ Add Event</button>
+      </div>
+      <div id="te-sa-casualty-rows"></div>
+      ${cLine('Line 15 — Casualty deduction (after $100 and 10% AGI floors)', 'te-sa-l15', calc.casualtyDeduction || 0)}
+    </div>`;
+
+  // ── Section 6: Other Deductions ───────────────────────────────────────
+  let gambleAllowed = calc.gamblingDeduction || 0;
+  let gambleNote = yr >= 2026
+    ? `OBBBA §70114: losses limited to 90% of winnings. Gambling winnings (Sch. 1 Line 8b): ${teFmt(gambleWin)}.`
+    : `IRC §165(d): losses limited to 100% of winnings. Gambling winnings (Sch. 1 Line 8b): ${teFmt(gambleWin)}.`;
+  let otherSection = subHdr('Other Itemized Deductions', 'IRC §67 — Lines 16–17') + `
+    <div class="te-subsec">
+      <div class="te-frow" style="gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:4px;">
+        <div class="te-field-group" style="max-width:220px;">
+          <label class="te-lbl">Line 16 — Gambling losses <span class="te-cite">IRC §165(d)</span></label>
+          <input type="number" id="te-sa-gl" class="te-input te-mono"
+            value="${esc(String(sa.gamblingLosses||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnScheduleA(true)">
+        </div>
+        <div style="padding-bottom:2px;">${cLine('Gambling losses allowed', 'te-sa-l16g', gambleAllowed)}</div>
+      </div>
+      <div class="te-ded-note" style="margin-bottom:10px;">${gambleNote}</div>
+      <div style="font-size:0.82rem;color:var(--muted);margin-bottom:4px;">
+        Other deductions (investment fees, safe deposit box, etc.)
+        <button class="ghost-btn te-sm-btn" style="margin-left:8px;" onclick="teAddSAOtherDed()">+ Add Row</button>
+      </div>
+      <div id="te-sa-other-ded-rows"></div>
+      ${cLine('Line 17 — Other deductions total', 'te-sa-l17', calc.otherDeductionsTotal || 0)}
+    </div>`;
+
+  // ── Section 7: Summary ────────────────────────────────────────────────
+  let haircutRow = Kh
+    ? cLine('Less: 2/37ths haircut — high-income limitation <span class="te-cite">OBBBA §70111</span>', 'te-sa-haircut', calc.itemizedHaircut || 0)
+    : '';
+  let summarySection = subHdr('Schedule A Summary', 'IRC §63(d) — 1040 Line 12a') + `
+    <div class="te-subsec">
+      ${cLine('Total itemized deductions (before haircut)', 'te-sa-raw', calc.itemizedRaw || 0)}
+      ${haircutRow}
+      <div class="te-total-bar" style="margin-top:8px;">
+        <span>Net Itemized Deduction${Kh ? ' (post-OBBBA §70111 haircut)' : ''} <span class="te-cite">1040 Line 12a</span></span>
+        <span class="te-total-val te-mono" id="te-sa-net-total">${teFmt(calc.itemizedNet || 0)}</span>
+      </div>
+      <div class="te-total-bar" style="margin-top:4px;opacity:0.75;">
+        <span>Standard Deduction <span class="te-cite">IRC §63(c)</span></span>
+        <span class="te-total-val te-mono">${teFmt(std)}</span>
+      </div>
+      <div class="te-total-bar" style="margin-top:4px;background:${using==='itemized'?'rgba(79,195,247,0.08)':'rgba(129,199,132,0.08)'};">
+        <span>Deduction Applied on 1040 (${using === 'itemized' ? 'Itemized' : 'Standard'})</span>
+        <span class="te-total-val te-mono" style="color:${using==='itemized'?'#4fc3f7':'#81c784'}">${teFmt(calc.deductionUsed || 0)}</span>
+      </div>
+    </div>`;
+
+  return `
+    <div class="te-sec-hdr">
+      <h2>Schedule A — Itemized Deductions</h2>
+      <p class="te-sec-sub"><span class="te-cite">IRC §63(d) — 1040 Line 12a</span></p>
+    </div>
+    ${compSection}
+    ${medSection}
+    ${taxSection}
+    ${mortSection}
+    ${charSection}
+    ${casSection}
+    ${otherSection}
+    ${summarySection}`;
+}
 
 // Handler for Schedule A field changes
-function teOnScheduleA() {
+// debounce=true → 150ms timer (text/number inputs); debounce falsy → immediate (selects/checkboxes)
+function teOnScheduleA(debounce) {
   if (!teCurrentReturn) return;
   teMarkDirty();
   if (!teCurrentReturn.scheduleA) teCurrentReturn.scheduleA = {};
   let s  = teCurrentReturn.scheduleA;
-  let g  = id => { let el = document.getElementById(id); return el ? el.value : ''; };
-  s.stateIncomeTax      = g('te-sa-sit');
-  s.localIncomeTax      = g('te-sa-lit');
-  s.realEstateTax       = g('te-sa-ret');
-  s.personalPropertyTax = g('te-sa-ppt');
-  s.mortgageInterest    = g('te-sa-mi');
-  s.mortgageBalance     = g('te-sa-mb');
-  s.mortgageLoanDate    = g('te-sa-mld') || 'post2017';
-  s.mortgagePurpose     = g('te-sa-mp')  || 'acquisition';
-  s.cashCharitable      = g('te-sa-cc');
-  s.nonCashCharitable   = g('te-sa-nc');
-  s.medicalExpenses     = g('te-sa-med');
-  let mfsiEl = document.getElementById('te-sa-mfsi');
-  s.mfsSpouseItemizes   = mfsiEl ? mfsiEl.checked : false;
-  teRecalculate();
+  let gv = id => { let el = document.getElementById(id); return el ? el.value : ''; };
+  let gc = id => { let el = document.getElementById(id); return el ? el.checked : false; };
+  // Toggles / selects (always read — immediate)
+  s.useSalesTax         = gc('te-sa-use-st');
+  s.mortgageLoanDate    = gv('te-sa-mld') || 'post2017';
+  s.mortgagePurpose     = gv('te-sa-mp')  || 'acquisition';
+  s.mfsSpouseItemizes   = gc('te-sa-mfsi');
+  s.electToItemize      = gc('te-sa-elect');
+  // Text / number inputs
+  s.medicalExpenses     = gv('te-sa-med');
+  s.stateIncomeTax      = s.useSalesTax ? s.stateIncomeTax : gv('te-sa-sit');
+  s.salesTax            = s.useSalesTax ? gv('te-sa-st')   : s.salesTax;
+  s.localIncomeTax      = gv('te-sa-lit');
+  s.realEstateTax       = gv('te-sa-ret');
+  s.personalPropertyTax = gv('te-sa-ppt');
+  s.mortgageInterest    = gv('te-sa-mi');
+  s.mortgageBalance     = gv('te-sa-mb');
+  s.mortgagePoints      = gv('te-sa-pts');
+  s.mortgageInterestOther = gv('te-sa-mio');
+  s.pmiPremiums         = gv('te-sa-pmi');
+  s.cashCharitable      = gv('te-sa-cc');
+  s.nonCashCharitable   = gv('te-sa-nc');
+  s.capGainCharitable30 = gv('te-sa-cg30');
+  s.capGainCharitable20 = gv('te-sa-priv20');
+  if (!s.charCarryover) s.charCarryover = {};
+  s.charCarryover.cash60    = gv('te-sa-co-c60');
+  s.charCarryover.noncash50 = gv('te-sa-co-nc50');
+  s.charCarryover.capgain30 = gv('te-sa-co-cg30');
+  s.charCarryover.private20 = gv('te-sa-co-p20');
+  s.gamblingLosses      = gv('te-sa-gl');
+  if (debounce) {
+    clearTimeout(teSchedATimer);
+    teSchedATimer = setTimeout(() => teRecalculate(), 150);
+  } else {
+    teRecalculate();
+  }
+}
+
+// ── Schedule A — dynamic row handlers ────────────────────────────────────
+
+function teAddSAOtherTax() {
+  let sa = teCurrentReturn.scheduleA;
+  if (!sa.otherTaxes) sa.otherTaxes = [];
+  sa.otherTaxes.push({ description: '', amount: '' });
+  teMarkDirty(); teRenderSAOtherTaxRows(); teRecalculate();
+}
+function teRemoveSAOtherTax(i) {
+  teCurrentReturn.scheduleA.otherTaxes.splice(i, 1);
+  teMarkDirty(); teRenderSAOtherTaxRows(); teRecalculate();
+}
+function teOnSAOtherTax(i, field, val) {
+  teCurrentReturn.scheduleA.otherTaxes[i][field] = val;
+  teMarkDirty();
+}
+function teRenderSAOtherTaxRows() {
+  let el = document.getElementById('te-sa-other-tax-rows');
+  if (!el) return;
+  let rows = (teCurrentReturn.scheduleA.otherTaxes) || [];
+  el.innerHTML = rows.map((row, i) => `
+    <div class="te-frow" style="gap:8px;align-items:center;margin-top:5px;">
+      <input type="text" class="te-input" style="flex:2;min-width:140px;" placeholder="Description (e.g., foreign income taxes)"
+        value="${esc(row.description||'')}"
+        oninput="teOnSAOtherTax(${i},'description',this.value)">
+      <input type="number" class="te-input te-mono" style="max-width:130px;" placeholder="0.00" step="0.01" min="0"
+        value="${esc(String(row.amount||''))}"
+        oninput="teOnSAOtherTax(${i},'amount',this.value);teOnScheduleA(true)">
+      <button class="te-sc-del-btn" onclick="teRemoveSAOtherTax(${i})" title="Remove">✕</button>
+    </div>`).join('');
+}
+
+function teAddSACasualty() {
+  let sa = teCurrentReturn.scheduleA;
+  if (!sa.casualtyEvents) sa.casualtyEvents = [];
+  sa.casualtyEvents.push({ description: '', lossAmount: '', isDisasterFederal: false, isDisasterState: false });
+  teMarkDirty(); teRenderSACasualtyRows(); teRecalculate();
+}
+function teRemoveSACasualty(i) {
+  teCurrentReturn.scheduleA.casualtyEvents.splice(i, 1);
+  teMarkDirty(); teRenderSACasualtyRows(); teRecalculate();
+}
+function teOnSACasualty(i, field, val) {
+  let ev = teCurrentReturn.scheduleA.casualtyEvents[i];
+  if (field === 'isDisasterFederal' || field === 'isDisasterState') ev[field] = !!val;
+  else ev[field] = val;
+  teMarkDirty(); teRecalculate();
+}
+function teRenderSACasualtyRows() {
+  let el = document.getElementById('te-sa-casualty-rows');
+  if (!el) return;
+  let yr   = (teCurrentReturn.taxYear || teActiveYear);
+  let rows = (teCurrentReturn.scheduleA.casualtyEvents) || [];
+  el.innerHTML = rows.map((ev, i) => `
+    <div style="border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:8px;">
+      <div class="te-frow" style="gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="text" class="te-input" style="flex:2;min-width:140px;" placeholder="Event description (e.g., Hurricane Helene — FEMA DR-4827)"
+          value="${esc(ev.description||'')}"
+          oninput="teOnSACasualty(${i},'description',this.value)">
+        <input type="number" class="te-input te-mono" style="max-width:140px;" placeholder="Loss amount" step="0.01" min="0"
+          value="${esc(String(ev.lossAmount||''))}"
+          oninput="teOnSACasualty(${i},'lossAmount',this.value);teOnScheduleA(true)">
+        <button class="te-sc-del-btn" onclick="teRemoveSACasualty(${i})" title="Remove">✕</button>
+      </div>
+      <div class="te-frow" style="gap:16px;margin-top:6px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:5px;font-size:0.83rem;cursor:pointer;">
+          <input type="checkbox" ${ev.isDisasterFederal ? 'checked' : ''}
+            onchange="teOnSACasualty(${i},'isDisasterFederal',this.checked)">
+          Federally declared disaster <span class="te-cite">IRC §165(h)(5)</span>
+        </label>
+        ${yr >= 2026 ? `<label style="display:flex;align-items:center;gap:5px;font-size:0.83rem;cursor:pointer;">
+          <input type="checkbox" ${ev.isDisasterState ? 'checked' : ''}
+            onchange="teOnSACasualty(${i},'isDisasterState',this.checked)">
+          State-declared disaster <span class="te-cite">OBBBA §70112</span>
+        </label>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function teAddSAOtherDed() {
+  let sa = teCurrentReturn.scheduleA;
+  if (!sa.otherDeductions) sa.otherDeductions = [];
+  sa.otherDeductions.push({ description: '', amount: '' });
+  teMarkDirty(); teRenderSAOtherDedRows(); teRecalculate();
+}
+function teRemoveSAOtherDed(i) {
+  teCurrentReturn.scheduleA.otherDeductions.splice(i, 1);
+  teMarkDirty(); teRenderSAOtherDedRows(); teRecalculate();
+}
+function teOnSAOtherDed(i, field, val) {
+  teCurrentReturn.scheduleA.otherDeductions[i][field] = val;
+  teMarkDirty();
+}
+function teRenderSAOtherDedRows() {
+  let el = document.getElementById('te-sa-other-ded-rows');
+  if (!el) return;
+  let rows = (teCurrentReturn.scheduleA.otherDeductions) || [];
+  el.innerHTML = rows.map((row, i) => `
+    <div class="te-frow" style="gap:8px;align-items:center;margin-top:5px;">
+      <input type="text" class="te-input" style="flex:2;min-width:140px;" placeholder="Description"
+        value="${esc(row.description||'')}"
+        oninput="teOnSAOtherDed(${i},'description',this.value)">
+      <input type="number" class="te-input te-mono" style="max-width:130px;" placeholder="0.00" step="0.01" min="0"
+        value="${esc(String(row.amount||''))}"
+        oninput="teOnSAOtherDed(${i},'amount',this.value);teOnScheduleA(true)">
+      <button class="te-sc-del-btn" onclick="teRemoveSAOtherDed(${i})" title="Remove">✕</button>
+    </div>`).join('');
 }
 
 
