@@ -1452,36 +1452,45 @@ function teRecalculate() {
       case 'medical':    if (totalValEl) totalValEl.textContent = teFmt(calc.medicalDeduction                                      || 0); break;
       case 'sched-a': {
         // Targeted DOM updates for unified Schedule A — preserves input focus; no innerHTML rebuilds on input elements
-        let g2 = id => document.getElementById(id);
-        let cb = calc.charBreakdown || {};
-        let K2 = teGetConstants();
-        // Medical
-        let l2El = g2('te-sa-l2'); if (l2El) l2El.textContent = teFmt(teRound((calc.agi || 0) * (K2.scheduleA?.medical?.agiFloor || 0.075)));
+        // BUG FIX: replaced teGetConstants() (undefined) with direct TAX_CONSTANTS lookup
+        let g2  = id => document.getElementById(id);
+        let yr2 = (teCurrentReturn && teCurrentReturn.taxYear) || teActiveYear;
+        let K2  = TAX_CONSTANTS[yr2] || {};
+        let sa2 = (teCurrentReturn && teCurrentReturn.scheduleA) || {};
+        // Medical (Lines 1–4)
+        let l2El = g2('te-sa-l2'); if (l2El) l2El.textContent = teFmt(calc.agi || 0);
+        let l3El = g2('te-sa-l3'); if (l3El) l3El.textContent = teFmt(teRound((calc.agi || 0) * ((K2.scheduleA && K2.scheduleA.medical && K2.scheduleA.medical.agiFloor) || 0.075)));
         let l4El = g2('te-sa-l4'); if (l4El) l4El.textContent = teFmt(calc.medicalDeduction || 0);
-        // SALT
-        let l6El = g2('te-sa-l6'); if (l6El) l6El.textContent = teFmt(calc.saltDeduction || 0);
-        // Mortgage
-        let l8El = g2('te-sa-l8tot'); if (l8El) l8El.textContent = teFmt(calc.mortgageDeduction || 0);
-        // Charitable buckets
-        let l11El = g2('te-sa-l11'); if (l11El) l11El.textContent = teFmt(cb.cash60   || 0);
-        let l12El = g2('te-sa-l12'); if (l12El) l12El.textContent = teFmt(cb.noncash50 || 0);
-        let l13El = g2('te-sa-l13'); if (l13El) l13El.textContent = teFmt(cb.cg30      || 0);
-        let l14El = g2('te-sa-l14'); if (l14El) l14El.textContent = teFmt(cb.priv20    || 0);
-        let l14fEl = g2('te-sa-l14f'); if (l14fEl) l14fEl.textContent = teFmt(cb.totalBuckets || 0);
-        let l14gEl = g2('te-sa-l14g'); if (l14gEl) l14gEl.textContent = teFmt(calc.charitableDeduction || 0);
-        // Casualty + Other
+        // SALT (Lines 5–7) — 5d is local subtotal computed from raw inputs
+        let l5dEl = g2('te-sa-l5d');
+        if (l5dEl) {
+          let sit = parseFloat(sa2.useSalesTax ? sa2.salesTax : sa2.stateIncomeTax) || 0;
+          let lit = sa2.useSalesTax ? 0 : (parseFloat(sa2.localIncomeTax) || 0);
+          let ret = parseFloat(sa2.realEstateTax) || 0;
+          let ppt = parseFloat(sa2.personalPropertyTax) || 0;
+          l5dEl.textContent = teFmt(sit + lit + ret + ppt);
+        }
+        let l7El  = g2('te-sa-l7');  if (l7El)  l7El.textContent  = teFmt(calc.saltDeduction || 0);
+        // Interest (Lines 8e, 9, 10)
+        let l8eEl = g2('te-sa-l8e'); if (l8eEl) l8eEl.textContent = teFmt(calc.mortgageDeduction || 0);
+        let l9El  = g2('te-sa-l9');  if (l9El)  l9El.textContent  = teFmt(calc.investmentInterestAllowed || 0);
+        let l10El = g2('te-sa-l10'); if (l10El) l10El.textContent = teFmt(teRound((calc.mortgageDeduction || 0) + (calc.investmentInterestAllowed || 0)));
+        // Charitable (Line 14 — post-floor total)
+        let l14El = g2('te-sa-l14'); if (l14El) l14El.textContent = teFmt(calc.charitableDeduction || 0);
+        // Casualty (Line 15)
         let l15El = g2('te-sa-l15'); if (l15El) l15El.textContent = teFmt(calc.casualtyDeduction || 0);
+        // Other deductions (gambling inline + line 16 total)
         let l16gEl = g2('te-sa-l16g'); if (l16gEl) l16gEl.textContent = teFmt(calc.gamblingDeduction || 0);
-        let l17El = g2('te-sa-l17'); if (l17El) l17El.textContent = teFmt(calc.otherDeductionsTotal || 0);
-        // Summary totals
-        let rawEl = g2('te-sa-raw'); if (rawEl) rawEl.textContent = teFmt(calc.itemizedRaw || 0);
-        let hcEl  = g2('te-sa-haircut'); if (hcEl) hcEl.textContent = teFmt(calc.itemizedHaircut || 0);
-        let netEl = g2('te-sa-net-total'); if (netEl) netEl.textContent = teFmt(calc.itemizedNet || 0);
+        let l16El  = g2('te-sa-l16');  if (l16El)  l16El.textContent  = teFmt(teRound((calc.gamblingDeduction || 0) + (calc.otherDeductionsTotal || 0)));
+        // Grand total + haircut + net (Lines 17+)
+        let l17El = g2('te-sa-l17');      if (l17El)  l17El.textContent  = teFmt(calc.itemizedRaw || 0);
+        let hcEl  = g2('te-sa-haircut');  if (hcEl)   hcEl.textContent   = teFmt(calc.itemizedHaircut || 0);
+        let netEl = g2('te-sa-net-total');if (netEl)  netEl.textContent  = teFmt(calc.itemizedNet || 0);
         // Comparison bar — safe to rebuild (no inputs inside)
         let barEl = g2('te-sa-comparison-bar');
         if (barEl) {
-          let std = calc.stdDed || 0;
-          let itm = calc.itemizedNet || 0;
+          let std   = calc.stdDed   || 0;
+          let itm   = calc.itemizedNet || 0;
           let using = calc.deductionType === 'itemized' ? 'itemized' : 'standard';
           barEl.innerHTML =
             '<span style="margin-right:16px">Std: <strong>' + teFmt(std) + '</strong></span>' +
