@@ -501,123 +501,96 @@ function teRenderMiniDeductionSection(secKey) {
   let isMFS = (fs === 'mfs');
   let isMFJ = (fs === 'mfj');
 
+  // ── IRS line-layout row helpers (same system as Schedule SE / Schedule A) ──
+  let cRow = (num, label, id, val) =>
+    `<div class="te-se-row">
+       <span class="te-se-num">${num}</span>
+       <span class="te-se-lbl">${label}</span>
+       <span class="te-se-val"${id ? ` id="${id}"` : ''}>${teFmt(val)}</span>
+     </div>`;
+  let iRow = (num, label, id, val, handler = 'teOnAgiAdj()') =>
+    `<div class="te-se-row">
+       <span class="te-se-num">${num}</span>
+       <span class="te-se-lbl">${label}</span>
+       <input type="number" id="${id}" class="te-input te-mono te-se-inp"
+         value="${esc(String(val || ''))}" placeholder="0.00" step="0.01" min="0"
+         oninput="${handler}">
+     </div>`;
+  let cbRow = (id, label, checked, handler = 'teOnAgiAdj()', cite = '') =>
+    `<div class="te-se-row">
+       <span class="te-se-num"></span>
+       <span class="te-se-lbl" style="font-weight:normal;">
+         <label style="display:flex;align-items:center;gap:7px;cursor:pointer;">
+           <input type="checkbox" id="${id}" ${checked ? 'checked' : ''} onchange="${handler}">
+           ${label}${cite ? ' <span class="te-cite">' + cite + '</span>' : ''}
+         </label>
+       </span>
+     </div>`;
+  let annot = text =>
+    `<div class="te-ded-note" style="margin:2px 0 8px 2.8rem;font-size:0.82rem;">${text}</div>`;
+  let wrap = (title, sub, body) =>
+    `<div class="te-sch-se">
+       <div class="te-se-header-bar">
+         <div class="te-se-title">${title}</div>
+         <div class="te-se-subtitle">${sub}</div>
+       </div>
+       ${body}
+     </div>`;
+
   switch (secKey) {
 
     case 'sli': {
-      let sliPo  = (fs === 'mfj') ? K.studentLoanInterest.phaseout.mfj : K.studentLoanInterest.phaseout.single;
+      let sliPo  = isMFJ ? K.studentLoanInterest.phaseout.mfj : K.studentLoanInterest.phaseout.single;
       let sliAmt = calc.sliDeduction || 0;
-      return `
-        <div class="te-sec-hdr"><h2>Student Loan Interest Deduction</h2>
-        <p class="te-sec-sub"><span class="te-cite">IRC §221 &mdash; Sch. 1 Line 21</span></p></div>
-        <div class="te-subsec">
-          ${isMFS
-            ? '<div class="te-ded-note">Not available for Married Filing Separately. <span class="te-cite">IRC §221(b)(2)(B)</span></div>'
-            : `<div class="te-frow" style="align-items:flex-end;gap:12px;">
-                 <div class="te-field-group" style="max-width:180px;">
-                   <label class="te-lbl">Interest Paid in ${yr}</label>
-                   <input type="number" id="te-adj-sli" class="te-input te-mono" value="${esc(String(a.studentLoanInterest||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
-                 </div>
-                 <div class="te-ded-note" style="flex:1;padding-bottom:0;">Maximum $2,500. Phase-out: ${teFmt(sliPo.floor)}–${teFmt(sliPo.ceiling)} MAGI. <span class="te-cite">IRC §221(b)(1),(b)(2)</span></div>
-               </div>
-               <div class="te-total-bar" style="margin-top:14px;">
-                 <span>Allowable Deduction <span class="te-cite">IRC §221</span></span>
-                 <span class="te-total-val" id="te-mini-total-val">${teFmt(sliAmt)}</span>
-               </div>`}
-        </div>`;
+      let body   = isMFS
+        ? `<div class="te-ded-note" style="margin:8px 0 0 2.8rem;">Not available for Married Filing Separately. <span class="te-cite">IRC §221(b)(2)(B)</span></div>`
+        : iRow('1', `Interest paid in ${yr}`, 'te-adj-sli', a.studentLoanInterest)
+          + annot(`Maximum $2,500. Phase-out: ${teFmt(sliPo.floor)}–${teFmt(sliPo.ceiling)} MAGI. <span class="te-cite">IRC §221(b)(1),(b)(2)</span>`)
+          + cRow('2', 'Allowable deduction', 'te-mini-total-val', sliAmt);
+      return wrap('Student Loan Interest Deduction', 'IRC §221 — Sch. 1 Line 21', body);
     }
 
     case 'hsa': {
-      let hsaAmt = calc.hsaDeduction || 0;
-      return `
-        <div class="te-sec-hdr"><h2>HSA Deduction (Form 8889)</h2>
-        <p class="te-sec-sub"><span class="te-cite">IRC §223 &mdash; Sch. 1 Line 13</span></p></div>
-        <div class="te-subsec">
-          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
-            <div class="te-field-group" style="max-width:165px;">
-              <label class="te-lbl">Coverage Type</label>
-              <select id="te-adj-hsa-type" class="te-select" onchange="teOnAgiAdj()">
-                <option value="self"   ${a.hsaCoverageType!=='family'?'selected':''}>Self-Only (${teFmt(K.hsa.limitSelf)} limit)</option>
-                <option value="family" ${a.hsaCoverageType==='family'?'selected':''}>Family (${teFmt(K.hsa.limitFamily)} limit)</option>
-              </select>
-            </div>
-            <div class="te-field-group" style="max-width:165px;">
-              <label class="te-lbl">Contributions Made</label>
-              <input type="number" id="te-adj-hsa-contrib" class="te-input te-mono" value="${esc(String(a.hsaContributions||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
-            </div>
-            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding-bottom:6px;">
-              <input type="checkbox" id="te-adj-hsa-55" ${a.hsaTaxpayerAge55?'checked':''} onchange="teOnAgiAdj()">
-              Age 55+ (+$1,000) <span class="te-cite">IRC §223(b)(3)(B)</span>
-            </label>
-          </div>
-          <div class="te-ded-note">No income phase-out. Requires qualifying HDHP. Taxpayer certifies eligibility. <span class="te-cite">IRC §223(b)(1)</span></div>
-          <div class="te-total-bar" style="margin-top:14px;">
-            <span>Allowable Deduction <span class="te-cite">IRC §223</span></span>
-            <span class="te-total-val" id="te-mini-total-val">${teFmt(hsaAmt)}</span>
-          </div>
-        </div>`;
+      let hsaAmt    = calc.hsaDeduction || 0;
+      let selectRow = `<div class="te-se-row">
+        <span class="te-se-num">A</span>
+        <span class="te-se-lbl">Coverage type</span>
+        <select id="te-adj-hsa-type" class="te-select te-se-inp" onchange="teOnAgiAdj()">
+          <option value="self"   ${a.hsaCoverageType!=='family'?'selected':''}>Self-Only (${teFmt(K.hsa.limitSelf)} limit)</option>
+          <option value="family" ${a.hsaCoverageType==='family'?'selected':''}>Family (${teFmt(K.hsa.limitFamily)} limit)</option>
+        </select>
+      </div>`;
+      let body = selectRow
+        + iRow('B', `Contributions made in ${yr}`, 'te-adj-hsa-contrib', a.hsaContributions)
+        + cbRow('te-adj-hsa-55', 'Age 55+ catch-up (+$1,000)', a.hsaTaxpayerAge55, 'teOnAgiAdj()', 'IRC §223(b)(3)(B)')
+        + annot('No income phase-out. Requires qualifying HDHP. Taxpayer certifies eligibility. <span class="te-cite">IRC §223(b)(1)</span>')
+        + cRow('C', 'Allowable deduction', 'te-mini-total-val', hsaAmt);
+      return wrap('HSA Deduction (Form 8889)', 'IRC §223 — Sch. 1 Line 13', body);
     }
 
     case 'ira-ded': {
       let iraAmt   = calc.iraDeduction || 0;
       let iraLimit = teFmt(K.ira.limit + (a.iraAge50Plus ? K.ira.catchUp : 0));
-      return `
-        <div class="te-sec-hdr"><h2>Traditional IRA Deduction</h2>
-        <p class="te-sec-sub"><span class="te-cite">IRC §219 &mdash; Sch. 1 Line 20</span></p></div>
-        <div class="te-subsec">
-          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
-            <div class="te-field-group" style="max-width:180px;">
-              <label class="te-lbl">IRA Contributions</label>
-              <input type="number" id="te-adj-ira-contrib" class="te-input te-mono" value="${esc(String(a.iraContributions||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAgiAdj()">
-            </div>
-            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding-bottom:6px;">
-              <input type="checkbox" id="te-adj-ira-50" ${a.iraAge50Plus?'checked':''} onchange="teOnAgiAdj()">
-              Age 50+ (+$1,000) <span class="te-cite">IRC §219(b)(5)(B)</span>
-            </label>
-          </div>
-          <div class="te-frow" style="gap:16px;margin-top:8px;flex-wrap:wrap;">
-            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-              <input type="checkbox" id="te-adj-ira-active" ${a.iraActiveParticipant?'checked':''} onchange="teOnAgiAdj()">
-              Covered by employer plan <span class="te-cite">IRC §219(g)(2)</span>
-            </label>
-            ${isMFJ ? `
-            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-              <input type="checkbox" id="te-adj-ira-spouse-active" ${a.iraSpouseActive?'checked':''} onchange="teOnAgiAdj()">
-              Spouse covered by employer plan <span class="te-cite">IRC §219(g)(7)</span>
-            </label>` : ''}
-          </div>
-          <div class="te-ded-note">Limit: ${iraLimit}. Deductibility phases out when covered by an employer plan. <span class="te-cite">IRC §219(g)</span></div>
-          <div class="te-total-bar" style="margin-top:14px;">
-            <span>Allowable Deduction <span class="te-cite">IRC §219</span></span>
-            <span class="te-total-val" id="te-mini-total-val">${teFmt(iraAmt)}</span>
-          </div>
-        </div>`;
+      let body = iRow('1', `IRA contributions in ${yr}`, 'te-adj-ira-contrib', a.iraContributions)
+        + cbRow('te-adj-ira-50', 'Age 50+ catch-up (+$1,000)', a.iraAge50Plus, 'teOnAgiAdj()', 'IRC §219(b)(5)(B)')
+        + cbRow('te-adj-ira-active', 'Covered by employer retirement plan', a.iraActiveParticipant, 'teOnAgiAdj()', 'IRC §219(g)(2)')
+        + (isMFJ ? cbRow('te-adj-ira-spouse-active', 'Spouse covered by employer plan', a.iraSpouseActive, 'teOnAgiAdj()', 'IRC §219(g)(7)') : '')
+        + annot(`Contribution limit: ${iraLimit}. Deductibility phases out when covered by an employer plan. <span class="te-cite">IRC §219(g)</span>`)
+        + cRow('2', 'Allowable deduction', 'te-mini-total-val', iraAmt);
+      return wrap('Traditional IRA Deduction', 'IRC §219 — Sch. 1 Line 20', body);
     }
 
     case 'alimony': {
       let alAmt = calc.alimonyDeduction || 0;
       let al    = r.alimony || {};
-      return `
-        <div class="te-sec-hdr"><h2>Alimony Paid</h2>
-        <p class="te-sec-sub"><span class="te-cite">IRC §215 &mdash; Sch. 1 Line 19a</span></p></div>
-        <div class="te-subsec">
-          <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;">
-            <div class="te-field-group" style="max-width:200px;">
-              <label class="te-lbl">Alimony Paid in ${yr}</label>
-              <input type="number" id="te-al-paid" class="te-input te-mono" value="${esc(String(al.paid||''))}" placeholder="0.00" step="0.01" min="0" oninput="teOnAlimony()">
-            </div>
-            <label class="te-lbl" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding-bottom:6px;">
-              <input type="checkbox" id="te-al-pre" ${al.preAgreement?'checked':''} onchange="teOnAlimony()">
-              Divorce/separation agreement executed before Jan 1, 2019 <span class="te-cite">TCJA §11051</span>
-            </label>
-          </div>
-          ${!al.preAgreement
-            ? '<div class="te-ded-note" style="margin-top:4px;color:var(--te-warn,#f59e0b);">Post-2018 agreements: alimony paid is NOT deductible under TCJA. <span class="te-cite">IRC §215(b)(2)</span></div>'
-            : '<div class="te-ded-note" style="margin-top:4px;">Pre-2019 agreements: full amount paid is deductible. Recipient must include in gross income. <span class="te-cite">IRC §215(a), §71</span></div>'}
-          <div class="te-total-bar" style="margin-top:14px;">
-            <span>Allowable Deduction <span class="te-cite">IRC §215</span></span>
-            <span class="te-total-val" id="te-mini-total-val">${teFmt(alAmt)}</span>
-          </div>
-        </div>`;
+      let note  = !al.preAgreement
+        ? `<div class="te-ded-note" style="margin:2px 0 8px 2.8rem;font-size:0.82rem;color:var(--te-warn,#f59e0b);">Post-2018 agreements: alimony paid is NOT deductible under TCJA. <span class="te-cite">IRC §215(b)(2)</span></div>`
+        : annot('Pre-2019 agreements: full amount paid is deductible. Recipient must include in gross income. <span class="te-cite">IRC §215(a), §71</span>');
+      let body = iRow('1', `Alimony paid in ${yr}`, 'te-al-paid', al.paid, 'teOnAlimony()')
+        + cbRow('te-al-pre', 'Divorce/separation agreement executed before Jan 1, 2019', al.preAgreement, 'teOnAlimony()', 'TCJA §11051')
+        + note
+        + cRow('2', 'Allowable deduction', 'te-mini-total-val', alAmt);
+      return wrap('Alimony Paid', 'IRC §215 — Sch. 1 Line 19a', body);
     }
 
     case 'salt': {
