@@ -78,31 +78,41 @@ function teMenuAutoCard(formNum, title, desc, hasData, amtDisplay) {
 function teRenderIncomeMenu() {
   let r  = teCurrentReturn;
   let c  = r._calc || {};
-  let s1 = r.schedule1099 || {};
   let src = 'income';
-  let hasDIV    = (parseFloat(s1.ordinaryDividends) || 0) > 0;
-  let hasINT    = (parseFloat(s1.interestIncome) || 0) > 0;
-  let hasINTDIV = hasDIV || hasINT;
-  let intDivAmt = (c.interestIncome || 0) + (c.ordinaryDividends || 0);
-  let sdNet     = c.scheduleDNet || 0;
-  let hasSd     = !!(((r.scheduleD||{}).netSTCG)||((r.scheduleD||{}).netLTCG)||((r.scheduleD||{}).priorYearCarryforward));
+  let hasINT  = (r.int1099s||[]).some(e => parseFloat(e.box1) > 0 || parseFloat(e.box3) > 0);
+  let hasDIV  = (r.div1099s||[]).some(e => parseFloat(e.box1a) > 0);
+  let hasSB   = (r.int1099s||[]).length > 0 || (r.div1099s||[]).length > 0
+    || ((r.schedB||{}).intManualPayers||[]).length > 0 || ((r.schedB||{}).divManualPayers||[]).length > 0
+    || (r.schedB||{}).line7a || (r.schedB||{}).line7b;
+  let sdNet   = c.scheduleDNet || 0;
+  let hasSd   = !!(((r.scheduleD||{}).netSTCG)||((r.scheduleD||{}).netLTCG)||((r.scheduleD||{}).priorYearCarryforward));
   return `
     <div class="te-sec-hdr"><h2>Income</h2>
     <p class="te-sec-sub">Select a form to enter data &mdash; <span class="te-cite">IRC §61</span></p></div>
+    <div class="te-menu-section-lbl">Source Documents <span class="te-cite">IRC §61</span></div>
     <div class="te-menu-grid">
       ${teMenuCard('w2',         'W-2',          'Wages &amp; Salaries',
           'Box 1 wages, Box 2 federal withholding. Enter each employer separately.',
           (r.w2||[]).length > 0, teFmt(c.w2Wages||0), src)}
-      ${teMenuCard('1099-intdiv','1099-INT / DIV','Interest &amp; Dividend Income',
-          'Taxable interest, ordinary dividends, and qualified dividends.',
-          hasINTDIV, teFmt(intDivAmt), src)}
-      ${teMenuCard('retirement',  '1099-R',        'Retirement Distributions',
+      ${teMenuCard('1099-int',   '1099-INT',     'Interest Income',
+          'Ordinary interest, US savings bond interest, early withdrawal penalty, federal withholding.',
+          hasINT, hasINT ? teFmt(c.interestIncome||0) : null, src)}
+      ${teMenuCard('1099-div',   '1099-DIV',     'Dividend Income',
+          'Ordinary dividends, qualified dividends, capital gain distributions, federal withholding.',
+          hasDIV, hasDIV ? teFmt(c.ordinaryDividends||0) : null, src)}
+      ${teMenuCard('retirement',  '1099-R',       'Retirement Distributions',
           'IRA, pension, 401(k), 403(b), and annuity distributions — Lines 4a/4b and 5a/5b.',
-          (r.ira1099r||[]).length > 0 || (r.pension1099r||[]).length > 0,
-          teFmt((c.iraGross||0) + (c.pensionGross||0)), src)}
+          (r.r1099s||[]).length > 0,
+          (r.r1099s||[]).length > 0 ? teFmt((c.iraGross||0) + (c.pensionGross||0)) : null, src)}
       ${teMenuCard('ss',         'SSA-1099',      'Social Security Benefits',
           'Benefits from SSA. Taxability: 0%, 50%, or 85% of gross. IRC §86.',
           parseFloat((r.socialSecurity||{}).benefits) > 0, teFmt(c.ssBenefitsTaxable||0), src)}
+    </div>
+    <div class="te-menu-section-lbl" style="margin-top:20px;">Schedules <span class="te-cite">IRC §61</span></div>
+    <div class="te-menu-grid">
+      ${teMenuCard('sched-b',    'Schedule B',   'Interest &amp; Dividend Summary',
+          'IRS Schedule B — required when interest or dividends exceed $1,500. Parts I, II, III.',
+          hasSB, hasSB ? teFmt((c.schedBL4||0)+(c.schedBL6||0)) : null, src)}
       ${teMenuCard('sched-c',    'Schedule C',    'Self-Employment Income',
           'Net profit from business. Drives SE tax and QBI deduction. IRC §162.',
           parseFloat((r.scheduleC||{}).netProfit) > 0, teFmt(c.netSEIncome||0), src)}
@@ -117,7 +127,6 @@ function teRenderIncomeMenu() {
           (r.scheduleE||[]).length > 0, teFmt(c.scheduleENet||0), src)}
       ${(() => {
         let s1 = r.schedule1 || {};
-        let s1Lines = (c.sched1Lines) || {};
         let hasS1 = (parseFloat(s1.taxRefunds)||0) > 0 || (parseFloat(s1.alimonyReceived)||0) > 0
           || (parseFloat(s1.otherGains)||0) > 0 || (parseFloat(s1.unemployment)||0) > 0
           || ['l8a','l8b','l8c','l8d','l8e','l8f','l8g','l8h','l8i','l8j','l8k','l8l',
@@ -145,18 +154,10 @@ function teRenderDeductionsMenu() {
     <p class="te-sec-sub">Select a schedule to enter data &mdash; <span class="te-cite">IRC §62, §63</span></p></div>
     <div class="te-menu-section-lbl">Above-the-Line Adjustments <span class="te-cite">IRC §62</span></div>
     <div class="te-menu-grid">
-      ${teMenuCard('sli',     'Schedule 1', 'Student Loan Interest',
-          'Up to $2,500. Phases out by MAGI. IRC §221.',
-          (c.sliDeduction||0) > 0, teFmt(c.sliDeduction||0), src)}
-      ${teMenuCard('hsa',     'Form 8889',  'HSA Deduction',
-          'Health Savings Account contributions. Requires qualifying HDHP. IRC §223.',
-          (c.hsaDeduction||0) > 0, teFmt(c.hsaDeduction||0), src)}
-      ${teMenuCard('ira-ded', 'Form 1040',  'Traditional IRA Deduction',
-          'Deductible IRA contributions. Phases out with employer plan coverage. IRC §219.',
-          (c.iraDeduction||0) > 0, teFmt(c.iraDeduction||0), src)}
-      ${teMenuCard('alimony', 'Schedule 1', 'Alimony Paid',
-          'Pre-2019 divorce agreements only. Post-TCJA not deductible. IRC §215.',
-          (c.alimonyDeduction||0) > 0, teFmt(c.alimonyDeduction||0), src)}
+      ${teMenuCard('sched-1', 'Schedule 1 Part II', 'Above-the-Line Deductions',
+          'Student loan interest, HSA, IRA, and alimony paid. Enter directly on Schedule 1. IRC §62.',
+          ((c.sliDeduction||0)+(c.hsaDeduction||0)+(c.iraDeduction||0)+(c.alimonyDeduction||0)) > 0,
+          teFmt((c.sliDeduction||0)+(c.hsaDeduction||0)+(c.iraDeduction||0)+(c.alimonyDeduction||0)), src)}
       ${teMenuAutoCard('Schedule 1', 'SE Tax Deduction',
           'Deductible half of self-employment tax. Auto-calculated from Schedule SE Line 13. IRC §164(f).',
           (c.seTaxDeduction||0) > 0, teFmt(c.seTaxDeduction||0))}
@@ -297,48 +298,95 @@ function teRenderMiniScreen(schedId) {
           </div>
         </div>`;
 
+    case '1099-intdiv':  // legacy alias — redirect to 1099-int
     case '1099-int':
-    case '1099-div':
-    case '1099-intdiv':
       return nav + `
-        <div class="te-sec-hdr"><h2>1099-INT &amp; 1099-DIV — Interest &amp; Dividends</h2>
-        <p class="te-sec-sub"><span class="te-cite">IRC §61(a)(4),(7) &mdash; 1040 Lines 2b, 3a, 3b</span></p></div>
-        <div class="te-subsec">${teRender1099()}</div>`;
+        <div class="te-sec-hdr"><h2>1099-INT — Interest Income</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §61(a)(4) &mdash; 1040 Line 2b &nbsp;|&nbsp; Schedule B Part I</span></p></div>
+        <div class="te-subsec">
+          <div class="te-subsec-row" style="margin-bottom:8px;">
+            <div class="te-subsec-desc">Enter each 1099-INT separately. Box 1 feeds 1040 Line 2b. Box 2 auto-populates Schedule 1 Part II Line 18. Box 4 adds to federal withholding.</div>
+            <button class="ghost-btn te-sm-btn" onclick="teAdd1099Int()">+ Add 1099-INT</button>
+          </div>
+          <div id="te-int-list"></div>
+          <div class="te-total-bar te-w2-total-bar-2col" id="te-int-total-bar" style="display:none;">
+            <div class="te-w2-total-item">
+              <span>Total Ordinary Interest <span class="te-cite">Box 1 &rarr; Sch B L1 &rarr; 1040 L2b</span></span>
+              <span class="te-total-val te-mono" id="te-int-total-box1">$0.00</span>
+            </div>
+            <div class="te-w2-total-item">
+              <span>Total Federal Withheld <span class="te-cite">Box 4 &rarr; 1040 L25b</span></span>
+              <span class="te-total-val te-mono" id="te-int-total-box4">$0.00</span>
+            </div>
+            <div class="te-w2-total-item">
+              <span>Early Withdrawal Penalty <span class="te-cite">Box 2 &rarr; Sch 1 L18</span></span>
+              <span class="te-total-val te-mono" id="te-int-total-penalty">$0.00</span>
+            </div>
+          </div>
+        </div>`;
+
+    case '1099-div':
+      return nav + `
+        <div class="te-sec-hdr"><h2>1099-DIV — Dividend Income</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §61(a)(7) &mdash; 1040 Lines 3a, 3b &nbsp;|&nbsp; Schedule B Part II</span></p></div>
+        <div class="te-subsec">
+          <div class="te-subsec-row" style="margin-bottom:8px;">
+            <div class="te-subsec-desc">Enter each 1099-DIV separately. Box 1a feeds 1040 Line 3b. Box 1b (qualified dividends, §1(h)(11)) feeds 1040 Line 3a. Box 4 adds to federal withholding.</div>
+            <button class="ghost-btn te-sm-btn" onclick="teAdd1099Div()">+ Add 1099-DIV</button>
+          </div>
+          <div id="te-div-list"></div>
+          <div class="te-total-bar te-w2-total-bar-2col" id="te-div-total-bar" style="display:none;">
+            <div class="te-w2-total-item">
+              <span>Total Ordinary Dividends <span class="te-cite">Box 1a &rarr; Sch B L5 &rarr; 1040 L3b</span></span>
+              <span class="te-total-val te-mono" id="te-div-total-box1a">$0.00</span>
+            </div>
+            <div class="te-w2-total-item">
+              <span>Total Qualified Dividends <span class="te-cite">Box 1b &rarr; 1040 L3a</span></span>
+              <span class="te-total-val te-mono" id="te-div-total-box1b">$0.00</span>
+            </div>
+            <div class="te-w2-total-item">
+              <span>Total Federal Withheld <span class="te-cite">Box 4 &rarr; 1040 L25b</span></span>
+              <span class="te-total-val te-mono" id="te-div-total-box4">$0.00</span>
+            </div>
+          </div>
+        </div>`;
+
+    case 'sched-b':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Schedule B — Interest &amp; Dividend Summary</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §61(a)(4),(7) &mdash; 1040 Lines 2a, 2b, 3a, 3b</span></p></div>
+        <div class="te-subsec" id="te-sb-container">${teRenderScheduleB()}</div>`;
 
     case 'retirement':
       return nav + `
         <div class="te-sec-hdr"><h2>1099-R — Retirement Distributions</h2>
-        <p class="te-sec-sub"><span class="te-cite">IRC §72 &mdash; 1040 Lines 4a/4b and 5a/5b</span></p></div>
-
+        <p class="te-sec-sub"><span class="te-cite">IRC §72 &mdash; 1040 Lines 4a/4b (IRA) and 5a/5b (Pension/Annuity)</span></p></div>
         <div class="te-subsec">
-          <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:8px;">
-            IRA Distributions &nbsp;&mdash;&nbsp; <span class="te-cite">IRC §72, §408 &nbsp;|&nbsp; Lines 4a / 4b</span>
+          <div class="te-subsec-row" style="margin-bottom:8px;">
+            <div class="te-subsec-desc">Enter each 1099-R separately. Select IRA or Pension/Annuity type. Box 2a taxable amount auto-syncs to Box 1 — adjust if basis, rollover, or partial exclusion applies. Box 7 distribution code auto-derives the §72(t) 10% penalty.</div>
+            <div style="display:flex;gap:6px;">
+              <button class="ghost-btn te-sm-btn" onclick="teAdd1099R2('ira')">+ Add 1099-R (IRA)</button>
+              <button class="ghost-btn te-sm-btn" onclick="teAdd1099R2('pension')">+ Add 1099-R (Pension)</button>
+            </div>
           </div>
-          <div class="te-subsec-desc">Traditional IRA, SEP-IRA, SIMPLE IRA. Taxable amount defaults to gross — adjust if after-tax basis or rollover applies (Box 2a).</div>
-          <div class="te-subsec-row" style="margin-top:8px;">
-            <div></div>
-            <button class="ghost-btn te-sm-btn" onclick="teAdd1099R('ira')">+ Add 1099-R (IRA)</button>
-          </div>
-          <div id="te-ira-list"></div>
-          <div class="te-total-bar" id="te-ira-total-bar" style="display:none;">
-            <span>Total IRA Taxable Amount <span class="te-cite">1040 Line 4b</span></span>
-            <span class="te-total-val" id="te-ira-total-val">$0</span>
-          </div>
-        </div>
-
-        <div class="te-subsec" style="margin-top:20px;">
-          <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:8px;">
-            Pensions &amp; Annuities &nbsp;&mdash;&nbsp; <span class="te-cite">IRC §72 &nbsp;|&nbsp; Lines 5a / 5b</span>
-          </div>
-          <div class="te-subsec-desc">401(k), 403(b), 457(b), pension plans, annuities. Taxable amount defaults to gross — adjust if after-tax basis applies.</div>
-          <div class="te-subsec-row" style="margin-top:8px;">
-            <div></div>
-            <button class="ghost-btn te-sm-btn" onclick="teAdd1099R('pension')">+ Add 1099-R (Pension)</button>
-          </div>
-          <div id="te-pension-list"></div>
-          <div class="te-total-bar" id="te-pension-total-bar" style="display:none;">
-            <span>Total Pension Taxable Amount <span class="te-cite">1040 Line 5b</span></span>
-            <span class="te-total-val" id="te-pension-total-val">$0</span>
+          <div id="te-r1099-list"></div>
+          <div class="te-total-bar te-w2-total-bar-2col" id="te-r1099-total-bar" style="display:none;">
+            <div class="te-w2-total-item">
+              <span>IRA Taxable Amount <span class="te-cite">→ 1040 Line 4b</span></span>
+              <span class="te-total-val te-mono" id="te-r1099-total-ira">$0.00</span>
+            </div>
+            <div class="te-w2-total-item">
+              <span>Pension/Annuity Taxable Amount <span class="te-cite">→ 1040 Line 5b</span></span>
+              <span class="te-total-val te-mono" id="te-r1099-total-pen">$0.00</span>
+            </div>
+            <div class="te-w2-total-item">
+              <span>Total Federal Withheld <span class="te-cite">Box 4 → 1040 Line 25b</span></span>
+              <span class="te-total-val te-mono" id="te-r1099-total-wh">$0.00</span>
+            </div>
+            <div class="te-w2-total-item">
+              <span>§72(t) Early Withdrawal Penalty <span class="te-cite">→ Schedule 2 Line 8</span></span>
+              <span class="te-total-val te-mono" id="te-r1099-total-ewp">$0.00</span>
+            </div>
           </div>
         </div>`;
 
@@ -366,12 +414,6 @@ function teRenderMiniScreen(schedId) {
         <p class="te-sec-sub"><span class="te-cite">IRC §1221, §1222 &mdash; 1040 Line 7a</span></p></div>
         <div class="te-subsec">${teRenderScheduleD()}</div>`;
 
-    case 'sched-1':
-      return nav + `
-        <div class="te-sec-hdr"><h2>Schedule 1 &mdash; Additional Income and Adjustments</h2>
-        <p class="te-sec-sub"><span class="te-cite">IRC §61, §62 &mdash; 1040 Lines 8 &amp; 10</span></p></div>
-        <div class="te-subsec">${teRenderSchedule1()}</div>`;
-
     case 'sched-e':
       return nav + `
         <div class="te-sec-hdr"><h2>Schedule E — Pass-Through &amp; K-1 Income</h2>
@@ -386,11 +428,16 @@ function teRenderMiniScreen(schedId) {
         </div>`;
 
     // ── DEDUCTIONS ────────────────────────────────────────────────
+    // These 4 deductions are now entered inline on Schedule 1 Part II — redirect there.
     case 'sli':
     case 'hsa':
     case 'ira-ded':
     case 'alimony':
-      return nav + teRenderMiniDeductionSection(schedId);
+    case 'sched-1':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Schedule 1 &mdash; Additional Income and Adjustments</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §61, §62 &mdash; 1040 Lines 8 &amp; 10</span></p></div>
+        <div class="te-subsec">${teRenderSchedule1()}</div>`;
 
     // ── SCHEDULE A — unified form (replaces individual salt/mortgage/charitable/medical mini-screens)
     case 'sched-a':
@@ -465,6 +512,10 @@ function teRenderMiniScreen(schedId) {
 function teMiniPostRender(schedId) {
   switch (schedId) {
     case 'w2':         teRenderW2List();              break;
+    case '1099-intdiv':// legacy alias
+    case '1099-int':   teRenderInt1099List();         break;
+    case '1099-div':   teRenderDiv1099List();         break;
+    case 'sched-b':    /* Schedule B is fully rendered inline via teRenderScheduleB() */ break;
     case 'sched-c':    teRenderSchedCOtherExpRows();  break;  // re-render Part V rows after screen loads
     case 'sched-1': teRenderS1OtherIncomeRows(); teRenderS1PiiOtherAdjRows(); break;  // re-render 8z and 24z dynamic rows after screen loads
     case 'sched-a':
@@ -475,7 +526,7 @@ function teMiniPostRender(schedId) {
       teRenderSAOtherTaxRows(); teRenderSACasualtyRows(); teRenderSAOtherDedRows(); break;
     case 'sched-d':    /* rows rendered inline on initial render — no post-render needed */ break;
     case 'sched-se':   /* all lines computed on render — no list post-render needed */ break;
-    case 'retirement': teRender1099RList('ira'); teRender1099RList('pension'); break;
+    case 'retirement': teRenderR1099List(); break;
     case 'sched-e':    teRenderScheduleEList();        break;
     case 'ctc':        teRenderCTCDetail();            break;
     case 'edu':        teRenderEduList();              break;
@@ -1772,12 +1823,24 @@ function teRenderSSSection() {
   return `
     <div class="te-subsec" style="margin-top:20px;">
       <div class="te-subsec-lbl">Social Security Benefits (SSA-1099) <span class="te-cite">IRC §86; 1040 Lines 6a/6b</span></div>
-      <div class="te-subsec-desc">Enter the total benefits received from SSA-1099 Box 5 (1040 Line 6a). The taxable portion (Line 6b) is computed using the IRC §86 provisional income formula — up to 85% of benefits may be taxable depending on total income.</div>
+      <div class="te-subsec-desc">Enter amounts from your SSA-1099. Box 5 (net benefits) feeds 1040 Line 6a. The taxable portion (Line 6b) is computed via the IRC §86 provisional income formula — up to 85% may be taxable.</div>
       <div class="te-frow" style="align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:8px;">
         <div class="te-field-group" style="max-width:220px;">
-          <label class="te-lbl">Total SS Benefits Received <span class="te-cite">SSA-1099 Box 5; 1040 Line 6a</span></label>
+          <label class="te-lbl">Box 5 — Net Benefits Received <span class="te-cite">SSA-1099 Box 5 → 1040 Line 6a</span></label>
           <input type="number" id="te-ss-benefits" class="te-input te-mono"
             value="${esc(String(ss.benefits||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnSSField()">
+        </div>
+        <div class="te-field-group" style="max-width:220px;">
+          <label class="te-lbl">Box 4 — Benefits Repaid to SSA <span class="te-cite">SSA-1099 Box 4</span></label>
+          <input type="number" id="te-ss-repaid" class="te-input te-mono"
+            value="${esc(String(ss.repaid||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teOnSSField()">
+        </div>
+        <div class="te-field-group" style="max-width:220px;">
+          <label class="te-lbl">Box 6 — Voluntary Federal Withholding <span class="te-cite">SSA-1099 Box 6 → 1040 Line 25b</span></label>
+          <input type="number" id="te-ss-withheld" class="te-input te-mono"
+            value="${esc(String(ss.withheld||''))}" placeholder="0.00" step="0.01" min="0"
             oninput="teOnSSField()">
         </div>
         ${isMFS ? `
@@ -1789,8 +1852,12 @@ function teRenderSSSection() {
           </label>
         </div>` : ''}
       </div>
+      ${(parseFloat(ss.repaid)||0) > 3000 ? `
+      <div class="te-ded-note" style="margin-top:6px;color:var(--te-warn,#f59e0b);">
+        Benefits repaid exceed $3,000 — IRC §1341 (Claim of Right) may allow a deduction or credit for the repayment. This is not auto-computed; consult the instructions for Schedule A or Schedule 3. <span class="te-cite">IRC §1341</span>
+      </div>` : ''}
       ${isMFS && !ss.mfsLivedWithSpouse ? '' : (isMFS ? `
-      <div class="te-ded-note" style="margin-top:6px;color:var(--warning,#f59e0b);">
+      <div class="te-ded-note" style="margin-top:6px;color:var(--te-warn,#f59e0b);">
         MFS filers who lived with their spouse at any time during the year: 85% of benefits are taxable on dollar one — no thresholds apply. <span class="te-cite">IRC §86(c)(2)</span>
       </div>` : '')}
       <div id="te-ss-summary" style="margin-top:8px;">${summaryHtml}</div>
@@ -1815,8 +1882,12 @@ function teOnSSField() {
   teMarkDirty();
   if (!teCurrentReturn.socialSecurity) teCurrentReturn.socialSecurity = {};
   let benEl  = document.getElementById('te-ss-benefits');
+  let repEl  = document.getElementById('te-ss-repaid');
+  let whEl   = document.getElementById('te-ss-withheld');
   let mfsEl  = document.getElementById('te-ss-mfs-lived');
   if (benEl)  teCurrentReturn.socialSecurity.benefits           = benEl.value;
+  if (repEl)  teCurrentReturn.socialSecurity.repaid             = repEl.value;
+  if (whEl)   teCurrentReturn.socialSecurity.withheld           = whEl.value;
   if (mfsEl)  teCurrentReturn.socialSecurity.mfsLivedWithSpouse = mfsEl.checked;
   teRecalculate();
 }
@@ -1924,6 +1995,276 @@ function teRm1099R(type, i) {
   teRecalculate();
 }
 
+// ── 1099-R: Unified card-based entry (Checkpoint 2) ──────────────────────
+// Replaces the legacy two-array table. Each card captures Box 1, Box 2a, Box 4, Box 7.
+// Box 7 distribution code auto-derives the IRC §72(t) penalty — no manual age/exception checkbox.
+
+// Box 7 distribution code descriptions for tooltip/annotation
+const TE_1099R_CODES = {
+  '1': 'Early distribution, no known exception — 10% penalty applies (IRC §72(t)(1))',
+  '2': 'Early distribution, exception applies (plans) — no penalty',
+  '3': 'Disability (IRC §72(m)(7)) — no penalty',
+  '4': 'Death — no penalty',
+  '5': 'Prohibited transaction',
+  '6': '§1035 exchange — nontaxable',
+  '7': 'Normal distribution (age 59½ or older) — no penalty',
+  '8': 'Excess contributions + earnings — taxable in year of distribution',
+  '9': 'Cost of current life insurance protection',
+  'A': 'May be eligible for 10-year tax option',
+  'B': 'Designated Roth account distribution',
+  'C': 'Reportable death benefit (§6050Y)',
+  'D': 'Annuity payments from nonqualified annuities',
+  'E': 'EPCRS distribution',
+  'F': 'Charitable gift annuity',
+  'G': 'Direct rollover to qualified plan/IRA — generally nontaxable',
+  'H': 'Direct rollover from Roth to Roth — nontaxable',
+  'J': 'Early distribution from Roth IRA — no penalty exception',
+  'K': 'Distribution of IRA assets (no RFV)',
+  'L': 'Loans treated as deemed distributions',
+  'M': 'Qualified plan loan offset',
+  'N': 'Recharacterized IRA contribution',
+  'P': 'Excess contributions before due date',
+  'Q': 'Qualified Roth distribution — nontaxable',
+  'R': 'Recharacterized IRA contribution (prior year)',
+  'S': 'Early distribution from SIMPLE IRA, < 2 years participation — 25% penalty (IRC §72(t)(6))',
+  'T': 'Roth distribution, exception applies — no penalty',
+  'U': 'Dividend distribution from ESOP',
+  'W': 'Charges for qualified long-term care insurance'
+};
+
+function teRender1099RCard(e, i) {
+  let collapsed = e.collapsed;
+  let advOpen   = e.advOpen;
+  let adv       = advOpen ? '' : 'display:none;';
+  let code      = (e.box7 || '').trim().toUpperCase();
+  let penaltyRate = code === '1' ? 0.10 : code === 'S' ? 0.25 : 0;
+  let penaltyAmt  = teRound((parseFloat(e.box2a) || 0) * penaltyRate);
+  let codeDesc    = TE_1099R_CODES[code] || (code ? 'Code ' + code : 'Enter distribution code');
+  let penaltyNote = penaltyRate > 0
+    ? `<div class="te-ded-note" style="margin:4px 0 0 0;color:var(--te-warn,#f59e0b);">
+        §72(t) penalty: ${(penaltyRate * 100).toFixed(0)}% &times; ${teFmt(parseFloat(e.box2a)||0)} = ${teFmt(penaltyAmt)} — <span class="te-cite">${code === 'S' ? 'IRC §72(t)(6)' : 'IRC §72(t)(1)'}</span>
+       </div>`
+    : (code ? `<div class="te-ded-note" style="margin:4px 0 0 0;color:var(--te-ok,#34d399);">No §72(t) penalty — code ${code}</div>` : '');
+  let typeLabel = e.type === 'ira' ? 'IRA' : 'Pension / Annuity';
+  let typeCite  = e.type === 'ira' ? '1040 Lines 4a/4b' : '1040 Lines 5a/5b';
+
+  return `<div class="te-w2-card" id="te-r1099-card-${i}">
+    <div class="te-w2-card-hdr">
+      <span class="te-w2-card-title">
+        <span class="te-w2-badge" style="margin-right:6px;">${typeLabel}</span>
+        ${e.payerName || 'Payer ' + (i + 1)}
+      </span>
+      <div style="display:flex;gap:6px;align-items:center;">
+        ${(parseFloat(e.box2a)||0) > 0 ? `<span class="te-w2-badge">${teFmt(parseFloat(e.box2a))}</span>` : ''}
+        <button class="ghost-btn te-sm-btn" onclick="teToggle1099RCard(${i})">${collapsed ? '&#9660; Show' : '&#9650; Hide'}</button>
+        <button class="te-rm-btn" onclick="teRm1099R2(${i})">&#10005;</button>
+      </div>
+    </div>
+    <div class="te-w2-card-body" ${collapsed ? 'style="display:none;"' : ''}>
+      <div class="te-w2-sect-lbl">Payer &amp; Type — <span class="te-cite">${typeCite}</span></div>
+      <div class="te-frow" style="gap:8px;flex-wrap:wrap;">
+        <div class="te-field-group" style="flex:2;min-width:160px;">
+          <label class="te-lbl">Payer Name</label>
+          <input type="text" class="te-input" value="${esc(e.payerName||'')}" placeholder="Bank, brokerage, or plan administrator"
+            oninput="teUpd1099R2(${i},'payerName',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:120px;">
+          <label class="te-lbl">Payer TIN</label>
+          <input type="text" class="te-input te-mono" value="${esc(e.payerTin||'')}" placeholder="XX-XXXXXXX"
+            oninput="teUpd1099R2(${i},'payerTin',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:140px;">
+          <label class="te-lbl">Type</label>
+          <select class="te-select" onchange="teUpd1099R2(${i},'type',this.value)">
+            <option value="ira"     ${e.type==='ira'     ? 'selected' : ''}>IRA / SEP / SIMPLE (Lines 4a/4b)</option>
+            <option value="pension" ${e.type==='pension' ? 'selected' : ''}>Pension / Annuity (Lines 5a/5b)</option>
+          </select>
+        </div>
+      </div>
+      <div class="te-w2-sect-lbl" style="margin-top:10px;">Essential Boxes</div>
+      <div class="te-frow" style="gap:8px;flex-wrap:wrap;">
+        <div class="te-field-group" style="flex:1;min-width:140px;">
+          <label class="te-lbl">Box 1 — Gross Distribution <span class="te-cite">→ 1040 L${e.type==='ira'?'4a':'5a'}</span></label>
+          <input type="number" class="te-input te-mono" value="${esc(String(e.box1||''))}" placeholder="0.00" step="0.01" min="0"
+            id="te-r1099-${i}-box1"
+            oninput="teUpd1099R2(${i},'box1',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:140px;">
+          <label class="te-lbl">Box 2a — Taxable Amount <span class="te-cite">→ 1040 L${e.type==='ira'?'4b':'5b'}</span></label>
+          <input type="number" class="te-input te-mono" value="${esc(String(e.box2a||''))}" placeholder="0.00" step="0.01" min="0"
+            id="te-r1099-${i}-box2a"
+            title="Defaults to gross (Box 1). Adjust if Box 2a on the 1099-R is lower — basis, after-tax contributions, rollover, or partial exclusion."
+            oninput="teUpd1099R2(${i},'box2a',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:140px;">
+          <label class="te-lbl">Box 4 — Federal Tax Withheld <span class="te-cite">→ 1040 L25b</span></label>
+          <input type="number" class="te-input te-mono" value="${esc(String(e.box4||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teUpd1099R2(${i},'box4',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:160px;">
+          <label class="te-lbl">Box 7 — Distribution Code <span class="te-cite">§72(t) auto-penalty</span></label>
+          <input type="text" class="te-input te-mono" value="${esc(e.box7||'')}" placeholder="e.g. 1, 2, 7, G"
+            maxlength="2" style="max-width:80px;"
+            oninput="teUpd1099R2(${i},'box7',this.value)">
+          <div class="te-ded-note" style="margin:3px 0 0 0;font-size:0.8rem;">${codeDesc}</div>
+        </div>
+      </div>
+      ${penaltyNote}
+      <div class="te-frow" style="gap:16px;margin-top:6px;">
+        <label class="te-chk-lbl" title="Box 2b: Taxable amount not determined by payer — you must determine the taxable amount.">
+          <input type="checkbox" ${e.box2bNotDet ? 'checked' : ''} onchange="teUpd1099R2(${i},'box2bNotDet',this.checked)">
+          Box 2b: Taxable amount not determined
+        </label>
+        <label class="te-chk-lbl" title="Box 2b: Total distribution — this was the final distribution from the account.">
+          <input type="checkbox" ${e.box2bTotal ? 'checked' : ''} onchange="teUpd1099R2(${i},'box2bTotal',this.checked)">
+          Box 2b: Total distribution
+        </label>
+      </div>
+      <button class="ghost-btn te-sm-btn" style="margin-top:8px;" onclick="teToggle1099RAdv(${i})">
+        ${advOpen ? '&#9650; Hide' : '&#9660; Show'} Advanced Boxes (3, 5, 6, 8–19)
+      </button>
+      <div style="${adv}">
+        <div class="te-w2-sect-lbl" style="margin-top:8px;">Advanced / Uncommon Boxes</div>
+        <div class="te-frow" style="gap:8px;flex-wrap:wrap;">
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 3 — Capital Gain <span class="te-cite">Part of Box 2a at preferential rate</span></label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box3||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099R2(${i},'box3',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 5 — Employee Contributions / Roth Basis</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box5||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099R2(${i},'box5',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 6 — Net Unrealized Appreciation (NUA)</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box6||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099R2(${i},'box6',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 8 — Other</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box8||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099R2(${i},'box8',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 9a — % Total Distribution</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box9a||''))}" placeholder="0.00" step="0.01" min="0" max="100"
+              oninput="teUpd1099R2(${i},'box9a',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 9b — Total Employee Contributions</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box9b||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099R2(${i},'box9b',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 12 — FATCA Filing Requirement</label>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+              <input type="checkbox" ${e.box12 ? 'checked' : ''} onchange="teUpd1099R2(${i},'box12',this.checked)"> Yes
+            </label>
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 14 — State Tax Withheld</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box14||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099R2(${i},'box14',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 15 — State / Payer State No.</label>
+            <input type="text" class="te-input" value="${esc(e.box15||'')}" placeholder="NY"
+              oninput="teUpd1099R2(${i},'box15',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 16 — State Distribution</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box16||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099R2(${i},'box16',this.value)">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function teRenderR1099List() {
+  let entries = (teCurrentReturn && teCurrentReturn.r1099s) || [];
+  let el = document.getElementById('te-r1099-list');
+  if (!el) return;
+  el.innerHTML = entries.length === 0
+    ? '<div class="te-empty">No 1099-Rs added. Use the buttons above to add an IRA or Pension/Annuity distribution.</div>'
+    : entries.map((e, i) => teRender1099RCard(e, i)).join('');
+  let bar = document.getElementById('te-r1099-total-bar');
+  if (bar) bar.style.display = entries.length > 0 ? '' : 'none';
+  // Update totals bar from calc
+  let c = (teCurrentReturn._calc) || {};
+  let tIra = document.getElementById('te-r1099-total-ira');
+  let tPen = document.getElementById('te-r1099-total-pen');
+  let tWh  = document.getElementById('te-r1099-total-wh');
+  let tEwp = document.getElementById('te-r1099-total-ewp');
+  if (tIra) tIra.textContent = teFmt(c.iraTaxable           || 0);
+  if (tPen) tPen.textContent = teFmt(c.pensionTaxable       || 0);
+  if (tWh)  tWh.textContent  = teFmt(c.r1099Withholding     || 0);
+  if (tEwp) tEwp.textContent = teFmt(c.earlyWithdrawalPenalty || 0);
+}
+
+function teAdd1099R2(type) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.r1099s) teCurrentReturn.r1099s = [];
+  teCurrentReturn.r1099s.push({
+    type:       type,
+    payerName:  '', payerTin: '',
+    box1: '', box2a: '', box2bNotDet: false, box2bTotal: false,
+    box4: '', box7: '',
+    box3: '', box5: '', box6: '', box8: '', box9a: '', box9b: '',
+    box12: false, box14: '', box15: '', box16: '',
+    collapsed: false, advOpen: false
+  });
+  teRenderR1099List();
+  teRecalculate();
+}
+
+function teUpd1099R2(i, field, val) {
+  if (!teCurrentReturn || !teCurrentReturn.r1099s || !teCurrentReturn.r1099s[i]) return;
+  teMarkDirty();
+  let e = teCurrentReturn.r1099s[i];
+  let oldBox1 = e.box1;
+  e[field] = val;
+  // Auto-sync box2a = box1 when box1 changes and box2a was blank or matched old box1
+  if (field === 'box1') {
+    if (!e.box2a || e.box2a === oldBox1) {
+      e.box2a = val;
+      let b2El = document.getElementById('te-r1099-' + i + '-box2a');
+      if (b2El) b2El.value = val;
+    }
+  }
+  // Update card title if payer name changed
+  if (field === 'payerName') {
+    let titleEl = document.querySelector(`#te-r1099-card-${i} .te-w2-card-title`);
+    if (titleEl) titleEl.innerHTML =
+      `<span class="te-w2-badge" style="margin-right:6px;">${e.type === 'ira' ? 'IRA' : 'Pension / Annuity'}</span>${val || 'Payer ' + (i + 1)}`;
+  }
+  clearTimeout(teR1099Timer);
+  teR1099Timer = setTimeout(() => teRecalculate(), 150);
+}
+let teR1099Timer = null;
+
+function teRm1099R2(i) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  teCurrentReturn.r1099s.splice(i, 1);
+  teRenderR1099List();
+  teRecalculate();
+}
+
+function teToggle1099RCard(i) {
+  if (!teCurrentReturn || !teCurrentReturn.r1099s || !teCurrentReturn.r1099s[i]) return;
+  teCurrentReturn.r1099s[i].collapsed = !teCurrentReturn.r1099s[i].collapsed;
+  teRenderR1099List();
+}
+
+function teToggle1099RAdv(i) {
+  if (!teCurrentReturn || !teCurrentReturn.r1099s || !teCurrentReturn.r1099s[i]) return;
+  teCurrentReturn.r1099s[i].advOpen = !teCurrentReturn.r1099s[i].advOpen;
+  teRenderR1099List();
+}
 
 function teRender1099() {
   let r    = teCurrentReturn;
@@ -1971,6 +2312,621 @@ function teRender1099() {
       </div>
     </div>
     <div class="te-ded-note" style="margin-top:4px;">Tax-exempt interest does <strong>not</strong> affect taxable income, but is included in the Social Security provisional income calculation under IRC §86(b)(1). Enter the amount from 1099-INT Box 8 or similar tax-exempt interest statements. <span class="te-cite">IRC §86(b)(1); 1040 Line 2a</span></div>`;
+}
+
+// ── 1099-INT rendering ────────────────────────────────────────────────
+
+function teRender1099IntCard(e, i) {
+  let collapsed = e.collapsed;
+  let advOpen   = e.advOpen;
+  let adv = advOpen ? '' : 'display:none;';
+  return `<div class="te-w2-card" id="te-int-card-${i}">
+    <div class="te-w2-card-hdr">
+      <span class="te-w2-card-title">${e.payer || 'Payer ' + (i + 1)}</span>
+      <div style="display:flex;gap:6px;align-items:center;">
+        ${(parseFloat(e.box1)||0) > 0 ? `<span class="te-w2-badge">${teFmt(parseFloat(e.box1))}</span>` : ''}
+        <button class="ghost-btn te-sm-btn" onclick="teToggleInt1099Card(${i})">${collapsed ? '&#9660; Show' : '&#9650; Hide'}</button>
+        <button class="te-rm-btn" onclick="teRm1099Int(${i})">&#10005;</button>
+      </div>
+    </div>
+    <div class="te-w2-card-body" ${collapsed ? 'style="display:none;"' : ''}>
+      <div class="te-w2-sect-lbl">Payer Information</div>
+      <div class="te-frow" style="gap:8px;flex-wrap:wrap;">
+        <div class="te-field-group" style="flex:2;min-width:160px;">
+          <label class="te-lbl">Payer Name</label>
+          <input type="text" class="te-input" value="${esc(e.payer||'')}" placeholder="Bank or institution name"
+            oninput="teUpd1099Int(${i},'payer',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:120px;">
+          <label class="te-lbl">Payer TIN</label>
+          <input type="text" class="te-input te-mono" value="${esc(e.payerTin||'')}" placeholder="XX-XXXXXXX"
+            oninput="teUpd1099Int(${i},'payerTin',this.value)">
+        </div>
+      </div>
+      <div class="te-w2-sect-lbl" style="margin-top:10px;">Essential Boxes</div>
+      <div class="te-frow" style="gap:8px;flex-wrap:wrap;">
+        <div class="te-field-group" style="flex:1;min-width:140px;">
+          <label class="te-lbl">Box 1 — Ordinary Interest <span class="te-cite">→ 1040 L2b</span></label>
+          <input type="number" class="te-input te-mono" value="${esc(String(e.box1||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teUpd1099Int(${i},'box1',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:140px;">
+          <label class="te-lbl">Box 2 — Early W/D Penalty <span class="te-cite">→ Sch 1 L18</span></label>
+          <input type="number" class="te-input te-mono" value="${esc(String(e.box2||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teUpd1099Int(${i},'box2',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:140px;">
+          <label class="te-lbl">Box 3 — US Savings Bond Int <span class="te-cite">→ Sch B L3</span></label>
+          <input type="number" class="te-input te-mono" value="${esc(String(e.box3||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teUpd1099Int(${i},'box3',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:140px;">
+          <label class="te-lbl">Box 4 — Federal Tax Withheld <span class="te-cite">→ 1040 L25b</span></label>
+          <input type="number" class="te-input te-mono" value="${esc(String(e.box4||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teUpd1099Int(${i},'box4',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:140px;">
+          <label class="te-lbl">Box 8 — Tax-Exempt Interest <span class="te-cite">→ 1040 L2a</span></label>
+          <input type="number" class="te-input te-mono" value="${esc(String(e.box8||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teUpd1099Int(${i},'box8',this.value)">
+        </div>
+      </div>
+      <button class="ghost-btn te-sm-btn" style="margin-top:8px;" onclick="teToggleInt1099Adv(${i})">
+        ${advOpen ? '&#9650; Hide' : '&#9660; Show'} Advanced Boxes (5–7, 9–17)
+      </button>
+      <div style="${adv}">
+        <div class="te-w2-sect-lbl" style="margin-top:8px;">Advanced / Uncommon Boxes</div>
+        <div class="te-frow" style="gap:8px;flex-wrap:wrap;">
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 5 — Investment Expenses</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box5||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Int(${i},'box5',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 6 — Foreign Tax Paid</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box6||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Int(${i},'box6',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 7 — Foreign Country/Poss.</label>
+            <input type="text" class="te-input" value="${esc(e.box7||'')}" placeholder="Country"
+              oninput="teUpd1099Int(${i},'box7',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 9 — Specified PAB Interest</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box9||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Int(${i},'box9',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 10 — Market Discount</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box10||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Int(${i},'box10',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 11 — Bond Premium</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box11||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Int(${i},'box11',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 12 — Bond Premium (Treasury)</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box12||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Int(${i},'box12',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 13 — Bond Premium (TE)</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box13||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Int(${i},'box13',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 14 — Tax-Exempt / PAB CUSIP</label>
+            <input type="text" class="te-input" value="${esc(e.box14||'')}" placeholder="CUSIP"
+              oninput="teUpd1099Int(${i},'box14',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">State / Payer State No.</label>
+            <input type="text" class="te-input" value="${esc(e.state||'')}" placeholder="NY"
+              oninput="teUpd1099Int(${i},'state',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">State Tax Withheld</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box16||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Int(${i},'box16',this.value)">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function teRenderInt1099List() {
+  let entries = (teCurrentReturn && teCurrentReturn.int1099s) || [];
+  let el = document.getElementById('te-int-list');
+  if (!el) return;
+  el.innerHTML = entries.length === 0
+    ? '<div class="te-empty">No 1099-INTs added yet.</div>'
+    : entries.map((e, i) => teRender1099IntCard(e, i)).join('');
+  // Show/hide total bar
+  let bar = document.getElementById('te-int-total-bar');
+  if (bar) bar.style.display = entries.length > 0 ? '' : 'none';
+  // Update total bar values from calc
+  let c = (teCurrentReturn._calc) || {};
+  let tb1 = document.getElementById('te-int-total-box1');
+  let tb4 = document.getElementById('te-int-total-box4');
+  let tbp = document.getElementById('te-int-total-penalty');
+  if (tb1) tb1.textContent = teFmt(c.interestIncome || 0);
+  if (tb4) tb4.textContent = teFmt(c.intWithholding || 0);
+  if (tbp) tbp.textContent = teFmt(c.earlyWdPenalty || 0);
+}
+
+function teAdd1099Int() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.int1099s) teCurrentReturn.int1099s = [];
+  teCurrentReturn.int1099s.push({
+    payer: '', payerTin: '',
+    box1: '', box2: '', box3: '', box4: '', box5: '', box6: '', box7: '', box8: '',
+    box9: '', box10: '', box11: '', box12: '', box13: '', box14: '', box15: '', box16: '', box17: '',
+    state: '', stateId: '', collapsed: false, advOpen: false
+  });
+  teRenderInt1099List();
+  teRecalculate();
+}
+
+function teUpd1099Int(i, field, val) {
+  if (!teCurrentReturn || !teCurrentReturn.int1099s || !teCurrentReturn.int1099s[i]) return;
+  teMarkDirty();
+  teCurrentReturn.int1099s[i][field] = val;
+  // Update card title if payer name changed
+  if (field === 'payer') {
+    let titleEl = document.querySelector(`#te-int-card-${i} .te-w2-card-title`);
+    if (titleEl) titleEl.textContent = val || 'Payer ' + (i + 1);
+  }
+  clearTimeout(teInt1099Timer);
+  teInt1099Timer = setTimeout(() => teRecalculate(), 150);
+}
+let teInt1099Timer = null;
+
+function teRm1099Int(i) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  teCurrentReturn.int1099s.splice(i, 1);
+  teRenderInt1099List();
+  teRecalculate();
+}
+
+function teToggleInt1099Card(i) {
+  if (!teCurrentReturn || !teCurrentReturn.int1099s || !teCurrentReturn.int1099s[i]) return;
+  teCurrentReturn.int1099s[i].collapsed = !teCurrentReturn.int1099s[i].collapsed;
+  teRenderInt1099List();
+}
+
+function teToggleInt1099Adv(i) {
+  if (!teCurrentReturn || !teCurrentReturn.int1099s || !teCurrentReturn.int1099s[i]) return;
+  teCurrentReturn.int1099s[i].advOpen = !teCurrentReturn.int1099s[i].advOpen;
+  teRenderInt1099List();
+}
+
+// ── 1099-DIV rendering ────────────────────────────────────────────────
+
+function teRender1099DivCard(e, i) {
+  let collapsed = e.collapsed;
+  let advOpen   = e.advOpen;
+  let adv = advOpen ? '' : 'display:none;';
+  return `<div class="te-w2-card" id="te-div-card-${i}">
+    <div class="te-w2-card-hdr">
+      <span class="te-w2-card-title">${e.payer || 'Payer ' + (i + 1)}</span>
+      <div style="display:flex;gap:6px;align-items:center;">
+        ${(parseFloat(e.box1a)||0) > 0 ? `<span class="te-w2-badge">${teFmt(parseFloat(e.box1a))}</span>` : ''}
+        <button class="ghost-btn te-sm-btn" onclick="teToggleDiv1099Card(${i})">${collapsed ? '&#9660; Show' : '&#9650; Hide'}</button>
+        <button class="te-rm-btn" onclick="teRm1099Div(${i})">&#10005;</button>
+      </div>
+    </div>
+    <div class="te-w2-card-body" ${collapsed ? 'style="display:none;"' : ''}>
+      <div class="te-w2-sect-lbl">Payer Information</div>
+      <div class="te-frow" style="gap:8px;flex-wrap:wrap;">
+        <div class="te-field-group" style="flex:2;min-width:160px;">
+          <label class="te-lbl">Payer Name</label>
+          <input type="text" class="te-input" value="${esc(e.payer||'')}" placeholder="Brokerage or company name"
+            oninput="teUpd1099Div(${i},'payer',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:120px;">
+          <label class="te-lbl">Payer TIN</label>
+          <input type="text" class="te-input te-mono" value="${esc(e.payerTin||'')}" placeholder="XX-XXXXXXX"
+            oninput="teUpd1099Div(${i},'payerTin',this.value)">
+        </div>
+      </div>
+      <div class="te-w2-sect-lbl" style="margin-top:10px;">Essential Boxes</div>
+      <div class="te-frow" style="gap:8px;flex-wrap:wrap;">
+        <div class="te-field-group" style="flex:1;min-width:140px;">
+          <label class="te-lbl">Box 1a — Total Ordinary Dividends <span class="te-cite">→ 1040 L3b</span></label>
+          <input type="number" class="te-input te-mono" value="${esc(String(e.box1a||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teUpd1099Div(${i},'box1a',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:140px;">
+          <label class="te-lbl">Box 1b — Qualified Dividends <span class="te-cite">§1(h)(11) → 1040 L3a</span></label>
+          <input type="number" class="te-input te-mono" value="${esc(String(e.box1b||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teUpd1099Div(${i},'box1b',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:140px;">
+          <label class="te-lbl">Box 2a — Total Capital Gain Distributions <span class="te-cite">→ Sch D</span></label>
+          <input type="number" class="te-input te-mono" value="${esc(String(e.box2a||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teUpd1099Div(${i},'box2a',this.value)">
+        </div>
+        <div class="te-field-group" style="flex:1;min-width:140px;">
+          <label class="te-lbl">Box 4 — Federal Tax Withheld <span class="te-cite">→ 1040 L25b</span></label>
+          <input type="number" class="te-input te-mono" value="${esc(String(e.box4||''))}" placeholder="0.00" step="0.01" min="0"
+            oninput="teUpd1099Div(${i},'box4',this.value)">
+        </div>
+      </div>
+      <button class="ghost-btn te-sm-btn" style="margin-top:8px;" onclick="teToggleDivAdv(${i})">
+        ${advOpen ? '&#9650; Hide' : '&#9660; Show'} Advanced Boxes (2b–2f, 5–16)
+      </button>
+      <div style="${adv}">
+        <div class="te-w2-sect-lbl" style="margin-top:8px;">Advanced / Uncommon Boxes</div>
+        <div class="te-frow" style="gap:8px;flex-wrap:wrap;">
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 2b — Unrecaptured §1250 Gain</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box2b||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box2b',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 2c — Section 1202 Gain</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box2c||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box2c',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 2d — Collectibles (28%) Gain</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box2d||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box2d',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 2e — Section 897 Ordinary Div</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box2e||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box2e',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 2f — Section 897 Capital Gain</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box2f||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box2f',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 3 — Nondividend Distributions</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box3||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box3',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 5 — Section 199A Dividends</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box5||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box5',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 6 — Investment Expenses</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box6||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box6',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 7 — Foreign Tax Paid</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box7||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box7',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 8 — Foreign Country/Poss.</label>
+            <input type="text" class="te-input" value="${esc(e.box8||'')}" placeholder="Country"
+              oninput="teUpd1099Div(${i},'box8',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 9 — Cash Liquidation Distributions</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box9||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box9',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 10 — Noncash Liquidation Distributions</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box10||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box10',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 11 — FATCA Filing Requirement</label>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+              <input type="checkbox" ${e.box11 ? 'checked' : ''} onchange="teUpd1099Div(${i},'box11',this.checked)"> Yes
+            </label>
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 12 — Exempt-Interest Dividends</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box12||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box12',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">Box 13 — Specified PAB Interest Div</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box13||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box13',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">State / Payer State No.</label>
+            <input type="text" class="te-input" value="${esc(e.state||'')}" placeholder="NY"
+              oninput="teUpd1099Div(${i},'state',this.value)">
+          </div>
+          <div class="te-field-group" style="flex:1;min-width:120px;">
+            <label class="te-lbl">State Tax Withheld</label>
+            <input type="number" class="te-input te-mono" value="${esc(String(e.box15||''))}" placeholder="0.00" step="0.01" min="0"
+              oninput="teUpd1099Div(${i},'box15',this.value)">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function teRenderDiv1099List() {
+  let entries = (teCurrentReturn && teCurrentReturn.div1099s) || [];
+  let el = document.getElementById('te-div-list');
+  if (!el) return;
+  el.innerHTML = entries.length === 0
+    ? '<div class="te-empty">No 1099-DIVs added yet.</div>'
+    : entries.map((e, i) => teRender1099DivCard(e, i)).join('');
+  let bar = document.getElementById('te-div-total-bar');
+  if (bar) bar.style.display = entries.length > 0 ? '' : 'none';
+  let c = (teCurrentReturn._calc) || {};
+  let tb1a = document.getElementById('te-div-total-box1a');
+  let tb1b = document.getElementById('te-div-total-box1b');
+  let tb4  = document.getElementById('te-div-total-box4');
+  if (tb1a) tb1a.textContent = teFmt(c.ordinaryDividends  || 0);
+  if (tb1b) tb1b.textContent = teFmt(c.qualifiedDividends || 0);
+  if (tb4)  tb4.textContent  = teFmt(c.divWithholding     || 0);
+}
+
+function teAdd1099Div() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.div1099s) teCurrentReturn.div1099s = [];
+  teCurrentReturn.div1099s.push({
+    payer: '', payerTin: '',
+    box1a: '', box1b: '', box2a: '', box2b: '', box2c: '', box2d: '', box2e: '', box2f: '',
+    box3: '', box4: '', box5: '', box6: '', box7: '', box8: '', box9: '', box10: '',
+    box11: false, box12: '', box13: '', box14: '', box15: '', box16: '',
+    state: '', stateId: '', collapsed: false, advOpen: false
+  });
+  teRenderDiv1099List();
+  teRecalculate();
+}
+
+function teUpd1099Div(i, field, val) {
+  if (!teCurrentReturn || !teCurrentReturn.div1099s || !teCurrentReturn.div1099s[i]) return;
+  teMarkDirty();
+  teCurrentReturn.div1099s[i][field] = val;
+  if (field === 'payer') {
+    let titleEl = document.querySelector(`#te-div-card-${i} .te-w2-card-title`);
+    if (titleEl) titleEl.textContent = val || 'Payer ' + (i + 1);
+  }
+  clearTimeout(teDiv1099Timer);
+  teDiv1099Timer = setTimeout(() => teRecalculate(), 150);
+}
+let teDiv1099Timer = null;
+
+function teRm1099Div(i) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  teCurrentReturn.div1099s.splice(i, 1);
+  teRenderDiv1099List();
+  teRecalculate();
+}
+
+function teToggleDiv1099Card(i) {
+  if (!teCurrentReturn || !teCurrentReturn.div1099s || !teCurrentReturn.div1099s[i]) return;
+  teCurrentReturn.div1099s[i].collapsed = !teCurrentReturn.div1099s[i].collapsed;
+  teRenderDiv1099List();
+}
+
+function teToggleDivAdv(i) {
+  if (!teCurrentReturn || !teCurrentReturn.div1099s || !teCurrentReturn.div1099s[i]) return;
+  teCurrentReturn.div1099s[i].advOpen = !teCurrentReturn.div1099s[i].advOpen;
+  teRenderDiv1099List();
+}
+
+// ── Schedule B rendering ──────────────────────────────────────────────
+
+function teRenderScheduleB() {
+  let r    = teCurrentReturn;
+  let c    = (r && r._calc) || {};
+  let sb   = (r && r.schedB) || {};
+  let int1099s = (r && r.int1099s) || [];
+  let div1099s = (r && r.div1099s) || [];
+
+  // Part I — payer rows from int1099s cards + manual entries
+  let intAutoRows = int1099s.map(e =>
+    `<div class="te-se-row">
+      <span class="te-se-num"></span>
+      <span class="te-se-lbl">${esc(e.payer || '(unnamed)')}</span>
+      <span class="te-se-val te-mono">${teFmt((parseFloat(e.box1)||0) + (parseFloat(e.box3)||0))}</span>
+    </div>`
+  ).join('');
+  let intManualRows = (sb.intManualPayers || []).map((p, i) =>
+    `<div class="te-se-row" style="gap:6px;">
+      <span class="te-se-num"></span>
+      <input type="text" class="te-input" style="flex:2;" value="${esc(p.name||'')}" placeholder="Payer name"
+        oninput="teOnSchedB('intManualPayers',${i},'name',this.value)">
+      <input type="number" class="te-input te-mono te-se-inp" style="max-width:110px;" value="${esc(String(p.amount||''))}" placeholder="0.00" step="0.01" min="0"
+        oninput="teOnSchedB('intManualPayers',${i},'amount',this.value)">
+      <button class="te-rm-btn" onclick="teRmSBIntPayer(${i})">&#10005;</button>
+    </div>`
+  ).join('');
+
+  // Part II — payer rows from div1099s cards + manual entries
+  let divAutoRows = div1099s.map(e =>
+    `<div class="te-se-row">
+      <span class="te-se-num"></span>
+      <span class="te-se-lbl">${esc(e.payer || '(unnamed)')}</span>
+      <span class="te-se-val te-mono">${teFmt(parseFloat(e.box1a)||0)}</span>
+    </div>`
+  ).join('');
+  let divManualRows = (sb.divManualPayers || []).map((p, i) =>
+    `<div class="te-se-row" style="gap:6px;">
+      <span class="te-se-num"></span>
+      <input type="text" class="te-input" style="flex:2;" value="${esc(p.name||'')}" placeholder="Payer name"
+        oninput="teOnSchedB('divManualPayers',${i},'name',this.value)">
+      <input type="number" class="te-input te-mono te-se-inp" style="max-width:110px;" value="${esc(String(p.amount||''))}" placeholder="0.00" step="0.01" min="0"
+        oninput="teOnSchedB('divManualPayers',${i},'amount',this.value)">
+      <button class="te-rm-btn" onclick="teRmSBDivPayer(${i})">&#10005;</button>
+    </div>`
+  ).join('');
+
+  let needsSB = (c.schedBL4 || 0) > 1500 || (c.schedBL6 || 0) > 1500;
+
+  return `<div class="te-sch-se">
+    <!-- Part I — Interest -->
+    <div class="te-se-header-bar">
+      <span class="te-se-section-label">Part I — Interest Income</span>
+      <span class="te-cite" style="font-size:0.8rem;">IRC §61(a)(4) — 1040 Line 2b</span>
+    </div>
+    <div class="te-ded-note" style="margin:2px 0 8px 0;">
+      Payers from your 1099-INT entries are auto-listed below. Add any additional payers manually (e.g., seller-financed mortgages). Required when total interest exceeds $1,500. <span class="te-cite">IRS Schedule B instructions</span>
+    </div>
+    ${intAutoRows || '<div class="te-ded-note" style="margin:2px 0 4px 0;">No 1099-INT entries — add them on the <a href="#" onclick="teNavigateTo(\'1099-int\');return false;">1099-INT screen</a>.</div>'}
+    ${intManualRows}
+    <div class="te-se-row" style="margin-top:4px;">
+      <span class="te-se-num"></span>
+      <button class="ghost-btn te-sm-btn" onclick="teSBAddIntPayer()">+ Add Manual Payer</button>
+    </div>
+    <div class="te-se-row" style="margin-top:4px;">
+      <span class="te-se-num">3</span>
+      <span class="te-se-lbl">Excludable Series EE/I bond interest (Form 8815)</span>
+      <input type="number" class="te-input te-mono te-se-inp" value="${esc(String(sb.line3||''))}" placeholder="0.00" step="0.01" min="0"
+        oninput="teOnSchedB('line3',null,null,this.value)">
+    </div>
+    <div class="te-se-row" style="border-top:1px solid var(--border-faint);padding-top:6px;margin-top:6px;">
+      <span class="te-se-num">2</span>
+      <span class="te-se-lbl">Total interest from all sources</span>
+      <span class="te-se-val te-mono" id="te-sb-l2">${teFmt(c.schedBL2 || 0)}</span>
+    </div>
+    <div class="te-se-row">
+      <span class="te-se-num">4</span>
+      <span class="te-se-lbl" style="font-weight:600;">Taxable interest — enter on 1040 Line 2b <span class="te-cite">after Form 8815 exclusion</span></span>
+      <span class="te-se-val te-mono" id="te-sb-l4" style="font-weight:600;">${teFmt(c.schedBL4 || 0)}</span>
+    </div>
+
+    <!-- Part II — Dividends -->
+    <div class="te-se-header-bar" style="margin-top:18px;">
+      <span class="te-se-section-label">Part II — Ordinary Dividends</span>
+      <span class="te-cite" style="font-size:0.8rem;">IRC §61(a)(7) — 1040 Line 3b</span>
+    </div>
+    <div class="te-ded-note" style="margin:2px 0 8px 0;">
+      Payers from your 1099-DIV entries are auto-listed. Add any additional payers manually. Required when total dividends exceed $1,500. <span class="te-cite">IRS Schedule B instructions</span>
+    </div>
+    ${divAutoRows || '<div class="te-ded-note" style="margin:2px 0 4px 0;">No 1099-DIV entries — add them on the <a href="#" onclick="teNavigateTo(\'1099-div\');return false;">1099-DIV screen</a>.</div>'}
+    ${divManualRows}
+    <div class="te-se-row" style="margin-top:4px;">
+      <span class="te-se-num"></span>
+      <button class="ghost-btn te-sm-btn" onclick="teSBAddDivPayer()">+ Add Manual Payer</button>
+    </div>
+    <div class="te-se-row" style="border-top:1px solid var(--border-faint);padding-top:6px;margin-top:6px;">
+      <span class="te-se-num">6</span>
+      <span class="te-se-lbl" style="font-weight:600;">Total ordinary dividends — enter on 1040 Line 3b</span>
+      <span class="te-se-val te-mono" id="te-sb-l6" style="font-weight:600;">${teFmt(c.schedBL6 || 0)}</span>
+    </div>
+
+    <!-- Part III — Foreign Accounts and Trusts -->
+    <div class="te-se-header-bar" style="margin-top:18px;">
+      <span class="te-se-section-label">Part III — Foreign Accounts and Trusts</span>
+      <span class="te-cite" style="font-size:0.8rem;">31 U.S.C. §5314; IRC §6048</span>
+    </div>
+    <div class="te-se-row">
+      <span class="te-se-num">7a</span>
+      <span class="te-se-lbl">At any time during ${r.taxYear||teActiveYear}, did you have a financial interest in or signature authority over a financial account in a foreign country?</span>
+    </div>
+    <div class="te-se-row" style="padding-left:20px;">
+      <select class="te-select te-se-inp" style="max-width:80px;" onchange="teOnSchedB('line7a',null,null,this.value)">
+        <option value="" ${!sb.line7a?'selected':''}>—</option>
+        <option value="yes" ${sb.line7a==='yes'?'selected':''}>Yes</option>
+        <option value="no" ${sb.line7a==='no'?'selected':''}>No</option>
+      </select>
+      ${sb.line7a==='yes' ? `
+        <span class="te-se-lbl" style="margin-left:12px;">Enter name of foreign country:</span>
+        <input type="text" class="te-input" style="max-width:160px;margin-left:8px;" value="${esc(sb.line7aFbar||'')}" placeholder="Country name"
+          oninput="teOnSchedB('line7aFbar',null,null,this.value)">
+        <span class="te-ded-note" style="margin-left:8px;color:var(--te-warn,#f59e0b);">FinCEN Form 114 (FBAR) may be required. <span class="te-cite">31 U.S.C. §5314</span></span>
+      ` : ''}
+    </div>
+    <div class="te-se-row" style="margin-top:8px;">
+      <span class="te-se-num">7b</span>
+      <span class="te-se-lbl">Is the account in a country subject to special U.S. reporting? (see instructions)</span>
+      <select class="te-select te-se-inp" style="max-width:80px;" onchange="teOnSchedB('line7b',null,null,this.value)">
+        <option value="" ${!sb.line7b?'selected':''}>—</option>
+        <option value="yes" ${sb.line7b==='yes'?'selected':''}>Yes</option>
+        <option value="no" ${sb.line7b==='no'?'selected':''}>No</option>
+      </select>
+    </div>
+    <div class="te-se-row" style="margin-top:8px;">
+      <span class="te-se-num">8</span>
+      <span class="te-se-lbl">During ${r.taxYear||teActiveYear}, did you receive a distribution from, or were you the grantor of, or transferor to, a foreign trust?</span>
+      <select class="te-select te-se-inp" style="max-width:80px;" onchange="teOnSchedB('line8',null,null,this.value)">
+        <option value="" ${!sb.line8?'selected':''}>—</option>
+        <option value="yes" ${sb.line8==='yes'?'selected':''}>Yes</option>
+        <option value="no" ${sb.line8==='no'?'selected':''}>No</option>
+      </select>
+      ${sb.line8==='yes' ? '<span class="te-ded-note" style="margin-left:8px;color:var(--te-warn,#f59e0b);">Form 3520 may be required. <span class="te-cite">IRC §6048</span></span>' : ''}
+    </div>
+
+    ${needsSB ? '' : `<div class="te-ded-note" style="margin-top:10px;">Schedule B is required when total interest or dividends exceed $1,500, or when answering Yes to any Part III question. Your current totals are below this threshold — Schedule B is informational only. <span class="te-cite">IRS Schedule B instructions</span></div>`}
+  </div>`;
+}
+
+function teOnSchedB(key, idx, field, val) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.schedB) teCurrentReturn.schedB = {};
+  let sb = teCurrentReturn.schedB;
+  if (key === 'intManualPayers' || key === 'divManualPayers') {
+    if (!sb[key]) sb[key] = [];
+    if (!sb[key][idx]) return;
+    sb[key][idx][field] = val;
+  } else {
+    sb[key] = val;
+  }
+  clearTimeout(teSBTimer);
+  teSBTimer = setTimeout(() => teRecalculate(), 150);
+}
+let teSBTimer = null;
+
+function teSBAddIntPayer() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.schedB) teCurrentReturn.schedB = {};
+  if (!teCurrentReturn.schedB.intManualPayers) teCurrentReturn.schedB.intManualPayers = [];
+  teCurrentReturn.schedB.intManualPayers.push({ name: '', amount: '' });
+  let cont = document.getElementById('te-sb-container');
+  if (cont) cont.innerHTML = teRenderScheduleB();
+}
+
+function teSBAddDivPayer() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.schedB) teCurrentReturn.schedB = {};
+  if (!teCurrentReturn.schedB.divManualPayers) teCurrentReturn.schedB.divManualPayers = [];
+  teCurrentReturn.schedB.divManualPayers.push({ name: '', amount: '' });
+  let cont = document.getElementById('te-sb-container');
+  if (cont) cont.innerHTML = teRenderScheduleB();
+}
+
+function teRmSBIntPayer(i) {
+  if (!teCurrentReturn || !(teCurrentReturn.schedB || {}).intManualPayers) return;
+  teMarkDirty();
+  teCurrentReturn.schedB.intManualPayers.splice(i, 1);
+  let cont = document.getElementById('te-sb-container');
+  if (cont) cont.innerHTML = teRenderScheduleB();
+  teRecalculate();
+}
+
+function teRmSBDivPayer(i) {
+  if (!teCurrentReturn || !(teCurrentReturn.schedB || {}).divManualPayers) return;
+  teMarkDirty();
+  teCurrentReturn.schedB.divManualPayers.splice(i, 1);
+  let cont = document.getElementById('te-sb-container');
+  if (cont) cont.innerHTML = teRenderScheduleB();
+  teRecalculate();
+}
+
+// Navigate to a schedule mini-screen from within another screen (e.g., Schedule B → 1099-INT)
+function teNavigateTo(schedId) {
+  teOpenSchedule(schedId, teNavSource || 'income');
 }
 
 // ── Schedule D rendering helpers ─────────────────────────────────────
@@ -2599,15 +3555,69 @@ function teRenderS1OtherIncomeRows() {
 // ──────────────────────────────────────────────────────────────────────
 
 function teRenderSchedule1PII() {
-  let r  = teCurrentReturn;
-  let c  = r._calc || {};
-  let s1 = r.schedule1 || {};
-  let ln = c.sched1PII_lines || {};
-  let fs = r.filingStatus || 'single';
-  let yr = r.taxYear || teActiveYear;
+  let r     = teCurrentReturn;
+  let c     = r._calc || {};
+  let s1    = r.schedule1 || {};
+  let ln    = c.sched1PII_lines || {};
+  let fs    = r.filingStatus || 'single';
+  let yr    = r.taxYear || teActiveYear;
   let isMFJ = (fs === 'mfj');
+  let isMFS = (fs === 'mfs');
+  let K     = TAX_CONSTANTS[yr] || {};
+  let a     = r.agiAdjustments || {};
+  let al    = r.alimony || {};
 
   let fmtRO = v => teFmt(v || 0);  // read-only display formatter
+
+  // ── Inline deduction section helpers (sHdr/sInp/sCb/sSel/sDed/sNote) ──
+
+  // Section header row — bold line-number label, no input
+  let sHdr = (num, label, cite = '') =>
+    `<div class="te-sc-row te-s1-row" style="margin-top:10px;border-top:1px solid var(--border-faint,rgba(255,255,255,0.07));padding-top:6px;">
+       <span class="te-sc-num">${num}</span>
+       <span class="te-sc-lbl" style="font-weight:600;">${label}${cite ? ` <span class="te-sc-note">${cite}</span>` : ''}</span>
+     </div>`;
+
+  // Indented number input sub-row
+  let sInp = (label, id, val, handler) =>
+    `<div class="te-sc-row te-s1-row" style="padding-left:28px;">
+       <span class="te-sc-num"></span>
+       <span class="te-sc-lbl">${label}</span>
+       <input type="number" id="${id}" class="te-input te-mono te-sc-inp" step="0.01" min="0"
+         value="${esc(String(val || ''))}" placeholder="0.00" oninput="${handler}">
+     </div>`;
+
+  // Indented checkbox sub-row
+  let sCb = (id, label, checked, handler, cite = '') =>
+    `<div class="te-sc-row te-s1-row" style="padding-left:28px;">
+       <span class="te-sc-num"></span>
+       <span class="te-sc-lbl">
+         <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:normal;">
+           <input type="checkbox" id="${id}" ${checked ? 'checked' : ''} onchange="${handler}">
+           ${label}${cite ? ` <span class="te-cite">${cite}</span>` : ''}
+         </label>
+       </span>
+     </div>`;
+
+  // Indented select sub-row
+  let sSel = (label, id, opts, handler) =>
+    `<div class="te-sc-row te-s1-row" style="padding-left:28px;">
+       <span class="te-sc-num"></span>
+       <span class="te-sc-lbl">${label}</span>
+       <select id="${id}" class="te-select te-sc-inp" onchange="${handler}">${opts}</select>
+     </div>`;
+
+  // Allowable deduction computed row (italic, indented, live-updated by teRecalculate)
+  let sDed = (id, val, cite = '') =>
+    `<div class="te-sc-row te-s1-ro-row" style="padding-left:28px;font-style:italic;">
+       <span class="te-sc-num"></span>
+       <span class="te-sc-lbl">Allowable deduction${cite ? ` <span class="te-cite">${cite}</span>` : ''}</span>
+       <span class="te-sc-val"><span id="${id}">${fmtRO(val)}</span></span>
+     </div>`;
+
+  // Annotation note (optionally ID'd and warn-colored, optionally hidden)
+  let sNote = (text, id = '', warn = false, show = true) =>
+    `<div class="te-ded-note"${id ? ` id="${id}"` : ''} style="margin:2px 0 4px 2.8rem;font-size:0.82rem;${warn ? 'color:var(--te-warn,#f59e0b);' : ''}${!show ? 'display:none;' : ''}">${text}</div>`;
 
   // ── Row helpers ────────────────────────────────────────────────────
 
@@ -2655,8 +3665,15 @@ function teRenderSchedule1PII() {
 
     ${iRow('12', 'Certain business expenses of reservists, performing artists, and fee-basis government officials &nbsp;<span class="te-cite">(Form 2106)</span>', 'p2L12', s1.p2L12, 'IRC §62(a)(2)(B),(C),(D)')}
 
-    ${rRow('13', 'Health savings account deduction &nbsp;<span class="te-cite">(Form 8889)</span>',
-        'te-s2-l13', fmtRO(ln.l13), 'hsa', 'Auto from Form 8889 &mdash; click to edit')}
+    ${sHdr('13', 'Health savings account deduction <span class="te-cite">(Form 8889)</span>', 'IRC §223')}
+    ${sSel('Coverage type', 'te-adj-hsa-type',
+        `<option value="self"   ${a.hsaCoverageType !== 'family' ? 'selected' : ''}>Self-Only (${teFmt(K.hsa ? K.hsa.limitSelf   : 0)} limit)</option>
+         <option value="family" ${a.hsaCoverageType === 'family' ? 'selected' : ''}>Family (${teFmt(K.hsa ? K.hsa.limitFamily : 0)} limit)</option>`,
+        'teOnAgiAdj()')}
+    ${sInp(`HSA contributions made for ${yr}`, 'te-adj-hsa-contrib', a.hsaContributions, 'teOnAgiAdj()')}
+    ${sCb('te-adj-hsa-55', 'Age 55+ catch-up (+$1,000)', a.hsaTaxpayerAge55, 'teOnAgiAdj()', 'IRC §223(b)(3)(B)')}
+    ${sNote('No income phase-out. Requires qualifying HDHP. Taxpayer certifies eligibility. <span class="te-cite">IRC §223(b)(1)</span>')}
+    ${sDed('te-s2-l13', ln.l13, 'IRC §223')}
 
     <div class="te-sc-row te-s1-row">
       <span class="te-sc-num">14</span>
@@ -2682,10 +3699,16 @@ function teRenderSchedule1PII() {
 
     ${iRow('17', 'Self-employed health insurance deduction', 'p2L17', s1.p2L17, 'IRC §162(l)')}
 
-    ${iRow('18', 'Penalty on early withdrawal of savings', 'p2L18', s1.p2L18, 'Bank/CD penalty &mdash; reported on 1099-INT Box 2')}
+    ${rRow('18', 'Penalty on early withdrawal of savings', 'te-s2-l18',
+        fmtRO(calc.earlyWdPenalty || 0), '1099-int', 'Auto from 1099-INT Box 2 &mdash; click to edit')}
 
     <!-- Line 19a/19b/19c — Alimony -->
-    ${rRow('19a', 'Alimony paid', 'te-s2-l19a', fmtRO(ln.l19a), 'alimony', 'Auto from alimony schedule &mdash; click to edit')}
+    ${sHdr('19a', 'Alimony paid', 'Pre-2019 agreements only — IRC §215')}
+    ${sInp(`Alimony paid during ${yr}`, 'te-al-paid', al.paid, 'teOnAlimony()')}
+    ${sCb('te-al-pre', 'Divorce/separation agreement executed before Jan 1, 2019', al.preAgreement, 'teOnAlimony()', 'TCJA §11051')}
+    ${sNote('Post-2018 agreements: alimony paid is NOT deductible under TCJA. <span class="te-cite">IRC §215(b)(2)</span>', 'te-al-note-post', true,  !al.preAgreement)}
+    ${sNote('Pre-2019 agreements: full amount deductible. Recipient must report in gross income. <span class="te-cite">IRC §215(a), §71</span>',  'te-al-note-pre',  false, al.preAgreement)}
+    ${sDed('te-s2-l19a', ln.l19a, 'IRC §215')}
     <div class="te-sc-row te-s1-row" style="padding-left:28px;">
       <span class="te-sc-num">19b</span>
       <span class="te-sc-lbl">Recipient&#39;s SSN <span class="te-sc-note">XXX-XX-XXXX (required if 19a &gt; 0)</span></span>
@@ -2695,15 +3718,27 @@ function teRenderSchedule1PII() {
     </div>
     <div class="te-sc-row te-s1-row" style="padding-left:28px;">
       <span class="te-sc-num">19c</span>
-      <span class="te-sc-lbl">Date of original divorce or separation agreement <span class="te-sc-note">mm/dd/yyyy</span></span>
+      <span class="te-sc-lbl">Date of original divorce or separation agreement <span class="te-sc-note">mm/dd/yyyy — auto-sets eligibility above</span></span>
       <input type="text" class="te-input te-mono te-sc-inp" maxlength="10" placeholder="mm/dd/yyyy"
         value="${esc(s1.p2L19c||'')}"
-        oninput="teOnSched1PII('p2L19c',this.value)">
+        oninput="teOnAlimonyDate(this.value)">
     </div>
 
-    ${rRow('20', 'IRA deduction', 'te-s2-l20', fmtRO(ln.l20), 'ira-ded', 'Auto from IRA deduction screen &mdash; click to edit')}
+    ${sHdr('20', 'IRA deduction', 'IRC §219')}
+    ${sInp(`IRA contributions made for ${yr}`, 'te-adj-ira-contrib', a.iraContributions, 'teOnAgiAdj()')}
+    ${sCb('te-adj-ira-50', 'Age 50+ catch-up (+$1,000)', a.iraAge50Plus, 'teOnAgiAdj()', 'IRC §219(b)(5)(B)')}
+    ${sCb('te-adj-ira-active', 'Covered by employer retirement plan', a.iraActiveParticipant, 'teOnAgiAdj()', 'IRC §219(g)(2)')}
+    ${isMFJ ? sCb('te-adj-ira-spouse-active', 'Spouse covered by employer plan', a.iraSpouseActive, 'teOnAgiAdj()', 'IRC §219(g)(7)') : ''}
+    ${sNote(`Contribution limit: ${teFmt(K.ira ? K.ira.limit : 0)} (+$1,000 if age 50+). Deductibility phases out when covered by an employer plan. <span class="te-cite">IRC §219(g)</span>`)}
+    ${sDed('te-s2-l20', ln.l20, 'IRC §219')}
 
-    ${rRow('21', 'Student loan interest deduction', 'te-s2-l21', fmtRO(ln.l21), 'sli', 'Auto from SLI screen &mdash; click to edit')}
+    ${isMFS
+      ? sHdr('21', 'Student loan interest deduction', 'Not available for MFS — IRC §221(b)(2)(B)')
+        + sNote('Not available for Married Filing Separately. <span class="te-cite">IRC §221(b)(2)(B)</span>')
+      : sHdr('21', 'Student loan interest deduction', 'IRC §221')
+        + sInp(`Interest paid in ${yr} (Form 1098-E)`, 'te-adj-sli', a.studentLoanInterest, 'teOnAgiAdj()')
+        + sNote(`Maximum $2,500. Phase-out: ${teFmt(K.studentLoanInterest ? (isMFJ ? K.studentLoanInterest.phaseout.mfj.floor    : K.studentLoanInterest.phaseout.single.floor)    : 0)}–${teFmt(K.studentLoanInterest ? (isMFJ ? K.studentLoanInterest.phaseout.mfj.ceiling  : K.studentLoanInterest.phaseout.single.ceiling)  : 0)} MAGI. <span class="te-cite">IRC §221(b)(1),(b)(2)</span>`)
+        + sDed('te-s2-l21', ln.l21, 'IRC §221')}
 
     <!-- Line 22 — Reserved -->
     <div class="te-sc-row te-s1-row" style="opacity:0.45;pointer-events:none;">
@@ -4235,7 +5270,36 @@ function teOnAlimony() {
   let gb = id => { let el = document.getElementById(id); return el ? el.checked : false; };
   teCurrentReturn.alimony.paid         = g('te-al-paid');
   teCurrentReturn.alimony.preAgreement = gb('te-al-pre');
+  // Toggle inline note visibility
+  let pre  = teCurrentReturn.alimony.preAgreement;
+  let nPost = document.getElementById('te-al-note-post');
+  let nPre  = document.getElementById('te-al-note-pre');
+  if (nPost) nPost.style.display = pre ? 'none' : '';
+  if (nPre)  nPre.style.display  = pre ? ''     : 'none';
   teRecalculate();
+}
+
+// Handler — Line 19c date field; auto-syncs the pre-2019 eligibility checkbox (IRC §215 / TCJA §11051)
+// If the date is valid, derives preAgreement from (date < 2019-01-01) and updates te-al-pre.
+// Checkbox remains manually overrideable via teOnAlimony(). Empty/invalid date: no calc impact.
+function teOnAlimonyDate(val) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.schedule1) teCurrentReturn.schedule1 = {};
+  if (!teCurrentReturn.alimony)   teCurrentReturn.alimony   = {};
+  teCurrentReturn.schedule1.p2L19c = val;
+  let d = new Date(val);
+  if (!isNaN(d.getTime()) && val.trim() !== '') {
+    let isPreAgreement = d < new Date('2019-01-01');
+    teCurrentReturn.alimony.preAgreement = isPreAgreement;
+    let cb    = document.getElementById('te-al-pre');
+    let nPost = document.getElementById('te-al-note-post');
+    let nPre  = document.getElementById('te-al-note-pre');
+    if (cb)    cb.checked          = isPreAgreement;
+    if (nPost) nPost.style.display = isPreAgreement ? 'none' : '';
+    if (nPre)  nPre.style.display  = isPreAgreement ? ''     : 'none';
+    teRecalculate();
+  }
 }
 
 // Handler — Estimated payments field changes
@@ -5076,10 +6140,11 @@ function teRenderPenaltyAccordion(calc) {
   let row = (label, val, cls='') =>
     `<div class="te-ctc-row${cls ? ' ' + cls : ''}"><span>${label}</span><span>${val}</span></div>`;
 
-  let iraEntries = teCurrentReturn.ira1099r     || [];
-  let penEntries = teCurrentReturn.pension1099r || [];
-  let penaltySubjects = [...iraEntries, ...penEntries]
-    .filter(e => (parseFloat(e.age) || 0) < 59.5 && !e.penaltyException);
+  let r1099s = teCurrentReturn.r1099s || [];
+  let penaltySubjects = r1099s.filter(e => {
+    let code = (e.box7 || '').trim().toUpperCase();
+    return code === '1' || code === 'S';
+  });
 
   let penHtml = `
     <div class="te-ctc-tbl" style="margin-top:8px;">
@@ -5089,19 +6154,20 @@ function teRenderPenaltyAccordion(calc) {
       ${(calc.pensionTaxable || 0) > 0 ? row('Pension Taxable Amount <span class="te-cite">1040 Line 5b</span>',          teFmt(calc.pensionTaxable), 'te-ctc-sub') : ''}
       <div class="te-ctc-row" style="margin-top:6px;"></div>
       ${penaltySubjects.length > 0
-        ? penaltySubjects.map(e =>
-            row((esc(e.payerName) || 'Distribution') + ' — taxable amount, Age ' + (e.age || '?'),
-                teFmt(parseFloat(e.taxableDist) || 0), 'te-ctc-sub')
-          ).join('')
-          + row('× Rate <span class="te-cite">IRC §72(t)(1)</span>', '10%', 'te-ctc-sub')
+        ? penaltySubjects.map(e => {
+            let code = (e.box7 || '').trim().toUpperCase();
+            let rate = code === 'S' ? 0.25 : 0.10;
+            return row(
+              (esc(e.payerName) || 'Distribution') + ' — Box 2a taxable, Code ' + code,
+              teFmt(parseFloat(e.box2a) || 0), 'te-ctc-sub'
+            ) + row('× Rate <span class="te-cite">' + (code === 'S' ? 'IRC §72(t)(6)' : 'IRC §72(t)(1)') + '</span>',
+              (rate * 100).toFixed(0) + '%', 'te-ctc-sub');
+          }).join('')
           + row('= Early Withdrawal Penalty <span class="te-cite">IRC §72(t)</span>', teFmt(calc.earlyWithdrawalPenalty || 0), 'te-ctc-tot')
-        : row('Early Withdrawal Penalty', '$0 — no distributions before age 59½, or §72(t)(2) exception applies', 'te-ctc-ok')}
+        : row('Early Withdrawal Penalty', '$0 — Box 7 code indicates no §72(t) penalty on any distribution', 'te-ctc-ok')}
     </div>
     <div class="te-ded-note" style="margin-top:4px;">
-      10% penalty applies when age at distribution is under 59½ and no IRC §72(t)(2) exception applies.
-      Exceptions: disability §72(t)(2)(A)(ii), SEPP/72(t) plan §72(t)(2)(A)(iv), death, medical expenses &gt;7.5% AGI,
-      health insurance premiums while unemployed, higher education expenses, first-home purchase (IRA only, $10K lifetime §72(t)(2)(F)).
-      Mark the &quot;Exc.&quot; checkbox in the Income section for each qualifying distribution.
+      Penalty is auto-derived from Box 7 distribution code: Code 1 → 10% (IRC §72(t)(1)); Code S → 25% SIMPLE IRA (IRC §72(t)(6)); all other codes → no penalty.
       <span class="te-cite">IRC §72(t); Schedule 2 Line 8</span>
     </div>`;
 

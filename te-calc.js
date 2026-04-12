@@ -415,19 +415,46 @@ function teRecalculate() {
   ));
 
   // Track 4: Investment income — IRC §61(a)(4),(7); §1221
-  let inv = teCurrentReturn.schedule1099 || {};
-  calc.interestIncome    = teRound(Math.max(0, parseFloat(inv.interestIncome)    || 0));
-  calc.ordinaryDividends = teRound(Math.max(0, parseFloat(inv.ordinaryDividends) || 0));
-  // Tax-exempt interest: not taxable, but required for §86 provisional income formula
-  calc.taxExemptInterest = teRound(Math.max(0, parseFloat(inv.taxExemptInterest) || 0));
+  // ── 1099-INT aggregation ─────────────────────────────────────────────
+  // Box 1: Ordinary interest → 1040 Line 2b (via Schedule B Line 4)
+  // Box 2: Early withdrawal penalty → Schedule 1 Part II Line 18 (auto, no separate input)
+  // Box 3: Interest on US savings bonds/Treasury obligations → Schedule B Part I only
+  // Box 4: Federal tax withheld → payments
+  // Box 8: Tax-exempt interest → 1040 Line 2a
+  let int1099s = teCurrentReturn.int1099s || [];
+  calc.interestIncome    = teRound(int1099s.reduce((s, e) => s + Math.max(0, parseFloat(e.box1) || 0), 0));
+  calc.usSavingsInt      = teRound(int1099s.reduce((s, e) => s + Math.max(0, parseFloat(e.box3) || 0), 0));
+  calc.taxExemptInterest = teRound(int1099s.reduce((s, e) => s + Math.max(0, parseFloat(e.box8) || 0), 0));
+  calc.earlyWdPenalty    = teRound(int1099s.reduce((s, e) => s + Math.max(0, parseFloat(e.box2) || 0), 0));
+  calc.intWithholding    = teRound(int1099s.reduce((s, e) => s + Math.max(0, parseFloat(e.box4) || 0), 0));
+  // Schedule B Part I: total interest (ordinary + US savings bonds) — Line 2
+  let sbIntManual = ((teCurrentReturn.schedB || {}).intManualPayers || [])
+    .reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+  calc.schedBL2 = teRound(calc.interestIncome + calc.usSavingsInt + sbIntManual);
+  // Schedule B Line 4: after Series EE/I exclusion (Form 8815) — feeds 1040 Line 2b
+  // TODO: Form 8815 exclusion not yet implemented; line 3 passthrough is the full amount for now
+  calc.schedBL4 = calc.schedBL2;
+  // ── 1099-DIV aggregation ─────────────────────────────────────────────
+  // Box 1a: Total ordinary dividends → 1040 Line 3b (via Schedule B Line 6)
+  // Box 1b: Qualified dividends (subset of 1a) → 1040 Line 3a
+  // Box 4: Federal tax withheld → payments
+  let div1099s = teCurrentReturn.div1099s || [];
+  calc.ordinaryDividends = teRound(div1099s.reduce((s, e) => s + Math.max(0, parseFloat(e.box1a) || 0), 0));
+  let rawQD              = teRound(div1099s.reduce((s, e) => s + Math.max(0, parseFloat(e.box1b) || 0), 0));
+  calc.divWithholding    = teRound(div1099s.reduce((s, e) => s + Math.max(0, parseFloat(e.box4)  || 0), 0));
+  // Schedule B Part II: total dividends — Line 6 feeds 1040 Line 3b
+  let sbDivManual = ((teCurrentReturn.schedB || {}).divManualPayers || [])
+    .reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+  calc.schedBL6 = teRound(calc.ordinaryDividends + sbDivManual);
+  // Qualified dividends must be ≤ ordinary dividends — IRC §1(h)(11)(B)
+  calc.qualifiedDividends = teRound(Math.min(rawQD, calc.ordinaryDividends));
   // Social Security — read early; taxable amount computed after preliminary AGI
+  // Box 5 (net benefits = Box 3 − Box 4) is what the taxpayer enters as 'benefits'.
+  // Box 4 (repaid): if repayments > $3,000, IRC §1341 claim-of-right may apply — flagged only, not computed here.
+  // Box 6 (withheld): voluntary federal withholding → 1040 Line 25b.
   let ss = teCurrentReturn.socialSecurity || {};
   calc.ssBenefitsGross = teRound(Math.max(0, parseFloat(ss.benefits) || 0));
-  // Qualified dividends must be ≤ ordinary dividends — IRC §1(h)(11)(B)
-  calc.qualifiedDividends = teRound(Math.min(
-    Math.max(0, parseFloat(inv.qualifiedDividends) || 0),
-    calc.ordinaryDividends
-  ));
+  calc.ssWithholding   = teRound(Math.max(0, parseFloat(ss.withheld) || 0));
 
   // Schedule D — IRC §1221, §1222
   let sd    = teCurrentReturn.scheduleD || {};
@@ -519,22 +546,28 @@ function teRecalculate() {
   // Non-passive losses flow through without restriction (e.g., general partner, material participation)
   calc.scheduleENet = teRound(calc.scheduleEPassiveDeductible + calc.scheduleENonPassive);
 
-  // IRA distributions — IRC §72, §408; 1040 Lines 4a/4b
-  let iraEntries = teCurrentReturn.ira1099r || [];
-  calc.iraGross   = teRound(iraEntries.reduce((s, e) => s + (parseFloat(e.grossDist)   || 0), 0));
-  calc.iraTaxable = teRound(iraEntries.reduce((s, e) => s + (parseFloat(e.taxableDist) || 0), 0));
-
-  // Pension & annuity distributions — IRC §72; 1040 Lines 5a/5b
-  let penEntries     = teCurrentReturn.pension1099r || [];
-  calc.pensionGross   = teRound(penEntries.reduce((s, e) => s + (parseFloat(e.grossDist)   || 0), 0));
-  calc.pensionTaxable = teRound(penEntries.reduce((s, e) => s + (parseFloat(e.taxableDist) || 0), 0));
-
-  // Early withdrawal penalty — IRC §72(t)(1): 10% on taxable amount for distributions before age 59½
-  // Exceptions under IRC §72(t)(2): disability, SEPP, death, medical >7.5% AGI, health ins., education, first-home (IRA)
+  // IRA & Pension/Annuity distributions — unified r1099s[] — IRC §72, §408; 1040 Lines 4a/4b, 5a/5b
+  // Box 7 distribution codes that carry a §72(t) penalty:
+  //   '1' → Early distribution, no known exception → 10% — IRC §72(t)(1)
+  //   'S' → Early distribution from SIMPLE IRA, < 2 years participation → 25% — IRC §72(t)(6)
+  //   All other codes (2,3,4,5,6,7,8,A,B,C,D,E,F,G,H,J,K,L,M,N,P,Q,R,T,U,W) → 0%
+  let r1099s    = teCurrentReturn.r1099s || [];
+  let iraEntries = r1099s.filter(e => e.type === 'ira');
+  let penEntries = r1099s.filter(e => e.type === 'pension');
+  calc.iraGross       = teRound(iraEntries.reduce((s, e) => s + (parseFloat(e.box1)  || 0), 0));
+  calc.iraTaxable     = teRound(iraEntries.reduce((s, e) => s + (parseFloat(e.box2a) || 0), 0));
+  calc.pensionGross   = teRound(penEntries.reduce((s, e) => s + (parseFloat(e.box1)  || 0), 0));
+  calc.pensionTaxable = teRound(penEntries.reduce((s, e) => s + (parseFloat(e.box2a) || 0), 0));
+  // Federal withholding from 1099-R Box 4 → 1040 Line 25b
+  calc.r1099Withholding = teRound(r1099s.reduce((s, e) => s + (parseFloat(e.box4) || 0), 0));
+  // Early withdrawal penalty — IRC §72(t): determined by Box 7 distribution code
   calc.earlyWithdrawalPenalty = teRound(
-    [...iraEntries, ...penEntries]
-      .filter(e => (parseFloat(e.age) || 0) < 59.5 && !e.penaltyException)
-      .reduce((s, e) => s + (parseFloat(e.taxableDist) || 0) * 0.10, 0)
+    r1099s.reduce((s, e) => {
+      let taxable = parseFloat(e.box2a) || 0;
+      let code    = (e.box7 || '').trim().toUpperCase();
+      let rate    = code === '1' ? 0.10 : code === 'S' ? 0.25 : 0;
+      return s + taxable * rate;
+    }, 0)
   );
 
   // ── Schedule 1, Part I — Additional Income ──────────────────────────────
@@ -794,11 +827,11 @@ function teRecalculate() {
   // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section162
   let s2L17 = teRound(Math.max(0, parseFloat(s1.p2L17)||0));
 
-  // Line 18 — Penalty on early withdrawal of savings
-  // Forfeited interest/penalty imposed by bank/institution for early withdrawal from time deposit (CD)
-  // Reported on 1099-INT Box 2. DISTINCT from IRC §72(t) 10% early distribution tax (which is a tax, not a deduction).
+  // Line 18 — Penalty on early withdrawal of savings — IRC §62(a)(9)
+  // Auto-populated from 1099-INT Box 2 aggregate. Forfeited interest/penalty imposed by institution
+  // for early withdrawal from time deposit (CD). DISTINCT from IRC §72(t) 10% early distribution tax.
   // Source: IRS Publication 550 — Investment Income and Expenses
-  let s2L18 = teRound(Math.max(0, parseFloat(s1.p2L18)||0));
+  let s2L18 = calc.earlyWdPenalty || 0;
 
   // Line 19a = calc.alimonyDeduction (display only — already in calc.adjustments above)
   // Line 20  = calc.iraDeduction    (display only — already in calc.adjustments above)
@@ -1174,8 +1207,15 @@ function teRecalculate() {
   // ── Step 12: Refund / Balance Due ───────────────────────────────────
   // Refundable credits: EIC (§32) + ACTC (§24(d)) + AOC refundable (§25A(i)) — 1040 Line 32
   calc.totalRefundableCredits = teRound(calc.actcRefundable + calc.aocRefundable + calc.eicCredit);
-  // Total payments: withholding (Line 25a) + estimated (Line 26) + refundable credits (Line 32) → 1040 Line 33
-  calc.totalPayments = teRound(calc.w2Withholding + calc.estPayments + calc.totalRefundableCredits);
+  // Other withholding: 1099-INT Box 4 + 1099-DIV Box 4 + 1099-R Box 4 + SSA-1099 Box 6 → 1040 Line 25b
+  calc.otherWithholding = teRound(
+    (calc.intWithholding   || 0) +
+    (calc.divWithholding   || 0) +
+    (calc.r1099Withholding || 0) +
+    (calc.ssWithholding    || 0)
+  );
+  // Total payments: withholding (Line 25a+25b) + estimated (Line 26) + refundable credits (Line 32) → 1040 Line 33
+  calc.totalPayments = teRound(calc.w2Withholding + calc.otherWithholding + calc.estPayments + calc.totalRefundableCredits);
   // Refund (1040 Line 34) and Balance Due (1040 Line 37) — named aliases
   calc.refund     = teRound(Math.max(0,  calc.totalPayments - calc.totalTax));
   calc.balanceDue = teRound(Math.max(0,  calc.totalTax      - calc.totalPayments));
@@ -1265,15 +1305,14 @@ function teRecalculate() {
         if (tv2) tv2.textContent = teFmt(calc.w2Withholding || 0);
       } break;
       case 'retirement': {
-        // Two independent total bars — update each by specific ID (no te-mini-total-val on this screen)
-        let iraTV = document.getElementById('te-ira-total-val');
-        let penTV = document.getElementById('te-pension-total-val');
-        let iraBar = document.getElementById('te-ira-total-bar');
-        let penBar = document.getElementById('te-pension-total-bar');
-        if (iraTV)  iraTV.textContent  = teFmt(calc.iraTaxable    || 0);
-        if (penTV)  penTV.textContent  = teFmt(calc.pensionTaxable || 0);
-        if (iraBar) iraBar.style.display = (teCurrentReturn.ira1099r    || []).length > 0 ? 'flex' : 'none';
-        if (penBar) penBar.style.display = (teCurrentReturn.pension1099r|| []).length > 0 ? 'flex' : 'none';
+        let g2 = id => document.getElementById(id);
+        let hasAny = (teCurrentReturn.r1099s || []).length > 0;
+        let rBar = g2('te-r1099-total-bar');
+        if (rBar) rBar.style.display = hasAny ? '' : 'none';
+        if (g2('te-r1099-total-ira'))  g2('te-r1099-total-ira').textContent  = teFmt(calc.iraTaxable      || 0);
+        if (g2('te-r1099-total-pen'))  g2('te-r1099-total-pen').textContent  = teFmt(calc.pensionTaxable  || 0);
+        if (g2('te-r1099-total-wh'))   g2('te-r1099-total-wh').textContent   = teFmt(calc.r1099Withholding|| 0);
+        if (g2('te-r1099-total-ewp'))  g2('te-r1099-total-ewp').textContent  = teFmt(calc.earlyWithdrawalPenalty || 0);
       } break;
       case 'ss': {
         // SS summary is display-only (no inputs) — safe to update innerHTML directly
@@ -1428,6 +1467,12 @@ function teRecalculate() {
         // --- Part II ---
         let sl2 = calc.sched1PII_lines || {};
         let g2  = id => document.getElementById(id);
+        // Inline deduction computed totals (lines 13, 18, 19a, 20, 21 — now entered directly on this screen)
+        if (g2('te-s2-l13'))  g2('te-s2-l13').textContent  = teFmt(sl2.l13  || 0);
+        if (g2('te-s2-l18'))  g2('te-s2-l18').textContent  = teFmt(calc.earlyWdPenalty || 0);
+        if (g2('te-s2-l19a')) g2('te-s2-l19a').textContent = teFmt(sl2.l19a || 0);
+        if (g2('te-s2-l20'))  g2('te-s2-l20').textContent  = teFmt(sl2.l20  || 0);
+        if (g2('te-s2-l21'))  g2('te-s2-l21').textContent  = teFmt(sl2.l21  || 0);
         // Line 25 — total other adjustments
         if (g2('te-s2-l25')) g2('te-s2-l25').textContent = teFmt(sl2.l25 || 0);
         // Line 26 — total bar + value
@@ -1446,6 +1491,29 @@ function teRecalculate() {
       case 'hsa':        if (totalValEl) totalValEl.textContent = teFmt(calc.hsaDeduction                                          || 0); break;
       case 'ira-ded':    if (totalValEl) totalValEl.textContent = teFmt(calc.iraDeduction                                          || 0); break;
       case 'alimony':    if (totalValEl) totalValEl.textContent = teFmt(calc.alimonyDeduction                                      || 0); break;
+      case '1099-int': {
+        // Update totals bar: aggregate ordinary interest from all cards
+        let g2 = id => document.getElementById(id);
+        if (g2('te-int-total-box1')) g2('te-int-total-box1').textContent = teFmt(calc.interestIncome || 0);
+        if (g2('te-int-total-box4')) g2('te-int-total-box4').textContent = teFmt(calc.intWithholding || 0);
+        if (g2('te-int-total-penalty')) g2('te-int-total-penalty').textContent = teFmt(calc.earlyWdPenalty || 0);
+        if (totalValEl) totalValEl.textContent = teFmt(calc.interestIncome || 0);
+      } break;
+      case '1099-div': {
+        let g2 = id => document.getElementById(id);
+        if (g2('te-div-total-box1a')) g2('te-div-total-box1a').textContent = teFmt(calc.ordinaryDividends  || 0);
+        if (g2('te-div-total-box1b')) g2('te-div-total-box1b').textContent = teFmt(calc.qualifiedDividends || 0);
+        if (g2('te-div-total-box4'))  g2('te-div-total-box4').textContent  = teFmt(calc.divWithholding     || 0);
+        if (totalValEl) totalValEl.textContent = teFmt(calc.ordinaryDividends || 0);
+      } break;
+      case 'sched-b': {
+        // Update Schedule B computed line totals
+        let g2 = id => document.getElementById(id);
+        if (g2('te-sb-l2')) g2('te-sb-l2').textContent = teFmt(calc.schedBL2 || 0);  // Part I total interest
+        if (g2('te-sb-l4')) g2('te-sb-l4').textContent = teFmt(calc.schedBL4 || 0);  // After Form 8815 exclusion → 1040 L2b
+        if (g2('te-sb-l6')) g2('te-sb-l6').textContent = teFmt(calc.schedBL6 || 0);  // Part II total dividends → 1040 L3b
+        if (totalValEl) totalValEl.textContent = teFmt((calc.schedBL4 || 0) + (calc.schedBL6 || 0));
+      } break;
       case 'salt':       if (totalValEl) totalValEl.textContent = teFmt(calc.saltDeduction                                         || 0); break;
       case 'mortgage':   if (totalValEl) totalValEl.textContent = teFmt(calc.mortgageDeduction                                     || 0); break;
       case 'charitable': if (totalValEl) totalValEl.textContent = teFmt(calc.charitableDeduction                                   || 0); break;

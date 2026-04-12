@@ -69,16 +69,24 @@ function teEmptyReturn(clientId, clientName, taxYear) {
     estimatedPayments: {
       q1: '', q2: '', q3: '', q4: ''  // Form 1040-ES — IRC §6654
     },
-    // ── Track 4: Investment Income ─────────────────────────────────────
-    schedule1099: {
-      interestIncome:    '',   // 1099-INT — IRC §61(a)(4)
-      ordinaryDividends: '',   // 1099-DIV Box 1a — IRC §61(a)(7)
-      qualifiedDividends:'',   // 1099-DIV Box 1b — IRC §1(h)(11); must be ≤ ordinaryDividends
-      taxExemptInterest: ''    // 1099-INT Box 8 — not taxable, but required for §86 provisional income calc
+    // ── Track 4: Investment Income — per-document entry ──────────────────
+    // Replaces legacy schedule1099 summary fields; each entry captures all boxes from the source document.
+    int1099s: [],  // 1099-INT entries — IRC §61(a)(4); each: {payer,payerTin,box1..box17,state,stateId,collapsed,advOpen}
+    div1099s: [],  // 1099-DIV entries — IRC §61(a)(7); each: {payer,payerTin,box1a..box16,state,stateId,collapsed,advOpen}
+    schedB: {
+      line3:           '',   // Excludable Series EE/I U.S. savings bond interest — IRC §135
+      intManualPayers: [],   // Manual interest entries not on a 1099 — [{payer:'',amount:''}]
+      divManualPayers: [],   // Manual dividend entries not on a 1099
+      line7a:          '',   // Foreign financial account (Yes/No)
+      line7aFbar:      '',   // FBAR (FinCEN 114) required (Yes/No)
+      line7b:          '',   // Foreign country name(s)
+      line8:           ''    // Foreign trust involvement (Yes/No)
     },
     // ── Social Security Benefits — IRC §86 — 1040 Lines 6a/6b ────────────
     socialSecurity: {
-      benefits:           '',    // SSA-1099 Box 5 — total benefits received → 1040 Line 6a
+      benefits:           '',    // SSA-1099 Box 5 — net benefits (Box 3 − Box 4) → 1040 Line 6a
+      repaid:             '',    // SSA-1099 Box 4 — benefits repaid to SSA (reduces gross; if >3,000 may qualify IRC §1341 deduction)
+      withheld:           '',    // SSA-1099 Box 6 — voluntary federal income tax withheld → 1040 Line 25b
       mfsLivedWithSpouse: false  // IRC §86(c)(2): MFS filer who lived with spouse → 85% taxable on dollar one
     },
     scheduleD: {
@@ -267,10 +275,10 @@ function teEmptyReturn(clientId, clientName, taxYear) {
       biomass:        ''    // biomass stoves/boilers — Pool B
     },
     // ── Step 2: IRA & Pension/Annuity Distributions — IRC §72; 1040 Lines 4a/4b, 5a/5b ─
-    // Each entry: { payerName, grossDist, taxableDist, age, penaltyException }
-    // taxableDist auto-syncs to grossDist on input; user can override (basis, Roth, partial rollover)
-    ira1099r:     [],   // IRA distributions — IRC §408, §72; 1040 Lines 4a/4b
-    pension1099r: [],   // Pension & annuity distributions — IRC §72; 1040 Lines 5a/5b
+    // Unified per-document array. type:'ira' → Lines 4a/4b; type:'pension' → Lines 5a/5b.
+    // Box 7 distribution code auto-derives §72(t) penalty: '1'→10%, 'S'→25%, others→none.
+    // Each entry: { type, payerName, payerTin, box1, box2a, box2bNotDet, box2bTotal, box4, box7, collapsed, advOpen }
+    r1099s: [],
 
     // ── Track 6 — Alternative Minimum Tax — IRC §55 ──────────────────────
     // ISO exercise spread: spread at exercise of incentive stock options — IRC §56(b)(3)
@@ -523,14 +531,20 @@ function teUpdateBreadcrumb() {
 }
 function teGetScheduleStatus(schedId) {
   let r  = teCurrentReturn;
-  let s1 = r.schedule1099 || {};
   switch (schedId) {
     case 'w2':       return (r.w2 || []).length > 0 ? 'entered' : 'empty';
-    case 'ira':      return (r.ira1099r || []).length > 0 ? 'entered' : 'empty';
-    case 'pension':  return (r.pension1099r || []).length > 0 ? 'entered' : 'empty';
+    case 'retirement':
+    case 'ira':
+    case 'pension':  return (r.r1099s || []).length > 0 ? 'entered' : 'empty';
     case 'ss':       return parseFloat((r.socialSecurity || {}).benefits) > 0 ? 'entered' : 'empty';
-    case '1099-div': return parseFloat(s1.ordinaryDividends) > 0 ? 'entered' : 'empty';
-    case '1099-int': return parseFloat(s1.interestIncome) > 0 ? 'entered' : 'empty';
+    case '1099-int': return (r.int1099s || []).some(e => parseFloat(e.box1) > 0 || parseFloat(e.box3) > 0 || parseFloat(e.box8) > 0) ? 'entered' : 'empty';
+    case '1099-div': return (r.div1099s || []).some(e => parseFloat(e.box1a) > 0) ? 'entered' : 'empty';
+    case 'sched-b': {
+      let sb = r.schedB || {};
+      return (r.int1099s||[]).length > 0 || (r.div1099s||[]).length > 0
+        || (sb.intManualPayers||[]).length > 0 || (sb.divManualPayers||[]).length > 0
+        || sb.line7a || sb.line7b || sb.line8 ? 'entered' : 'empty';
+    }
     case 'sched-d': {
       let sd  = r.scheduleD || {};
       let stHas = (sd.shortTermTransactions||[]).some(tx => tx.proceeds || tx.cost || tx.description);
@@ -746,7 +760,13 @@ function teSerialize(r) {
     scheduleC:          r.scheduleC          || { netProfit: '', businessInfo:{}, expenses:{}, partIII:{}, partIV:{}, otherExpenseRows:[] },
     alimony:            r.alimony            || { paid: '', preAgreement: false },
     estimatedPayments:  r.estimatedPayments  || { q1: '', q2: '', q3: '', q4: '' },
-    schedule1099:       r.schedule1099       || { interestIncome: '', ordinaryDividends: '', qualifiedDividends: '' },
+    int1099s:           r.int1099s           || [],
+    div1099s:           r.div1099s           || [],
+    schedB:             r.schedB             || { line3: '', intManualPayers: [], divManualPayers: [], line7a: '', line7aFbar: '', line7b: '', line8: '' },
+    r1099s:             r.r1099s             || [],
+    socialSecurity:     r.socialSecurity     || { benefits: '', repaid: '', withheld: '', mfsLivedWithSpouse: false },
+    isoExercise:        r.isoExercise        || {},
+    canBeClaimed:       r.canBeClaimed       !== undefined ? r.canBeClaimed : false,
     scheduleD:          r.scheduleD          || { shortTermTransactions:[{id:'st-0',description:'',dateAcquired:'',dateSold:'',proceeds:'',cost:'',adjustments:''}], longTermTransactions:[{id:'lt-0',description:'',dateAcquired:'',dateSold:'',proceeds:'',cost:'',adjustments:''}], stGainForm6252:'',stGainK1:'',stLossCarryover:'',ltGainForm4797:'',ltGainK1:'',capitalGainDistributions:'',ltLossCarryover:'',rate28Gain:'',unrecaptured1250:'',qualifiedOpportunityFund:false,netSTCG:'',netLTCG:'',priorYearCarryforward:'' },
     scheduleE:          r.scheduleE          || [],
     schedule1:          r.schedule1          || { k1099Amount:'', taxRefunds:'', alimonyReceived:'', alimonyDate:'', otherGains:'', otherGainsForm4797:false, otherGainsForm4684:false, unemployment:'', unemploymentRepaid:false, unemploymentRepaidAmt:'', l8a:'', l8b:'', l8c:'', l8d:'', l8e:'', l8f:'', l8g:'', l8h:'', l8i:'', l8j:'', l8k:'', l8l:'', l8m:'', l8n:'', l8o:'', l8p:'', l8q:'', l8r:'', l8s:'', l8t:'', l8u:'', l8v:'', otherIncomeRows:[] },
@@ -844,8 +864,84 @@ function teDeserialize(data) {
   if (!_sa.otherDeductions)                    _sa.otherDeductions       = [];
   if (_sa.mfsSpouseItemizes     === undefined) _sa.mfsSpouseItemizes     = false;
   if (_sa.electToItemize        === undefined) _sa.electToItemize        = false;
-  // Track 4 backfill
-  if (!r.schedule1099)       r.schedule1099       = { interestIncome: '', ordinaryDividends: '', qualifiedDividends: '' };
+  // Track 4 backfill — migrate legacy schedule1099 summary fields into per-document arrays
+  if (!r.int1099s) {
+    let old = r.schedule1099 || {};
+    // Migrate: if old summary fields have values, seed one card entry from them
+    if (old.interestIncome || old.taxExemptInterest) {
+      r.int1099s = [{
+        payer: '', payerTin: '',
+        box1: old.interestIncome    || '',  // ordinary interest
+        box2: '',                            // early withdrawal penalty (auto to Sch 1 L18)
+        box3: old.taxExemptInterest || '',  // interest on US savings bonds
+        box4: '',                            // federal tax withheld
+        box5: '', box6: false, box7: '', box8: old.taxExemptInterest || '',
+        box9: '', box10: '', box11: '', box12: '', box13: '', box14: '', box15: '', box16: '', box17: '',
+        state: '', stateId: '',
+        collapsed: false, advOpen: false
+      }];
+    } else {
+      r.int1099s = [];
+    }
+  }
+  if (!r.div1099s) {
+    let old = r.schedule1099 || {};
+    if (old.ordinaryDividends || old.qualifiedDividends) {
+      r.div1099s = [{
+        payer: '', payerTin: '',
+        box1a: old.ordinaryDividends  || '',  // total ordinary dividends
+        box1b: old.qualifiedDividends || '',  // qualified dividends
+        box2a: '', box2b: '', box2c: '', box2d: '', box2e: '', box2f: '',
+        box3: '', box4: '',  // box4 = federal tax withheld
+        box5: '', box6: '', box7: '', box8: '', box9: '', box10: '', box11: '',
+        box12: '', box13: '', box14: '', box15: '', box16: '',
+        state: '', stateId: '',
+        collapsed: false, advOpen: false
+      }];
+    } else {
+      r.div1099s = [];
+    }
+  }
+  if (!r.schedB) r.schedB = { line3: '', intManualPayers: [], divManualPayers: [], line7a: '', line7aFbar: '', line7b: '', line8: '' };
+  // Track 2 backfill — migrate legacy ira1099r / pension1099r arrays into unified r1099s[]
+  if (!r.r1099s) {
+    let migrated = [];
+    (r.ira1099r || []).forEach(e => {
+      migrated.push({
+        type: 'ira',
+        payerName:   e.payerName  || '',
+        payerTin:    '',
+        box1:        e.grossDist    || '',   // gross distribution
+        box2a:       e.taxableDist  || '',   // taxable amount
+        box2bNotDet: false,
+        box2bTotal:  false,
+        box4:        '',                     // federal withholding not captured in old schema
+        box7:        e.penaltyException ? '7' : (e.age && parseFloat(e.age) < 59.5 ? '1' : '7'),
+        collapsed:   false,
+        advOpen:     false
+      });
+    });
+    (r.pension1099r || []).forEach(e => {
+      migrated.push({
+        type: 'pension',
+        payerName:   e.payerName  || '',
+        payerTin:    '',
+        box1:        e.grossDist    || '',
+        box2a:       e.taxableDist  || '',
+        box2bNotDet: false,
+        box2bTotal:  false,
+        box4:        '',
+        box7:        e.penaltyException ? '7' : (e.age && parseFloat(e.age) < 59.5 ? '1' : '7'),
+        collapsed:   false,
+        advOpen:     false
+      });
+    });
+    r.r1099s = migrated;
+  }
+  // Backfill new SSA-1099 fields
+  if (!r.socialSecurity) r.socialSecurity = {};
+  if (r.socialSecurity.repaid   === undefined) r.socialSecurity.repaid   = '';
+  if (r.socialSecurity.withheld === undefined) r.socialSecurity.withheld = '';
   if (!r.scheduleD) r.scheduleD = {};
   // Backfill new per-transaction arrays on old returns (had only netSTCG/netLTCG/priorYearCarryforward)
   if (!r.scheduleD.shortTermTransactions) r.scheduleD.shortTermTransactions = [{ id:'st-0',description:'',dateAcquired:'',dateSold:'',proceeds:'',cost:'',adjustments:'' }];
