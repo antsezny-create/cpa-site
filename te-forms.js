@@ -144,19 +144,25 @@ function teRenderIncomeMenu() {
           (r.scheduleE||[]).length > 0, teFmt(c.scheduleENet||0), src)}
       ${(() => {
         let s1 = r.schedule1 || {};
-        // hasS1: check both raw state fields AND computed sched1Extra.
-        // sched1Extra is non-zero when lines 1, 2a, 4, 7, or 8a–8z have data — same
-        // fields as the manual checks below, but catches any calc-path discrepancies.
+        // hasS1: check raw state fields, computed sched1Extra, AND Schedule C/E calc values.
+        // sched1Extra covers lines 1, 2a, 4, 7, 8a–8z. Lines 3 (Sched C) and 5 (Sched E)
+        // flow through Schedule 1 Part I but live in calc — must be checked separately.
         let hasS1 = (c.sched1Extra || 0) !== 0
+          || (c.netSEIncome || 0) !== 0
+          || (c.scheduleENet || 0) !== 0
           || (parseFloat(s1.taxRefunds)||0) > 0 || (parseFloat(s1.alimonyReceived)||0) > 0
           || (parseFloat(s1.otherGains)||0) > 0 || (parseFloat(s1.unemployment)||0) > 0
           || ['l8a','l8b','l8c','l8d','l8e','l8f','l8g','l8h','l8i','l8j','l8k','l8l',
               'l8m','l8n','l8o','l8p','l8q','l8r','l8s','l8t','l8u','l8v'].some(k => (parseFloat(s1[k])||0) !== 0)
           || (s1.otherIncomeRows||[]).length > 0;
-        let s1Extra = c.sched1Extra || 0;
+        // Amount: use full Part I Line 10 total from calc (includes lines 3+5+extra).
+        // Fall back to summing known parts if sched1Lines not yet populated.
+        let s1Total = (c.sched1Lines && c.sched1Lines.l10 !== undefined)
+          ? c.sched1Lines.l10
+          : teRound((c.sched1Extra||0) + (c.netSEIncome||0) + (c.scheduleENet||0));
         return teMenuCard('sched-1', 'Schedule 1', 'Additional Income',
           'Taxable refunds, alimony, other gains, unemployment, other income. Sch. 1 Part I → 1040 Line 8.',
-          hasS1, hasS1 ? teFmt(Math.abs(s1Extra)) : null, src);
+          hasS1, hasS1 ? teFmt(Math.abs(s1Total)) : null, src);
       })()}
     </div>
     <div class="te-menu-total">
@@ -180,8 +186,9 @@ function teRenderDeductionsMenu() {
     <div class="te-menu-grid">
       ${teMenuCard('sched-1', 'Schedule 1 Part II', 'Above-the-Line Deductions',
           'Student loan interest, HSA, IRA, and alimony paid. Enter directly on Schedule 1. IRC §62.',
-          ((c.sliDeduction||0)+(c.hsaDeduction||0)+(c.iraDeduction||0)+(c.alimonyDeduction||0)) > 0,
-          teFmt((c.sliDeduction||0)+(c.hsaDeduction||0)+(c.iraDeduction||0)+(c.alimonyDeduction||0)), src)}
+          (c.sliDeduction||0) > 0 || (c.iraDeduction||0) > 0 || (c.hsaDeduction||0) > 0
+            || (c.alimonyDeduction||0) > 0 || (c.seTaxDeduction||0) > 0,
+          teFmt(c.adjustments || 0), src)}
       ${teMenuAutoCard('Schedule 1', 'SE Tax Deduction',
           'Deductible half of self-employment tax. Auto-calculated from Schedule SE Line 13. IRC §164(f).',
           (c.seTaxDeduction||0) > 0, teFmt(c.seTaxDeduction||0))}
