@@ -47,7 +47,8 @@ function handleAdminLogin() {
   btn.textContent = "Signing in...";
   btn.disabled    = true;
 
-  let persistence = (email.toLowerCase() === "sesnyanthony@gmail.com")
+  let remember = document.getElementById("admin-remember").checked;
+  let persistence = remember
     ? firebase.auth.Auth.Persistence.LOCAL
     : firebase.auth.Auth.Persistence.SESSION;
 

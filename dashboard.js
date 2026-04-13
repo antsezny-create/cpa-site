@@ -1094,7 +1094,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
 auth.onAuthStateChanged(user => {
   if (!user) {
-    window.location.href = "admin.html";
+    setTimeout(() => {
+      if (!auth.currentUser) {
+        window.location.href = "admin.html";
+      }
+    }, 2000);
     return;
   }
   db.collection("admins").doc(user.uid).get().then(doc => {
