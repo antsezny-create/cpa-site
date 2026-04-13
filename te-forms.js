@@ -40,6 +40,7 @@
 
 // Build a clickable card for the section menu pages
 function teMenuCard(schedId, formNum, title, desc, hasData, amtDisplay, navSrc) {
+  if (teMenuInUse && !hasData) return '';  // "In Use Only" filter — hide empty cards
   let dot = hasData
     ? '<span class="te-card-dot te-card-dot-on"></span>'
     : '<span class="te-card-dot te-card-dot-off"></span>';
@@ -53,6 +54,17 @@ function teMenuCard(schedId, formNum, title, desc, hasData, amtDisplay, navSrc) 
       <div class="te-card-desc">${desc}</div>
       <div class="te-card-footer">${amt}</div>
     </div>`;
+}
+
+// Toggle "In Use Only" filter — flips teMenuInUse and re-renders the current section menu.
+function teToggleMenuFilter() {
+  teMenuInUse = !teMenuInUse;
+  teSwitchSection(teActiveSection);
+}
+
+// Helper: returns the toggle button HTML — placed in each section menu's header row.
+function teMenuFilterBtn() {
+  return `<button class="ghost-btn te-sm-btn" onclick="teToggleMenuFilter()" style="white-space:nowrap;margin-top:2px;">${teMenuInUse ? 'Show All' : 'In Use Only'}</button>`;
 }
 
 // Auto card — read-only, non-clickable. Used for deductions auto-calculated by the engine.
@@ -85,10 +97,15 @@ function teRenderIncomeMenu() {
     || ((r.schedB||{}).intManualPayers||[]).length > 0 || ((r.schedB||{}).divManualPayers||[]).length > 0
     || (r.schedB||{}).line7a || (r.schedB||{}).line7b;
   let sdNet   = c.scheduleDNet || 0;
-  let hasSd   = !!(((r.scheduleD||{}).netSTCG)||((r.scheduleD||{}).netLTCG)||((r.scheduleD||{}).priorYearCarryforward));
+  // hasSd: check raw state fields OR computed net — catches capital gain distributions
+  // flowing from 1099-DIV Box 2a (which sets calc.scheduleDNet without a direct Sch. D entry).
+  let hasSd   = (sdNet !== 0) || !!(((r.scheduleD||{}).netSTCG)||((r.scheduleD||{}).netLTCG)||((r.scheduleD||{}).priorYearCarryforward));
   return `
-    <div class="te-sec-hdr"><h2>Income</h2>
-    <p class="te-sec-sub">Select a form to enter data &mdash; <span class="te-cite">IRC §61</span></p></div>
+    <div class="te-sec-hdr" style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div><h2>Income</h2>
+      <p class="te-sec-sub">Select a form to enter data &mdash; <span class="te-cite">IRC §61</span></p></div>
+      ${teMenuFilterBtn()}
+    </div>
     <div class="te-menu-section-lbl">Source Documents <span class="te-cite">IRC §61</span></div>
     <div class="te-menu-grid">
       ${teMenuCard('w2',         'W-2',          'Wages &amp; Salaries',
@@ -127,7 +144,11 @@ function teRenderIncomeMenu() {
           (r.scheduleE||[]).length > 0, teFmt(c.scheduleENet||0), src)}
       ${(() => {
         let s1 = r.schedule1 || {};
-        let hasS1 = (parseFloat(s1.taxRefunds)||0) > 0 || (parseFloat(s1.alimonyReceived)||0) > 0
+        // hasS1: check both raw state fields AND computed sched1Extra.
+        // sched1Extra is non-zero when lines 1, 2a, 4, 7, or 8a–8z have data — same
+        // fields as the manual checks below, but catches any calc-path discrepancies.
+        let hasS1 = (c.sched1Extra || 0) !== 0
+          || (parseFloat(s1.taxRefunds)||0) > 0 || (parseFloat(s1.alimonyReceived)||0) > 0
           || (parseFloat(s1.otherGains)||0) > 0 || (parseFloat(s1.unemployment)||0) > 0
           || ['l8a','l8b','l8c','l8d','l8e','l8f','l8g','l8h','l8i','l8j','l8k','l8l',
               'l8m','l8n','l8o','l8p','l8q','l8r','l8s','l8t','l8u','l8v'].some(k => (parseFloat(s1[k])||0) !== 0)
@@ -150,8 +171,11 @@ function teRenderDeductionsMenu() {
   let c   = r._calc || {};
   let src = 'deductions';
   return `
-    <div class="te-sec-hdr"><h2>Deductions</h2>
-    <p class="te-sec-sub">Select a schedule to enter data &mdash; <span class="te-cite">IRC §62, §63</span></p></div>
+    <div class="te-sec-hdr" style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div><h2>Deductions</h2>
+      <p class="te-sec-sub">Select a schedule to enter data &mdash; <span class="te-cite">IRC §62, §63</span></p></div>
+      ${teMenuFilterBtn()}
+    </div>
     <div class="te-menu-section-lbl">Above-the-Line Adjustments <span class="te-cite">IRC §62</span></div>
     <div class="te-menu-grid">
       ${teMenuCard('sched-1', 'Schedule 1 Part II', 'Above-the-Line Deductions',
@@ -196,8 +220,11 @@ function teRenderCreditsMenu() {
                 (c.saversCredit||0)+(c.energyCredit||0)+
                 (c.aocRefundable||0);
   return `
-    <div class="te-sec-hdr"><h2>Tax Credits</h2>
-    <p class="te-sec-sub">Select a credit to enter data &mdash; <span class="te-cite">IRC §24, §25A, §32</span></p></div>
+    <div class="te-sec-hdr" style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div><h2>Tax Credits</h2>
+      <p class="te-sec-sub">Select a credit to enter data &mdash; <span class="te-cite">IRC §24, §25A, §32</span></p></div>
+      ${teMenuFilterBtn()}
+    </div>
     <div class="te-menu-grid">
       ${teMenuCard('ctc',    'Form 8812',   'Child Tax Credit',
           'CTC ($2,200 / child under 17) + ACTC refundable portion. Auto-calculated from dependents.',
@@ -1666,7 +1693,8 @@ function teAddW2() {
     box13Statutory: false, box13Retirement: false, box13ThirdParty: false,
     box14: [],
     stateRows: [{ state: '', stateId: '', stateWages: '', stateTax: '', localWages: '', localTax: '', locality: '' }],
-    collapsed: false
+    collapsed: false,
+    ficaManual: false  // true when user manually edits Box 3/4/5/6 — disables Box 1 auto-fill for this card
   });
   teRenderW2List();
   teRecalculate();
@@ -1697,7 +1725,49 @@ function teOnW2Num(i, field) {
     let el = document.getElementById('te-w2-' + i + '-' + field);
     if (!el || !teCurrentReturn.w2[i]) return;
     teMarkDirty();
-    teCurrentReturn.w2[i][field] = el.value;
+    let w = teCurrentReturn.w2[i];
+    w[field] = el.value;
+
+    // ── FICA manual override lock ──────────────────────────────────────────
+    // If the user types directly into Box 3/4/5/6, mark this card as manually
+    // overridden so future Box 1 changes no longer cascade to these fields.
+    if (field === 'box3' || field === 'box4' || field === 'box5' || field === 'box6') {
+      w.ficaManual = true;
+    }
+
+    // ── W-2 Box 1 auto-fill: Boxes 3, 4, 5, 6 ────────────────────────────
+    // Runs on every Box 1 change unless ficaManual flag is set.
+    // IRC §3101(a): 6.2% SS rate on wages up to SS wage base.
+    // IRC §3101(b): 1.45% Medicare rate — no cap.
+    // Full formula: Box 3 = min(box1 + box7, ssWageBase). Box 7 (SS tips,
+    // restaurant industry) excluded for simplicity — add box7 term if needed later.
+    if (field === 'box1' && !w.ficaManual) {
+      let yr         = teCurrentReturn.taxYear || teActiveYear;
+      let K          = TAX_CONSTANTS[yr] || {};
+      let ssWageBase = (K.se && K.se.ssTaxWageBase) ? K.se.ssTaxWageBase : 0;
+      let box1Val    = Math.max(0, parseFloat(el.value) || 0);
+
+      let box3 = ssWageBase ? teRound(Math.min(box1Val, ssWageBase)) : teRound(box1Val);
+      let box4 = teRound(box3 * 0.062);   // IRC §3101(a)
+      let box5 = teRound(box1Val);         // Medicare wages: uncapped, equals Box 1
+      let box6 = teRound(box5 * 0.0145);  // IRC §3101(b)
+
+      w.box3 = String(box3);
+      w.box4 = String(box4);
+      w.box5 = String(box5);
+      w.box6 = String(box6);
+
+      // Sync DOM so auto-filled values appear immediately without a re-render
+      let b3 = document.getElementById('te-w2-' + i + '-box3');
+      let b4 = document.getElementById('te-w2-' + i + '-box4');
+      let b5 = document.getElementById('te-w2-' + i + '-box5');
+      let b6 = document.getElementById('te-w2-' + i + '-box6');
+      if (b3) b3.value = box3;
+      if (b4) b4.value = box4;
+      if (b5) b5.value = box5;
+      if (b6) b6.value = box6;
+    }
+
     teRecalculate();
   }, 150);
 }
@@ -6882,6 +6952,37 @@ function teUpdateMeter(calc, K, fs) {
     rl.textContent = 'Balance Due';
     rv.textContent = teFmt(Math.abs(calc.refundOrDue));
     rb.className   = 'te-meter-result te-res-due';
+  }
+
+  // ── Tax Rates ─────────────────────────────────────────────────────────
+  // Effective rate: total tax ÷ gross income (IRC §61 total). Zero-guarded.
+  let effEl = document.getElementById('te-m-effective');
+  if (effEl) {
+    if (calc.grossIncome > 0 && calc.totalTax > 0) {
+      let effRate = (calc.totalTax / calc.grossIncome) * 100;
+      effEl.textContent = effRate.toFixed(1) + '%';
+    } else {
+      effEl.textContent = '—';
+    }
+  }
+
+  // Marginal rate: bracket whose ceiling first exceeds taxableIncome.
+  // Bracket format is [upperBound, rate] — income in (prevCeiling, upperBound] is taxed at rate.
+  // Walk finds the first bracket where taxableIncome <= upperBound; that is the marginal bracket.
+  // Does not adjust for QDLTCG preferential rates — shows ordinary income marginal bracket.
+  let margEl = document.getElementById('te-m-marginal');
+  if (margEl) {
+    if (calc.taxableIncome > 0 && K && K.brackets) {
+      let bKey     = (fs === 'qss') ? 'mfj' : (fs || 'single');
+      let brackets = K.brackets[bKey] || K.brackets.single || [];
+      let margRate = brackets[brackets.length - 1][1]; // default: top bracket rate
+      for (let bi = 0; bi < brackets.length; bi++) {
+        if (calc.taxableIncome <= brackets[bi][0]) { margRate = brackets[bi][1]; break; }
+      }
+      margEl.textContent = (margRate * 100).toFixed(0) + '%';
+    } else {
+      margEl.textContent = '—';
+    }
   }
 }
 

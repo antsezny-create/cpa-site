@@ -14,7 +14,8 @@ let teSchedDTimer    = null;   // debounce timer for Schedule D inputs (150ms)
 let teSchedS1Timer   = null;   // debounce timer for Schedule 1 Part I inputs (150ms)
 let teSchedS1PiiTimer = null;  // debounce timer for Schedule 1 Part II inputs (150ms)
 let teSchedATimer    = null;   // debounce timer for Schedule A inputs (150ms)
-let teW2Timers = {};            // debounce timers for W-2 inputs, keyed by 'i_field'
+let teW2Timers   = {};          // debounce timers for W-2 inputs, keyed by 'i_field'
+let teMenuInUse  = false;      // "In Use Only" menu filter toggle — hides empty cards when true
 function teEmptyReturn(clientId, clientName, taxYear) {
   return {
     id:           null,
@@ -818,6 +819,7 @@ function teDeserialize(data) {
     if (w.box13Retirement === undefined) w.box13Retirement = false;
     if (w.box13ThirdParty === undefined) w.box13ThirdParty = false;
     if (w.collapsed       === undefined) w.collapsed       = false;
+    if (w.ficaManual      === undefined) w.ficaManual      = false; // auto-fill lock: true when user manually edits Box 3/4/5/6
     return w;
   });
   if (!r.scheduleC)               r.scheduleC           = { netProfit: '' };

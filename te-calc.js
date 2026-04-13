@@ -406,6 +406,11 @@ function teRecalculate() {
 
   let seData_       = teCurrentReturn.scheduleSE || {};
   calc.w2Wages      = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.box1)||parseFloat(w.wages)||0), 0));
+  // IRC §3121: SS wages (Box 3 sum) — computed here (before SE calc) because Schedule SE Line 8a uses it.
+  // Full FICA formula: Box 3 = min(box1 + box7, ssWageBase). Box 7 excluded for now — see W-2 auto-fill in te-forms.js.
+  calc.w2Box3     = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.box3) || 0), 0));
+  // IRC §219(g)(5): active participant flag — computed here (before teCalcIRA) because IRA phase-out depends on it.
+  calc.w2Box13Ret = (teCurrentReturn.w2 || []).some(w => w.box13Retirement);
   // netSEIncome = Schedule C + Schedule F farm profit + CRP payments (all SE sources)
   // IRC §1402(a): net earnings from self-employment includes all trade/business net income
   calc.netSEIncome  = teRound(Math.max(0,
@@ -722,8 +727,11 @@ function teRecalculate() {
   // IRC §1402(b): SS component of SE tax limited to excess of annual wage base
   let seLine7  = SE.ssTaxWageBase;
 
-  // Line 8a — W-2 Social Security wages and tips already subject to FICA SS tax
-  let seLine8a = calc.w2Wages;
+  // Line 8a — W-2 Social Security wages (Box 3 aggregate) already subject to FICA SS tax.
+  // IRC §1402(b): SE SS applies only to wage base room not already consumed by W-2 Box 3 wages.
+  // Uses calc.w2Box3 (sum of per-card Box 3 values) rather than Box 1 wages — Box 3 is capped
+  // at the SS wage base per employer by W-2 auto-fill. IRC §3121.
+  let seLine8a = calc.w2Box3;
 
   // Line 8b — Unreported tips subject to SS (from Form 4137; tip income not reported to employer)
   // IRC §3102(c): employee must pay SE-equivalent SS on unreported tips
@@ -781,6 +789,11 @@ function teRecalculate() {
   // §219 Traditional IRA
   // MAGI = grossIncome − HSA − SLI − seTaxDeduction (§219 excluded from own MAGI)
   let magiForIRA    = teRound(calc.grossIncome - calc.hsaDeduction - calc.sliDeduction - calc.seTaxDeduction);
+  // IRC §219(g)(5): active participant auto-wire — one-way only (never auto-clears to preserve manual overrides).
+  // If any W-2 Box 13 Retirement is checked, the taxpayer is an active participant in an employer plan.
+  // The manual checkbox on Schedule 1 Part II Line 20 remains fully functional as an override.
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section219
+  if (calc.w2Box13Ret) adj.iraActiveParticipant = true;
   calc.iraDeduction = teCalcIRA(adj, magiForIRA, K, fs);
 
   // §215 Alimony Paid (pre-2019 divorce agreements only)
@@ -1179,7 +1192,7 @@ function teRecalculate() {
   calc.w2Withholding = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.box2)||parseFloat(w.federalWithheld)||0), 0));
   // ── W-2 Informational Aggregates ──────────────────────────────────────
   // IRC §3121: SS/Medicare wage verification (informational — not in downstream calc)
-  calc.w2Box3  = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+(parseFloat(w.box3 )||0), 0));
+  // Note: calc.w2Box3 and calc.w2Box13Ret are computed earlier (before SE calc and teCalcIRA).
   calc.w2Box4  = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+(parseFloat(w.box4 )||0), 0));
   calc.w2Box5  = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+(parseFloat(w.box5 )||0), 0));
   calc.w2Box6  = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+(parseFloat(w.box6 )||0), 0));
@@ -1192,8 +1205,7 @@ function teRecalculate() {
   calc.w2Box12Ret = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+((w.box12||[]).reduce((a,r) => a+(_retCodes.has(r.code)?(parseFloat(r.amount)||0):0), 0)), 0));
   // IRC §6051(a)(14): employer health coverage cost — ACA informational reporting only
   calc.w2Box12DD  = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+((w.box12||[]).reduce((a,r) => a+(r.code==='DD'?(parseFloat(r.amount)||0):0), 0)), 0));
-  // TODO: Wire w2Box13Ret to IRA deduction phase-out — IRC §219(g)(5): active participant flag
-  calc.w2Box13Ret = (teCurrentReturn.w2||[]).some(w => w.box13Retirement);
+  // calc.w2Box13Ret already computed above — wired to IRA active participant flag via teCalcIRA. IRC §219(g)(5).
   // TODO: Wire w2Box17/w2Box19 to Schedule A SALT — IRC §164(a)(3)
   calc.w2Box17 = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+((w.stateRows||[]).reduce((a,r) => a+(parseFloat(r.stateTax)||0), 0)), 0));
   calc.w2Box19 = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+((w.stateRows||[]).reduce((a,r) => a+(parseFloat(r.localTax)||0), 0)), 0));
