@@ -3700,7 +3700,7 @@ function teRenderSchedule1PII() {
     ${iRow('17', 'Self-employed health insurance deduction', 'p2L17', s1.p2L17, 'IRC §162(l)')}
 
     ${rRow('18', 'Penalty on early withdrawal of savings', 'te-s2-l18',
-        fmtRO(calc.earlyWdPenalty || 0), '1099-int', 'Auto from 1099-INT Box 2 &mdash; click to edit')}
+        fmtRO(c.earlyWdPenalty || 0), '1099-int', 'Auto from 1099-INT Box 2 &mdash; click to edit')}
 
     <!-- Line 19a/19b/19c — Alimony -->
     ${sHdr('19a', 'Alimony paid', 'Pre-2019 agreements only — IRC §215')}
