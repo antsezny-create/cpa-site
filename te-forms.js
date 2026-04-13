@@ -835,11 +835,12 @@ function teRenderDashboard1040() {
     </div>`;
   }
 
-  // Bold total line
+  // Bold total line — opts.hl highlights AGI/Taxable Income rows; opts.refund/due color refund result
   function tot(num, label, amt, opts) {
     opts = opts || {};
     let extra = opts.refund ? ' te-dash-refund' : opts.due ? ' te-dash-due' : '';
-    return `<div class="te-dash-line te-dash-total${extra}">
+    let hl    = opts.hl ? ' te-dash-hl' : '';
+    return `<div class="te-dash-line te-dash-total${extra}${hl}">
       <span class="te-dash-num">${num}</span>
       <span class="te-dash-lbl">${label}</span>
       <span class="te-dash-amt">${amt}</span>
@@ -925,7 +926,7 @@ function teRenderDashboard1040() {
           sched1PartII > 0 ? fvNeg(sched1PartII) : '—',
           { badges: badge('sched-1', 'Sch. 1') })}
 
-      ${tot('11a', 'Adjusted Gross Income', fv(c.agi))}
+      ${tot('11a', 'Adjusted Gross Income', fv(c.agi), { hl: true })}
 
       ${sec('Tax and Credits')}
 
@@ -938,7 +939,7 @@ function teRenderDashboard1040() {
           (c.qbiDeduction || 0) > 0 ? fvNeg(c.qbiDeduction) : '—', {})}
       ${tot('14', 'Total deductions &nbsp;<span class="te-cite">add lines 12e + 13a</span>',
           line14 > 0 ? fvNeg(line14) : '—')}
-      ${tot('15', 'Taxable income &nbsp;<span class="te-cite">line 11b − line 14</span>', fv(c.taxableIncome))}
+      ${tot('15', 'Taxable income &nbsp;<span class="te-cite">line 11b − line 14</span>', fv(c.taxableIncome), { hl: true })}
 
       ${line('16',  'Tax &nbsp;<span class="te-cite">IRC §1 brackets</span>',                  fv(c.regularTax),   {})}
       ${line('17',  'Schedule 2, line 3 &nbsp;<span class="te-cite">AMT / Form 6251</span>',   sched2line3 > 0 ? fv(sched2line3) : '—', {})}
@@ -6832,112 +6833,10 @@ function teRenderEnergySection() {
 // ──────────────────────────────────────────────────────────────────────
 
 function teUpdateMeter(calc, K, fs) {
-  teM('te-m-wages',    teFmt(calc.w2Wages));
-
-  // SE income row
-  let seIncRow = document.getElementById('te-m-se-inc-row');
-  if (seIncRow) { seIncRow.style.display = calc.netSEIncome > 0 ? 'flex' : 'none'; teM('te-m-se-inc', teFmt(calc.netSEIncome)); }
-
-  // SS taxable — hidden when $0
-  let ssMRow = document.getElementById('te-m-ss-row');
-  if (ssMRow) { ssMRow.style.display = (calc.ssBenefitsTaxable || 0) > 0 ? 'flex' : 'none'; teM('te-m-ss', teFmt(calc.ssBenefitsTaxable || 0)); }
-
-  // Track 4 income rows
-  let intRow = document.getElementById('te-m-int-row');
-  if (intRow) { intRow.style.display = calc.interestIncome > 0 ? 'flex' : 'none'; teM('te-m-int', teFmt(calc.interestIncome)); }
-  let divRow = document.getElementById('te-m-div-row');
-  if (divRow) {
-    divRow.style.display = calc.ordinaryDividends > 0 ? 'flex' : 'none';
-    let divLabel = document.getElementById('te-m-div-lbl');
-    if (divLabel) divLabel.textContent = calc.qualifiedDividends > 0
-      ? 'Dividends (' + teFmt(calc.qualifiedDividends) + ' qual.)'
-      : 'Dividends';
-    teM('te-m-div', teFmt(calc.ordinaryDividends));
-  }
-  let capRow = document.getElementById('te-m-capgain-row');
-  if (capRow) {
-    capRow.style.display = (calc.scheduleDNet !== 0 || calc.scheduleDCombined !== 0) ? 'flex' : 'none';
-    teM('te-m-capgain', calc.scheduleDNet >= 0 ? teFmt(calc.scheduleDNet) : '(' + teFmt(Math.abs(calc.scheduleDNet)) + ')');
-  }
-  let scheRow = document.getElementById('te-m-sche-row');
-  if (scheRow) { scheRow.style.display = calc.scheduleENet !== 0 ? 'flex' : 'none'; teM('te-m-sche', calc.scheduleENet >= 0 ? teFmt(calc.scheduleENet) : '(' + teFmt(Math.abs(calc.scheduleENet)) + ')'); }
-
-  let sliRow = document.getElementById('te-m-sli-row');
-  if (sliRow) { sliRow.style.display = calc.sliDeduction > 0 ? 'flex' : 'none'; teM('te-m-sli', '(' + teFmt(calc.sliDeduction) + ')'); }
-  let hsaRow = document.getElementById('te-m-hsa-row');
-  if (hsaRow) { hsaRow.style.display = calc.hsaDeduction > 0 ? 'flex' : 'none'; teM('te-m-hsa', '(' + teFmt(calc.hsaDeduction) + ')'); }
-  let iraRow = document.getElementById('te-m-ira-row');
-  if (iraRow) { iraRow.style.display = calc.iraDeduction > 0 ? 'flex' : 'none'; teM('te-m-ira', '(' + teFmt(calc.iraDeduction) + ')'); }
-
-  // SE tax deduction row
-  let seRow = document.getElementById('te-m-se-row');
-  if (seRow) { seRow.style.display = calc.seTaxDeduction > 0 ? 'flex' : 'none'; teM('te-m-se', '(' + teFmt(calc.seTaxDeduction) + ')'); }
-
-  // Alimony row
-  let alRow = document.getElementById('te-m-al-row');
-  if (alRow) { alRow.style.display = calc.alimonyDeduction > 0 ? 'flex' : 'none'; teM('te-m-al', '(' + teFmt(calc.alimonyDeduction) + ')'); }
-  teM('te-m-agi',      teFmt(calc.agi));
-  // Deduction row: show standard OR itemized label/amount depending on which is applied
-  let stdMRow  = document.getElementById('te-m-std-row');
-  let itMRow   = document.getElementById('te-m-itemized-row');
-  let useIt    = calc.deductionType === 'itemized';
-  if (stdMRow)  stdMRow.style.display  = useIt ? 'none'  : 'flex';
-  if (itMRow)   itMRow.style.display   = useIt ? 'flex'  : 'none';
-  teM('te-m-std',       '(' + teFmt(calc.stdDed)       + ')');
-  teM('te-m-itemized',  '(' + teFmt(calc.itemizedTotal) + ')');
-  let qbiMRow = document.getElementById('te-m-qbi-row');
-  if (qbiMRow) { qbiMRow.style.display = (calc.qbiDeduction || 0) > 0 ? 'flex' : 'none'; teM('te-m-qbi', '(' + teFmt(calc.qbiDeduction || 0) + ')'); }
-  teM('te-m-taxable',  teFmt(calc.taxableIncome));
-  teM('te-m-regtax',   teFmt(calc.regularTax));
-  teM('te-m-ctc',     calc.ctcNonRefundable > 0 ? '(' + teFmt(calc.ctcNonRefundable) + ')' : '$0');
-  teM('te-m-edu',     calc.totalEduNonRefundable > 0 ? '(' + teFmt(calc.totalEduNonRefundable) + ')' : '$0');
-  let cdccMRow = document.getElementById('te-m-cdcc-row');
-  if (cdccMRow) { cdccMRow.style.display = calc.cdccCredit > 0 ? 'flex' : 'none'; teM('te-m-cdcc', '(' + teFmt(calc.cdccCredit) + ')'); }
-  let saversMRow = document.getElementById('te-m-savers-row');
-  if (saversMRow) { saversMRow.style.display = calc.saversCredit > 0 ? 'flex' : 'none'; teM('te-m-savers', '(' + teFmt(calc.saversCredit) + ')'); }
-  let energyMRow = document.getElementById('te-m-energy-row');
-  if (energyMRow) { energyMRow.style.display = calc.energyCredit > 0 ? 'flex' : 'none'; teM('te-m-energy', '(' + teFmt(calc.energyCredit) + ')'); }
-  teM('te-m-taxaft',   teFmt(calc.taxAfterNRCredits || 0));
-
-  // SE tax row in meter (post-credit)
-  let seTaxMRow = document.getElementById('te-m-setax-row');
-  if (seTaxMRow) { seTaxMRow.style.display = calc.seTax > 0 ? 'flex' : 'none'; teM('te-m-setax', teFmt(calc.seTax)); }
-
-  // NIIT and Additional Medicare rows
-  let niitMRow = document.getElementById('te-m-niit-row');
-  if (niitMRow) { niitMRow.style.display = calc.niit > 0 ? 'flex' : 'none'; teM('te-m-niit', teFmt(calc.niit)); }
-  let amMRow = document.getElementById('te-m-am-row');
-  if (amMRow) { amMRow.style.display = calc.addlMedicareTax > 0 ? 'flex' : 'none'; teM('te-m-am', teFmt(calc.addlMedicareTax)); }
-
-  // AMT row — hidden when $0
-  let amtMRow = document.getElementById('te-m-amt-row');
-  if (amtMRow) { amtMRow.style.display = calc.amt > 0 ? 'flex' : 'none'; teM('te-m-amt', teFmt(calc.amt || 0)); }
-
-  // Early withdrawal penalty row — hidden when $0
-  let penaltyMRow = document.getElementById('te-m-penalty-row');
-  if (penaltyMRow) { penaltyMRow.style.display = calc.earlyWithdrawalPenalty > 0 ? 'flex' : 'none'; teM('te-m-penalty', teFmt(calc.earlyWithdrawalPenalty || 0)); }
-
-  teM('te-m-wh',      '(' + teFmt(calc.w2Withholding) + ')');
-
-  // Estimated payments row
-  let epRow = document.getElementById('te-m-ep-row');
-  if (epRow) { epRow.style.display = calc.estPayments > 0 ? 'flex' : 'none'; teM('te-m-ep', '(' + teFmt(calc.estPayments) + ')'); }
-
-  let actcRow = document.getElementById('te-m-actc-row');
-  if (actcRow) {
-    actcRow.style.display = calc.actcRefundable > 0 ? 'flex' : 'none';
-    teM('te-m-actc', '(' + teFmt(calc.actcRefundable) + ')');
-  }
-  let aocRow = document.getElementById('te-m-aoc-ref-row');
-  if (aocRow) {
-    aocRow.style.display = calc.aocRefundable > 0 ? 'flex' : 'none';
-    teM('te-m-aoc-ref', '(' + teFmt(calc.aocRefundable) + ')');
-  }
-  let eicRow = document.getElementById('te-m-eic-row');
-  if (eicRow) {
-    eicRow.style.display = calc.eicCredit > 0 ? 'flex' : 'none';
-    teM('te-m-eic', '(' + teFmt(calc.eicCredit) + ')');
-  }
+  // Key Numbers — 3-row sidebar summary
+  teM('te-side-agi',      teFmt(calc.agi));
+  teM('te-side-taxable',  teFmt(calc.taxableIncome));
+  teM('te-side-totaltax', teFmt(calc.totalTax));
 
   let rl = document.getElementById('te-m-result-lbl');
   let rv = document.getElementById('te-m-result-val');
@@ -6997,6 +6896,21 @@ function teUpdateMeter(calc, K, fs) {
 //  OPTIMIZATION FLAGS
 // ──────────────────────────────────────────────────────────────────────
 
+// Returns a distinct SVG icon per severity tier.
+// critical = X-circle (penalty, material error, hard stop)
+// warning  = triangle (planning consideration, threshold proximity)
+// info     = i-circle (FYI, informational)
+function teFlagIcon(type) {
+  if (type === 'critical') {
+    return `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
+  }
+  if (type === 'warning') {
+    return `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+  }
+  // info — i-circle
+  return `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+}
+
 function teRunFlags(calc, K, fs) {
   let flags = [];
   let r     = teCurrentReturn;
@@ -7016,9 +6930,17 @@ function teRunFlags(calc, K, fs) {
     flags.push({ type: 'info', text: 'CTC reduced by ' + teFmt(Math.ceil((calc.agi - ctcThr)/1000)*50) + ' due to phase-out.' });
   }
 
-  // Withholding vs. tax
+  // Withholding vs. tax — critical: a balance is being incurred
   if (calc.taxAfterCredits > 0 && calc.w2Withholding < calc.taxAfterCredits) {
-    flags.push({ type: 'warning', text: 'Withholding (' + teFmt(calc.w2Withholding) + ') is below tax liability (' + teFmt(calc.taxAfterCredits) + '). Balance due of ' + teFmt(calc.taxAfterCredits - calc.w2Withholding) + '. Consider W-4 adjustment.' });
+    flags.push({ type: 'critical', text: 'Withholding (' + teFmt(calc.w2Withholding) + ') is below tax liability (' + teFmt(calc.taxAfterCredits) + '). Balance due of ' + teFmt(calc.taxAfterCredits - calc.w2Withholding) + '. Consider W-4 adjustment.' });
+  }
+
+  // §6654 Safe harbor — critical: if total payments < 90% of tax, underpayment penalty is likely.
+  // Note: prior-year safe harbor (100%/110%) not available without prior-year data — uses 90% current-year test only.
+  let shTax = calc.taxAfterCredits || 0;
+  let shPay = (calc.w2Withholding || 0) + (calc.estPayments || 0);
+  if (shTax > 1000 && shPay < teRound(shTax * 0.90)) {
+    flags.push({ type: 'critical', text: 'Safe harbor not met: total payments (' + teFmt(shPay) + ') are below 90% of tax liability (' + teFmt(teRound(shTax * 0.90)) + '). An underpayment penalty under IRC §6654 is likely. Increase withholding or make estimated payments to close the gap of ' + teFmt(teRound(shTax * 0.90) - shPay) + '.' });
   }
 
   // AOC phase-out proximity
@@ -7061,6 +6983,18 @@ function teRunFlags(calc, K, fs) {
       } else if (magiIRA > po.floor) {
         flags.push({ type: 'warning', text: 'Traditional IRA deduction partially reduced. MAGI (' + teFmt(magiIRA) + ') is within the ' + teFmt(po.floor) + '–' + teFmt(po.ceiling) + ' phase-out range. Deductible: ' + teFmt(calc.iraDeduction) + '.' });
       }
+    }
+  }
+
+  // HSA contribution room — info: unused §223 space is a pre-tax planning opportunity
+  // Fires when taxpayer has HDHP coverage but contributions are below the statutory limit.
+  if (adj.hsaCoverageType && K.hsa) {
+    let hsaLimit = (adj.hsaCoverageType === 'family') ? K.hsa.limitFamily : K.hsa.limitSelf;
+    if (adj.hsaTaxpayerAge55) hsaLimit += K.hsa.catchUp;
+    let hsaContribs = parseFloat(adj.hsaContributions) || 0;
+    let hsaRoom = teRound(hsaLimit - hsaContribs);
+    if (hsaRoom > 0) {
+      flags.push({ type: 'info', text: 'HSA contribution room: ' + teFmt(hsaRoom) + ' remaining of the ' + teFmt(hsaLimit) + ' ' + (adj.hsaCoverageType === 'family' ? 'family' : 'self-only') + ' annual limit. HSA contributions reduce AGI dollar-for-dollar and grow tax-free. <span class="te-cite">IRC §223(b)</span>' });
     }
   }
 
@@ -7122,26 +7056,31 @@ function teRunFlags(calc, K, fs) {
     flags.push({ type: 'info', text: 'Investment interest expense exceeds net investment income. Disallowed amount of ' + teFmt(calc.investmentInterestCarryforward) + ' carries forward to next year. <span class="te-cite">IRC §163(d)(2)</span>' });
   }
 
-  // Track 4 — QD input validation
-  if ((parseFloat((teCurrentReturn.schedule1099 || {}).qualifiedDividends) || 0) > (parseFloat((teCurrentReturn.schedule1099 || {}).ordinaryDividends) || 0)) {
-    flags.push({ type: 'warning', text: 'Qualified dividends (Box 1b) exceed ordinary dividends (Box 1a). Qualified dividends are a subset — Box 1b cannot exceed Box 1a. Engine has capped at Box 1a. <span class="te-cite">IRC §1(h)(11)(B)</span>' });
+  // Track 6 — AMT triggered — critical: client owes Additional Minimum Tax on top of regular tax
+  if ((calc.amt || 0) > 0) {
+    flags.push({ type: 'critical', text: 'AMT triggered: ' + teFmt(calc.amt) + ' in Alternative Minimum Tax added to regular tax liability. SALT and standard deduction are disallowed for AMT purposes. Common triggers: large ISO exercise spreads, accelerated depreciation add-backs, and high itemized deductions. See AMT accordion in Additional Taxes. <span class="te-cite">IRC §55; Form 6251</span>' });
   }
 
-  // Alimony: post-2018 agreement entered but marked as non-deductible
+  // Track 4 — QD input validation — critical: data entry error corrupts the computation
+  if ((parseFloat((teCurrentReturn.schedule1099 || {}).qualifiedDividends) || 0) > (parseFloat((teCurrentReturn.schedule1099 || {}).ordinaryDividends) || 0)) {
+    flags.push({ type: 'critical', text: 'Qualified dividends (Box 1b) exceed ordinary dividends (Box 1a). Qualified dividends are a subset — Box 1b cannot exceed Box 1a. Engine has capped at Box 1a. <span class="te-cite">IRC §1(h)(11)(B)</span>' });
+  }
+
+  // Alimony: post-2018 agreement entered but marked as non-deductible — critical: deduction is being disallowed
   let al = teCurrentReturn.alimony || {};
   if (parseFloat(al.paid) > 0 && !al.preAgreement) {
-    flags.push({ type: 'warning', text: 'Alimony paid (' + teFmt(parseFloat(al.paid)) + ') entered but the agreement is dated Jan 1, 2019 or later — not deductible under TCJA. Verify the original divorce or separation instrument date. <span class="te-cite">IRC §215(b)(2); TCJA §11051</span>' });
+    flags.push({ type: 'critical', text: 'Alimony paid (' + teFmt(parseFloat(al.paid)) + ') entered but the agreement is dated Jan 1, 2019 or later — not deductible under TCJA. Verify the original divorce or separation instrument date. <span class="te-cite">IRC §215(b)(2); TCJA §11051</span>' });
   }
 
-  // Home equity personal use flag — IRC §163(h)(3)(C)
+  // Home equity personal use flag — critical: interest is being excluded from Schedule A — IRC §163(h)(3)(C)
   let schedAFlags = teCurrentReturn.scheduleA || {};
   if (schedAFlags.mortgagePurpose === 'home_equity_personal' && parseFloat(schedAFlags.mortgageInterest) > 0) {
-    flags.push({ type: 'warning', text: 'Mortgage interest excluded: home equity debt used for personal purposes is not deductible under TCJA. If proceeds were used to buy, build, or improve the home, change Debt Purpose to Acquisition / Improvement. IRC §163(h)(3)(C).' });
+    flags.push({ type: 'critical', text: 'Mortgage interest excluded: home equity debt used for personal purposes is not deductible under TCJA. If proceeds were used to buy, build, or improve the home, change Debt Purpose to Acquisition / Improvement. IRC §163(h)(3)(C).' });
   }
 
-  // MFS spouse-itemizes override flag — IRC §63(e)
+  // MFS spouse-itemizes override — critical: standard deduction is legally disallowed — IRC §63(e)
   if (calc.mfsItemizedRequired) {
-    flags.push({ type: 'warning', text: 'MFS: Spouse is itemizing — standard deduction ($' + (TAX_CONSTANTS[r.taxYear] ? TAX_CONSTANTS[r.taxYear].standardDeduction.mfs.toLocaleString() : '0') + ') is disallowed on this return. Deduction used: itemized total of ' + teFmt(calc.itemizedTotal) + '. IRC §63(e).' });
+    flags.push({ type: 'critical', text: 'MFS: Spouse is itemizing — standard deduction ($' + (TAX_CONSTANTS[r.taxYear] ? TAX_CONSTANTS[r.taxYear].standardDeduction.mfs.toLocaleString() : '0') + ') is disallowed on this return. Deduction used: itemized total of ' + teFmt(calc.itemizedTotal) + '. IRC §63(e).' });
   }
 
   // Track 5 — EIC flags
@@ -7257,10 +7196,20 @@ function teRunFlags(calc, K, fs) {
   } else if (calc.deductionType === 'itemized') {
     flags.push({ type: 'info', text: 'Itemized deductions (' + teFmt(calc.itemizedTotal) + ') applied — exceeds standard deduction (' + teFmt(calc.stdDed) + ') by ' + teFmt(calc.itemizedTotal - calc.stdDed) + '.' });
   } else if (calc.itemizedTotal > 0) {
-    flags.push({ type: 'warning', text: 'Standard deduction (' + teFmt(calc.stdDed) + ') applied. Itemized total (' + teFmt(calc.itemizedTotal) + ') is ' + teFmt(calc.stdDed - calc.itemizedTotal) + ' below the standard deduction.' });
+    let dedGap = calc.stdDed - calc.itemizedTotal;
+    if (dedGap <= 3000) {
+      // Close-call: within $3,000 of the standard deduction — actionable planning opportunity
+      flags.push({ type: 'warning', text: 'Deduction close-call: standard deduction (' + teFmt(calc.stdDed) + ') applied, but itemized total (' + teFmt(calc.itemizedTotal) + ') is only ' + teFmt(dedGap) + ' below the threshold. Additional qualifying Schedule A expenses — charitable contributions, medical (>7.5% AGI), or state taxes — could make itemizing beneficial.' });
+    } else {
+      flags.push({ type: 'info', text: 'Standard deduction (' + teFmt(calc.stdDed) + ') applied. Itemized total (' + teFmt(calc.itemizedTotal) + ') is ' + teFmt(dedGap) + ' below the standard deduction.' });
+    }
   } else {
     flags.push({ type: 'info', text: 'Standard deduction of ' + teFmt(calc.stdDed) + ' applied. Enter Schedule A expenses in the Deductions section to compare.' });
   }
+
+  // Sort by severity: critical first, then warning, then info
+  const _sev = { critical: 0, warning: 1, info: 2 };
+  flags.sort((a, b) => (_sev[a.type] ?? 2) - (_sev[b.type] ?? 2));
 
   let panel = document.getElementById('te-flags-panel');
   let list  = document.getElementById('te-flags-list');
@@ -7268,7 +7217,7 @@ function teRunFlags(calc, K, fs) {
   panel.style.display = 'block';
   list.innerHTML = flags.map(f => `
     <div class="te-flag te-flag-${f.type}">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      ${teFlagIcon(f.type)}
       <span>${f.text}</span>
     </div>`).join('');
 }

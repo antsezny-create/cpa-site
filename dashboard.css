@@ -32,6 +32,8 @@
   --shadow-sm:    0 1px 3px rgba(0,0,0,0.4);
   --shadow-md:    0 4px 16px rgba(0,0,0,0.4);
   --shadow-lg:    0 8px 32px rgba(0,0,0,0.5);
+  /* Tax engine topbar sticky offset — height of .te-engine-topbar (padding 10+14 + ~44px content + 1px border) */
+  --te-topbar-h:  69px;
 }
 
 body {
@@ -3578,7 +3580,12 @@ select.cal-input { cursor: pointer; }
   gap: 14px;
   padding: 10px 0 14px;
   border-bottom: 1px solid var(--border);
+  margin-top: -32px;   /* offsets .dash-main's 32px top padding so natural position == sticky position — eliminates scroll "jump" */
   margin-bottom: 16px;
+  position: sticky;
+  top: 58px; /* clears the 58px fixed .dash-nav — body is the scroll container */
+  z-index: 10;
+  background: var(--bg);
 }
 .te-back-btn {
   display: flex;
@@ -3634,7 +3641,10 @@ select.cal-input { cursor: pointer; }
   flex-direction: column;
   gap: 1px;
   position: sticky;
-  top: 16px;
+  top: calc(58px + var(--te-topbar-h) + 8px);
+  max-height: calc(100vh - 58px - var(--te-topbar-h) - 48px);
+  overflow-y: auto;
+  align-self: flex-start;
 }
 .te-sec-btn {
   display: flex;
@@ -4418,8 +4428,8 @@ input[type="number"].te-input {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   position: sticky;
-  top: 16px;
-  max-height: calc(100vh - 80px);
+  top: calc(58px + var(--te-topbar-h) + 8px);
+  max-height: calc(100vh - 58px - var(--te-topbar-h) - 48px);
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
@@ -4616,19 +4626,11 @@ input[type="number"].te-input {
   margin-bottom: 24px;
 }
 
-/* Section break — thin rule with label (matches actual 1040 section headers) */
+/* Section break — left-aligned label with single bottom rule */
 .te-dash-sec-break {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   margin: 14px 0 6px 0;
-}
-.te-dash-sec-break::before,
-.te-dash-sec-break::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
 }
 .te-dash-sec-lbl {
   font-size: 9px;
@@ -4657,22 +4659,26 @@ input[type="number"].te-input {
 .te-dash-line.te-dash-indent { padding-left: 20px; }
 .te-dash-line.te-dash-sub    { opacity: 0.75; }
 
-/* Total / summary lines */
+/* Total / summary lines — no background by default; only .te-dash-hl and refund/due rows get one */
 .te-dash-line.te-dash-total {
-  background: var(--bg-input);
+  background: none;
   border: 1px solid var(--border);
   padding: 7px 10px;
   margin-top: 3px;
   margin-bottom: 3px;
 }
-.te-dash-line.te-dash-total .te-dash-num  { color: var(--accent); font-weight: 800; }
+/* Highlighted totals: AGI (11a), Taxable Income (15), and Refund/Due rows */
+.te-dash-line.te-dash-total.te-dash-hl {
+  background: var(--bg-input);
+}
+.te-dash-line.te-dash-total .te-dash-num  { color: var(--text-dim); font-weight: 600; }
 .te-dash-line.te-dash-total .te-dash-lbl  { font-weight: 700; color: var(--text); }
 .te-dash-line.te-dash-total .te-dash-amt  { font-weight: 800; color: var(--text); }
 
 /* Column cells */
 .te-dash-num {
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-dim);
   font-family: 'JetBrains Mono', monospace;
   text-align: right;
@@ -4695,11 +4701,11 @@ input[type="number"].te-input {
   min-width: 90px;
 }
 
-/* Refund / due highlight variants */
-.te-dash-line.te-dash-total.te-dash-refund { border-color: rgba(52, 211, 153, 0.4); }
-.te-dash-line.te-dash-total.te-dash-refund .te-dash-amt { color: #34d399; }
-.te-dash-line.te-dash-total.te-dash-due    { border-color: rgba(248, 113, 113, 0.4); }
-.te-dash-line.te-dash-total.te-dash-due    .te-dash-amt { color: #f87171; }
+/* Refund / due highlight variants — dominant: isolated with extra top margin, large amount */
+.te-dash-line.te-dash-total.te-dash-refund { border-color: rgba(52, 211, 153, 0.4); background: var(--bg-input); margin-top: 20px; }
+.te-dash-line.te-dash-total.te-dash-refund .te-dash-amt { color: #34d399; font-size: 20px; }
+.te-dash-line.te-dash-total.te-dash-due    { border-color: rgba(248, 113, 113, 0.4); background: var(--bg-input); margin-top: 20px; }
+.te-dash-line.te-dash-total.te-dash-due    .te-dash-amt { color: #f87171; font-size: 20px; }
 
 /* Schedule status badges */
 .te-dash-badge {
@@ -4715,11 +4721,11 @@ input[type="number"].te-input {
 }
 .te-dash-badge:hover { opacity: 0.75; }
 
-/* Entered = green accent */
+/* Entered = muted gray (uniform with off state — reduce visual noise) */
 .te-dash-badge-on {
-  background: rgba(52, 211, 153, 0.15);
-  color: #34d399;
-  border: 1px solid rgba(52, 211, 153, 0.3);
+  background: var(--bg-input);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 /* Empty = muted gray */
 .te-dash-badge-off {

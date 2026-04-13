@@ -513,159 +513,22 @@
               <div class="te-meter-label" id="te-m-result-lbl">Enter data to calculate</div>
             </div>
 
-            <!-- Calculation Chain -->
+            <!-- Key Numbers — clean 3-row sidebar summary -->
             <div class="te-meter-body">
-              <div class="te-meter-section-lbl">Income &amp; Adjustments</div>
-              <div class="te-meter-line">
-                <span class="te-meter-key">W-2 Wages</span>
-                <span class="te-meter-val" id="te-m-wages">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-se-inc-row" style="display:none;">
-                <span class="te-meter-key">SE Income (Sch. C)</span>
-                <span class="te-meter-val" id="te-m-se-inc">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-ss-row" style="display:none;">
-                <span class="te-meter-key">SS Benefits (Taxable) §86</span>
-                <span class="te-meter-val" id="te-m-ss">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-int-row" style="display:none;">
-                <span class="te-meter-key">Interest Income</span>
-                <span class="te-meter-val" id="te-m-int">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-div-row" style="display:none;">
-                <span class="te-meter-key" id="te-m-div-lbl">Dividends</span>
-                <span class="te-meter-val" id="te-m-div">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-capgain-row" style="display:none;">
-                <span class="te-meter-key">Schedule D Net</span>
-                <span class="te-meter-val" id="te-m-capgain">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-sche-row" style="display:none;">
-                <span class="te-meter-key">Schedule E Net</span>
-                <span class="te-meter-val" id="te-m-sche">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-sli-row" style="display:none;">
-                <span class="te-meter-key te-meter-indent">Student Loan Int.</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-sli">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-hsa-row" style="display:none;">
-                <span class="te-meter-key te-meter-indent">HSA Deduction</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-hsa">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-ira-row" style="display:none;">
-                <span class="te-meter-key te-meter-indent">IRA Deduction</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-ira">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-se-row" style="display:none;">
-                <span class="te-meter-key te-meter-indent">SE Tax Ded. §164(f)</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-se">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-al-row" style="display:none;">
-                <span class="te-meter-key te-meter-indent">Alimony Paid §215</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-al">—</span>
-              </div>
+              <div class="te-meter-section-lbl">Key Numbers</div>
               <div class="te-meter-line te-meter-line-total">
                 <span class="te-meter-key">AGI</span>
-                <span class="te-meter-val" id="te-m-agi">—</span>
-              </div>
-
-              <div class="te-meter-divider"></div>
-              <div class="te-meter-section-lbl">Deductions</div>
-              <div class="te-meter-line" id="te-m-std-row">
-                <span class="te-meter-key">Std. Deduction</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-std">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-itemized-row" style="display:none;">
-                <span class="te-meter-key">Itemized Ded.</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-itemized">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-qbi-row" style="display:none;">
-                <span class="te-meter-key">QBI Ded. §199A</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-qbi">—</span>
+                <span class="te-meter-val" id="te-side-agi">—</span>
               </div>
               <div class="te-meter-line te-meter-line-total">
                 <span class="te-meter-key">Taxable Income</span>
-                <span class="te-meter-val" id="te-m-taxable">—</span>
-              </div>
-
-              <div class="te-meter-divider"></div>
-              <div class="te-meter-section-lbl">Tax Liability</div>
-              <div class="te-meter-line te-meter-line-total">
-                <span class="te-meter-key">Regular Tax</span>
-                <span class="te-meter-val" id="te-m-regtax">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-amt-row" style="display:none;">
-                <span class="te-meter-key">+ AMT §55</span>
-                <span class="te-meter-val" id="te-m-amt">—</span>
-              </div>
-
-              <div class="te-meter-divider"></div>
-              <div class="te-meter-section-lbl">Credits Applied</div>
-              <div class="te-meter-line">
-                <span class="te-meter-key">Child Tax Credit</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-ctc">—</span>
-              </div>
-              <div class="te-meter-line">
-                <span class="te-meter-key">Edu Credits</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-edu">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-cdcc-row" style="display:none;">
-                <span class="te-meter-key">Care Credit §21</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-cdcc">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-savers-row" style="display:none;">
-                <span class="te-meter-key">Saver's Credit §25B</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-savers">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-energy-row" style="display:none;">
-                <span class="te-meter-key">Energy Credit §25C</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-energy">—</span>
+                <span class="te-meter-val" id="te-side-taxable">—</span>
               </div>
               <div class="te-meter-line te-meter-line-total">
-                <span class="te-meter-key">Tax After NR Credits</span>
-                <span class="te-meter-val" id="te-m-taxaft">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-setax-row" style="display:none;">
-                <span class="te-meter-key">+ SE Tax §1401</span>
-                <span class="te-meter-val" id="te-m-setax">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-niit-row" style="display:none;">
-                <span class="te-meter-key">+ NIIT §1411</span>
-                <span class="te-meter-val" id="te-m-niit">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-am-row" style="display:none;">
-                <span class="te-meter-key">+ Addl Medicare §3103</span>
-                <span class="te-meter-val" id="te-m-am">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-penalty-row" style="display:none;">
-                <span class="te-meter-key">+ Early Withdrawal §72(t)</span>
-                <span class="te-meter-val" id="te-m-penalty">—</span>
+                <span class="te-meter-key">Total Tax</span>
+                <span class="te-meter-val" id="te-side-totaltax">—</span>
               </div>
 
-              <div class="te-meter-divider"></div>
-              <div class="te-meter-section-lbl">Payments &amp; Refundable</div>
-              <div class="te-meter-line">
-                <span class="te-meter-key">W-2 Withholding</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-wh">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-ep-row" style="display:none;">
-                <span class="te-meter-key te-meter-indent">Est. Payments</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-ep">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-actc-row" style="display:none;">
-                <span class="te-meter-key">ACTC</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-actc">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-aoc-ref-row" style="display:none;">
-                <span class="te-meter-key">AOC Refundable</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-aoc-ref">—</span>
-              </div>
-              <div class="te-meter-line" id="te-m-eic-row" style="display:none;">
-                <span class="te-meter-key">EIC</span>
-                <span class="te-meter-val te-meter-sub" id="te-m-eic">—</span>
-              </div>
-
-              <!-- Tax Rates — inside te-meter-body to inherit flex layout and padding -->
               <div class="te-meter-divider"></div>
               <div class="te-meter-section-lbl">Tax Rates</div>
               <div class="te-meter-line">
