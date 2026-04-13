@@ -357,6 +357,8 @@ function teRenderMiniScreen(schedId) {
         <p class="te-sec-sub"><span class="te-cite">IRC §61(a)(4),(7) &mdash; 1040 Lines 2a, 2b, 3a, 3b</span></p></div>
         <div class="te-subsec" id="te-sb-container">${teRenderScheduleB()}</div>`;
 
+    case 'ira':      // alias from 1040 dashboard badge (lines 4a/4b)
+    case 'pension':  // alias from 1040 dashboard badge (lines 5a/5b)
     case 'retirement':
       return nav + `
         <div class="te-sec-hdr"><h2>1099-R — Retirement Distributions</h2>
@@ -526,6 +528,8 @@ function teMiniPostRender(schedId) {
       teRenderSAOtherTaxRows(); teRenderSACasualtyRows(); teRenderSAOtherDedRows(); break;
     case 'sched-d':    /* rows rendered inline on initial render — no post-render needed */ break;
     case 'sched-se':   /* all lines computed on render — no list post-render needed */ break;
+    case 'ira':
+    case 'pension':
     case 'retirement': teRenderR1099List(); break;
     case 'sched-e':    teRenderScheduleEList();        break;
     case 'ctc':        teRenderCTCDetail();            break;
