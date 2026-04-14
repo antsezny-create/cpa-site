@@ -553,24 +553,41 @@ function teRecalculate() {
     detailedActive: sdDetailedActive
   };
 
-  // Schedule E — pass-through income/loss — IRC §702 (partnerships), §1366 (S-corps)
-  // IRC §469(a): passive activity losses can only offset passive activity income — excess suspended.
-  // IRC §469(i): rental real estate with active participation: up to $25K allowance against non-passive
-  // income, subject to AGI phase-out. Applied retroactively in Step 3a after AGI is known.
+  // ── Schedule E Part I — Rental Real Estate — IRC §469(i) ──────────────
+  // Each property net = rentsReceived − sum(all expense lines).
+  // Properties where activelyParticipates=true feed calc.rentalActiveNet (§469(i)-eligible pool).
+  // Properties where activelyParticipates=false are other passive — losses fully suspended.
+  let seRentalProps = teCurrentReturn.scheduleERental || [];
+  let rentalActiveNet_  = 0;
+  let rentalPassiveNet_ = 0;
+  let _expFields = ['advertising','autoTravel','cleaning','commissions','insurance','legalProf',
+                    'mgmtFees','mortgageInterest','otherInterest','repairs','supplies','taxes',
+                    'utilities','depreciation','otherExpenses'];
+  seRentalProps.forEach(p => {
+    let income   = parseFloat(p.rentsReceived) || 0;
+    let expenses = _expFields.reduce((s, k) => s + (parseFloat(p[k]) || 0), 0);
+    let net      = teRound(income - expenses);
+    if (p.activelyParticipates) rentalActiveNet_  = teRound(rentalActiveNet_  + net);
+    else                         rentalPassiveNet_ = teRound(rentalPassiveNet_ + net);
+  });
+  calc.rentalActiveNet  = rentalActiveNet_;
+  calc.rentalPassiveNet = rentalPassiveNet_;
+  calc.rentalActiveLoss = teRound(Math.max(0, -calc.rentalActiveNet));
+
+  // ── Schedule E Part II — Pass-Through & K-1 Income — IRC §702, §1366 ──
+  // Passive K-1 losses suspended until offset by passive income — IRC §469(a).
+  // §469(i) eligibility lives on Part I (direct rental properties), not K-1 entities.
   let seEntities        = teCurrentReturn.scheduleE || [];
-  // Split passive pool: §469(i)-eligible (rental + active participant) vs other passive — for Step 3a
-  let seRentalActive    = seEntities.filter(e => e.isPassive && e.isRentalRealEstate && e.activelyParticipates);
-  let seOtherPassive    = seEntities.filter(e => e.isPassive && !(e.isRentalRealEstate && e.activelyParticipates));
-  calc.rentalActiveNet     = teRound(seRentalActive.reduce((s, e) => s + (parseFloat(e.incomeAmount) || 0), 0));
-  let otherPassiveNet_     = teRound(seOtherPassive.reduce((s, e) => s + (parseFloat(e.incomeAmount) || 0), 0));
-  calc.scheduleEPassive    = teRound(calc.rentalActiveNet + otherPassiveNet_);
-  calc.scheduleENonPassive = teRound(seEntities.filter(e => !e.isPassive).reduce((s, e) => s + (parseFloat(e.incomeAmount) || 0), 0));
+  let k1PassiveNet_     = teRound(seEntities.filter(e =>  e.isPassive).reduce((s, e) => s + (parseFloat(e.incomeAmount) || 0), 0));
+  let k1NonPassiveNet_  = teRound(seEntities.filter(e => !e.isPassive).reduce((s, e) => s + (parseFloat(e.incomeAmount) || 0), 0));
+
+  // Combined passive pool: Part I (rental) + Part II (K-1 passive)
+  calc.scheduleEPassive    = teRound(calc.rentalActiveNet + calc.rentalPassiveNet + k1PassiveNet_);
+  calc.scheduleENonPassive = k1NonPassiveNet_;
   // Pass 1: all passive losses suspended — §469(i) allowance applied retroactively in Step 3a
   calc.scheduleEPassiveDeductible = teRound(Math.max(0, calc.scheduleEPassive));
   calc.passiveLossSuspended       = teRound(calc.scheduleEPassive < 0 ? Math.abs(calc.scheduleEPassive) : 0);
-  // Track rental-active loss separately so Step 3a knows how much §469(i) can unlock
-  calc.rentalActiveLoss = teRound(Math.max(0, -calc.rentalActiveNet));
-  // Non-passive losses flow through without restriction (e.g., general partner, material participation)
+  // Non-passive K-1 losses flow through without restriction (general partner, material participation)
   calc.scheduleENet = teRound(calc.scheduleEPassiveDeductible + calc.scheduleENonPassive);
 
   // IRA & Pension/Annuity distributions — unified r1099s[] — IRC §72, §408; 1040 Lines 4a/4b, 5a/5b

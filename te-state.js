@@ -117,8 +117,13 @@ function teEmptyReturn(clientId, clientName, taxYear) {
       netLTCG:               '', // Net long-term capital gain/(loss) — IRC §1222(7),(8)
       priorYearCarryforward: ''  // Prior year combined capital loss carryforward — IRC §1212(b)
     },
-    scheduleE: [],              // Array of pass-through entities — IRC §702, §1366
-                                // Each: { name:'', ein:'', incomeAmount:'', isPassive:true }
+    scheduleERental: [],        // Schedule E Part I — Rental real estate properties — IRC §469(i)
+                                // Each: { address, propertyType, activelyParticipates, rentsReceived,
+                                //         advertising, autoTravel, cleaning, commissions, insurance,
+                                //         legalProf, mgmtFees, mortgageInterest, otherInterest,
+                                //         repairs, supplies, taxes, utilities, depreciation, otherExpenses }
+    scheduleE: [],              // Schedule E Part II — Pass-through entities — IRC §702, §1366
+                                // Each: { name:'', ein:'', entityType:'', incomeAmount:'', isPassive:true, qbiAmount:'' }
     schedule1: {
       k1099Amount:           '',   // Form 1099-K — amounts in error or personal items sold at loss (informational)
       // Part I — Additional Income
@@ -781,6 +786,8 @@ function teSerialize(r) {
     isoExercise:        r.isoExercise        || {},
     canBeClaimed:       r.canBeClaimed       !== undefined ? r.canBeClaimed : false,
     scheduleD:          r.scheduleD          || { shortTermTransactions:[{id:'st-0',description:'',dateAcquired:'',dateSold:'',proceeds:'',cost:'',adjustments:''}], longTermTransactions:[{id:'lt-0',description:'',dateAcquired:'',dateSold:'',proceeds:'',cost:'',adjustments:''}], stGainForm6252:'',stGainK1:'',stLossCarryover:'',ltGainForm4797:'',ltGainK1:'',capitalGainDistributions:'',ltLossCarryover:'',rate28Gain:'',unrecaptured1250:'',qualifiedOpportunityFund:false,netSTCG:'',netLTCG:'',priorYearCarryforward:'' },
+    // Strip _open (UI-only expand/collapse flag) before persisting rental properties
+    scheduleERental:    (r.scheduleERental || []).map(p => { let {_open, ...rest} = p; return rest; }),
     scheduleE:          r.scheduleE          || [],
     schedule1:          r.schedule1          || { k1099Amount:'', taxRefunds:'', alimonyReceived:'', alimonyDate:'', otherGains:'', otherGainsForm4797:false, otherGainsForm4684:false, unemployment:'', unemploymentRepaid:false, unemploymentRepaidAmt:'', l8a:'', l8b:'', l8c:'', l8d:'', l8e:'', l8f:'', l8g:'', l8h:'', l8i:'', l8j:'', l8k:'', l8l:'', l8m:'', l8n:'', l8o:'', l8p:'', l8q:'', l8r:'', l8s:'', l8t:'', l8u:'', l8v:'', otherIncomeRows:[] },
     investmentInterest: r.investmentInterest || { expense: '', priorYearCarryforward: '', includeQDinNII: false },
@@ -973,6 +980,7 @@ function teDeserialize(data) {
   if (r.scheduleD.netSTCG               === undefined) r.scheduleD.netSTCG               = '';
   if (r.scheduleD.netLTCG               === undefined) r.scheduleD.netLTCG               = '';
   if (r.scheduleD.priorYearCarryforward  === undefined) r.scheduleD.priorYearCarryforward  = '';
+  if (!r.scheduleERental)    r.scheduleERental    = [];
   if (!r.scheduleE)          r.scheduleE          = [];
   // Schedule 1 Part I backfill — existing returns predate this object
   if (!r.schedule1) r.schedule1 = {};
@@ -1017,11 +1025,6 @@ function teDeserialize(data) {
   if (r.spouse.ssn             === undefined) r.spouse.ssn   = r.spouse.ssnLast4   || '';
   // Backfill address block (not on older returns)
   if (!r.address) r.address = { street: '', apt: '', city: '', state: '', zip: '' };
-  // Backfill Schedule E new fields — §469(i) rental real estate exception
-  (r.scheduleE || []).forEach(e => {
-    if (e.isRentalRealEstate  === undefined) e.isRentalRealEstate  = false;
-    if (e.activelyParticipates=== undefined) e.activelyParticipates= false;
-  });
   // Backfill dependent fields (EIC + 1040 form fields)
   (r.dependents || []).forEach(d => {
     if (d.isFullTimeStudent    === undefined) d.isFullTimeStudent    = false;

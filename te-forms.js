@@ -153,9 +153,9 @@ function teRenderIncomeMenu() {
       ${teMenuCard('sched-d',    'Schedule D',    'Capital Gains &amp; Losses',
           'Net short-term and long-term gains. $3,000 annual loss cap. IRC §1221.',
           hasSd, hasSd ? teFmt(Math.abs(sdNet)) : null, src)}
-      ${teMenuCard('sched-e',    'Schedule E',    'Pass-Through &amp; K-1 Income',
-          'Partnership, S-Corp, trust, estate K-1 income and losses. IRC §702, §1366.',
-          (r.scheduleE||[]).length > 0, teFmt(c.scheduleENet||0), src)}
+      ${teMenuCard('sched-e',    'Schedule E',    'Rental &amp; Pass-Through Income',
+          'Rental properties (Part I) and K-1 pass-through income/losses (Part II). IRC §469, §702, §1366.',
+          (r.scheduleE||[]).length > 0 || (r.scheduleERental||[]).length > 0, teFmt(c.scheduleENet||0), src)}
       ${teMenuCard('sched-se',   'Schedule SE',   'Self-Employment Tax',
           'SS (12.4%) + Medicare (2.9%) on 92.35% of net SE earnings. IRC §1401.',
           (c.seTax || 0) > 0, (c.seTax || 0) > 0 ? teFmt(c.seTax) : null, src)}
@@ -463,12 +463,26 @@ function teRenderMiniScreen(schedId) {
 
     case 'sched-e':
       return nav + `
-        <div class="te-sec-hdr"><h2>Schedule E — Pass-Through &amp; K-1 Income</h2>
-        <p class="te-sec-sub"><span class="te-cite">IRC §702, §1366 &mdash; Sch. 1 Line 5</span></p></div>
+        <div class="te-sec-hdr"><h2>Schedule E — Rental Real Estate &amp; Pass-Through Income</h2>
+        <p class="te-sec-sub"><span class="te-cite">IRC §469, §702, §1366 &mdash; Sch. 1 Line 5</span></p></div>
+
         <div class="te-subsec">
-          <div class="te-subsec-desc">Partnership, S-Corp, trust, and estate K-1 income/loss. Passive losses suspended until offset by passive income. <span class="te-cite">IRC §469</span></div>
-          <div class="te-subsec-row" style="margin-top:8px;">
-            <div></div>
+          <div class="te-subsec-row">
+            <div>
+              <div class="te-subsec-lbl">Part I — Rental Real Estate <span class="te-cite">IRC §469(i)</span></div>
+              <div class="te-subsec-desc">Direct rental properties. Net income/(loss) per property auto-computed from rents received minus expenses. Taxpayers who actively participate may deduct up to $25,000 of net rental losses against non-passive income, subject to AGI phase-out. <span class="te-cite">IRC §469(i)(1)</span></div>
+            </div>
+            <button class="ghost-btn te-sm-btn" onclick="teAddRentalProperty()">+ Add Property</button>
+          </div>
+          <div id="te-sche-rental-list"></div>
+        </div>
+
+        <div class="te-subsec" style="margin-top:24px;">
+          <div class="te-subsec-row">
+            <div>
+              <div class="te-subsec-lbl">Part II — Partnerships, S-Corporations, Trusts &amp; Estates <span class="te-cite">IRC §702, §1366</span></div>
+              <div class="te-subsec-desc">K-1 pass-through income and losses. Passive K-1 losses are suspended until offset by passive income. <span class="te-cite">IRC §469(a)</span></div>
+            </div>
             <button class="ghost-btn te-sm-btn" onclick="teAddScheduleE()">+ Add Entity</button>
           </div>
           <div id="te-sche-list"></div>
@@ -588,7 +602,7 @@ function teMiniPostRender(schedId) {
     case 'ira':
     case 'pension':
     case 'retirement': teRenderR1099List(); break;
-    case 'sched-e':    teRenderScheduleEList();        break;
+    case 'sched-e':    teRenderScheduleERentalList(); teRenderScheduleEList(); break;
     case 'ctc':        teRenderCTCDetail();            break;
     case 'edu':        teRenderEduList();              break;
     case 'eic':        teRenderEICSection();           break;
@@ -1465,10 +1479,10 @@ function teRenderIncome() {
     <div class="te-subsec" style="margin-top:20px;">
       <div class="te-subsec-row">
         <div>
-          <div class="te-subsec-lbl">Schedule E — Pass-Through &amp; K-1 Income <span class="te-cite">IRC §702, §1366</span></div>
-          <div class="te-subsec-desc">Partnership, S-Corp, trust, and estate K-1 income/loss. Passive losses are suspended until offset by passive income. <span class="te-cite">IRC §469</span></div>
+          <div class="te-subsec-lbl">Schedule E — Rental Real Estate &amp; Pass-Through Income <span class="te-cite">IRC §469, §702, §1366</span></div>
+          <div class="te-subsec-desc">Direct rental properties (Part I) and K-1 pass-through income (Part II). Open Schedule E to enter properties and entities. <span class="te-cite">Sch. 1 Line 5</span></div>
         </div>
-        <button class="ghost-btn te-sm-btn" onclick="teAddScheduleE()">+ Add Entity</button>
+        <button class="ghost-btn te-sm-btn" onclick="teAddScheduleE()">+ Add K-1 Entity</button>
       </div>
       <div id="te-sche-list"></div>
     </div>
@@ -3305,13 +3319,199 @@ function teRenderScheduleD() {
   </div>`;
 }
 
+// ──────────────────────────────────────────────────────────────────────
+//  SCHEDULE E PART I — RENTAL REAL ESTATE
+// ──────────────────────────────────────────────────────────────────────
+
+function teRenderScheduleERentalList() {
+  let c = document.getElementById('te-sche-rental-list');
+  if (!c) return;
+  let props = teCurrentReturn.scheduleERental || [];
+  let calc  = teCurrentReturn._calc || {};
+
+  let _expFields = [
+    { key: 'advertising',      label: 'Advertising' },
+    { key: 'autoTravel',       label: 'Auto & travel' },
+    { key: 'cleaning',         label: 'Cleaning & maintenance' },
+    { key: 'commissions',      label: 'Commissions' },
+    { key: 'insurance',        label: 'Insurance' },
+    { key: 'legalProf',        label: 'Legal & professional fees' },
+    { key: 'mgmtFees',         label: 'Management fees' },
+    { key: 'mortgageInterest', label: 'Mortgage interest' },
+    { key: 'otherInterest',    label: 'Other interest' },
+    { key: 'repairs',          label: 'Repairs' },
+    { key: 'supplies',         label: 'Supplies' },
+    { key: 'taxes',            label: 'Taxes' },
+    { key: 'utilities',        label: 'Utilities' },
+    { key: 'depreciation',     label: 'Depreciation (Form 4562)' },
+    { key: 'otherExpenses',    label: 'Other expenses' },
+  ];
+
+  let ptLabels = { residential: 'Residential', commercial: 'Commercial', vacation: 'Vacation/Short-term', land: 'Land' };
+
+  // §469(i) summary values from calc
+  let allowance469i = calc.passive469iAllowance || 0;
+  let rentalNet     = teRound((calc.rentalActiveNet || 0) + (calc.rentalPassiveNet || 0));
+
+  let cardHTML = props.length === 0
+    ? '<div class="te-empty" style="margin-top:8px;">No rental properties added. Click &ldquo;+ Add Property&rdquo; to begin.</div>'
+    : props.map((p, i) => {
+        let income   = parseFloat(p.rentsReceived) || 0;
+        let expenses = _expFields.reduce((s, f) => s + (parseFloat(p[f.key]) || 0), 0);
+        let net      = teRound(income - expenses);
+        let netFmt   = net === 0 ? '$0.00' : net > 0 ? teFmt(net) : '(' + teFmt(Math.abs(net)) + ')';
+        let netColor = net < 0 ? 'color:#f5a623;' : net > 0 ? 'color:#4caf8a;' : '';
+        let isOpen   = p._open === true;
+
+        return `
+        <div class="te-w2-card" style="margin-top:8px;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+          <!-- Card header — always visible -->
+          <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;padding:8px 12px;background:rgba(255,255,255,0.02);cursor:pointer;"
+               onclick="teToggleRentalCard(${i})">
+            <div style="font-size:13px;font-weight:600;">${esc(p.address || 'New Property')}</div>
+            <div style="font-size:11px;color:var(--text-dim);">${ptLabels[p.propertyType || 'residential'] || ''}</div>
+            <div style="font-size:13px;font-weight:700;${netColor}">Net: ${netFmt}</div>
+            <button class="te-rm-btn" onclick="event.stopPropagation();teRmRentalProperty(${i})">✕</button>
+          </div>
+
+          <!-- Card body — shown when expanded -->
+          <div id="te-rental-body-${i}" style="display:${isOpen ? 'block' : 'none'};padding:12px;border-top:1px solid var(--border);">
+
+            <!-- Address + type row -->
+            <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:center;margin-bottom:12px;">
+              <div>
+                <div style="font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;margin-bottom:3px;">Property Address</div>
+                <input type="text" class="te-input" value="${esc(p.address||'')}" placeholder="Street, City, State"
+                  oninput="teOnRentalProperty(${i},'address',this.value)">
+              </div>
+              <div>
+                <div style="font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;margin-bottom:3px;">Property Type</div>
+                <select class="te-input" onchange="teOnRentalProperty(${i},'propertyType',this.value)">
+                  ${Object.entries(ptLabels).map(([v,l]) =>
+                    `<option value="${v}"${(p.propertyType||'residential')===v?' selected':''}>${l}</option>`
+                  ).join('')}
+                </select>
+              </div>
+              <div style="padding-top:16px;">
+                <label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap;"
+                  title="Taxpayer approves tenants, sets rental terms, and approves repairs. Less than 10% ownership disqualifies. IRC §469(i)(6).">
+                  <input type="checkbox" ${p.activelyParticipates !== false ? 'checked' : ''}
+                    onchange="teOnRentalProperty(${i},'activelyParticipates',this.checked)">
+                  Actively participates <span class="te-cite" style="font-size:10px;">§469(i)(6)</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Income + Expenses two-column grid -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+              <!-- Income column -->
+              <div>
+                <div style="font-size:10px;font-weight:800;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:8px;">Income</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                  <span style="font-size:12px;">Rents received</span>
+                  <input type="number" class="te-input te-mono" style="width:120px;text-align:right;"
+                    value="${p.rentsReceived||''}" placeholder="0.00" step="0.01"
+                    oninput="teOnRentalProperty(${i},'rentsReceived',this.value)">
+                </div>
+              </div>
+
+              <!-- Expenses column -->
+              <div>
+                <div style="font-size:10px;font-weight:800;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:8px;">Expenses</div>
+                ${_expFields.map(f => `
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;">
+                  <span style="font-size:12px;">${f.label}</span>
+                  <input type="number" class="te-input te-mono" style="width:120px;text-align:right;"
+                    value="${p[f.key]||''}" placeholder="0.00" step="0.01"
+                    oninput="teOnRentalProperty(${i},'${f.key}',this.value)">
+                </div>`).join('')}
+                <div style="display:flex;justify-content:space-between;align-items:center;padding-top:6px;border-top:1px solid var(--border);margin-top:4px;">
+                  <span style="font-size:12px;font-weight:600;">Total expenses</span>
+                  <span class="te-mono" style="font-size:12px;font-weight:600;">${teFmt(expenses)}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Net bar -->
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:4px;border:1px solid var(--border);">
+              <span style="font-size:13px;font-weight:700;">Net Income / (Loss)</span>
+              <span class="te-mono" style="font-size:14px;font-weight:800;${netColor}">${netFmt}</span>
+            </div>
+
+          </div>
+        </div>`;
+      }).join('');
+
+  // §469(i) summary bar — only rendered when at least one property exists
+  let summaryHTML = '';
+  if (props.length > 0) {
+    let rentalFmt   = rentalNet === 0 ? '$0.00' : rentalNet > 0 ? teFmt(rentalNet) : '(' + teFmt(Math.abs(rentalNet)) + ')';
+    summaryHTML = `
+    <div class="te-ded-note" style="margin-top:8px;">
+      Rental net: <strong>${rentalFmt}</strong>
+      ${allowance469i > 0 ? ` &nbsp;|&nbsp; <span style="color:#4caf8a;">§469(i) allowance: <strong>${teFmt(allowance469i)}</strong> — deductible against non-passive income</span>` : ''}
+      ${calc.passiveLossSuspended > 0 && allowance469i < (calc.rentalActiveLoss || 0) ? ` &nbsp;|&nbsp; <span style="color:#f5a623;">Suspended: ${teFmt((calc.rentalActiveLoss||0) - allowance469i)}</span>` : ''}
+    </div>
+    ${allowance469i > 0 ? `<div class="te-ded-note" style="margin-top:4px;font-size:11px;">
+      §469(i) phase-out: $100,000 AGI threshold — $0.50 reduction per $1.00 excess. Max allowance $25,000 (MFS apart: $12,500; MFS together: $0). <span class="te-cite">IRC §469(i)(1),(3),(5)</span>
+    </div>` : ''}`;
+  }
+
+  c.innerHTML = cardHTML + summaryHTML;
+}
+
+function teToggleRentalCard(i) {
+  if (!teCurrentReturn || !teCurrentReturn.scheduleERental[i]) return;
+  let p = teCurrentReturn.scheduleERental[i];
+  p._open = !p._open;
+  teRenderScheduleERentalList();
+}
+
+function teAddRentalProperty() {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  if (!teCurrentReturn.scheduleERental) teCurrentReturn.scheduleERental = [];
+  teCurrentReturn.scheduleERental.push({
+    address: '', propertyType: 'residential', activelyParticipates: true,
+    rentsReceived: '',
+    advertising: '', autoTravel: '', cleaning: '', commissions: '', insurance: '',
+    legalProf: '', mgmtFees: '', mortgageInterest: '', otherInterest: '',
+    repairs: '', supplies: '', taxes: '', utilities: '', depreciation: '', otherExpenses: '',
+    _open: true
+  });
+  teRenderScheduleERentalList();
+  teRecalculate();
+}
+
+function teRmRentalProperty(i) {
+  if (!teCurrentReturn) return;
+  teMarkDirty();
+  teCurrentReturn.scheduleERental.splice(i, 1);
+  teRenderScheduleERentalList();
+  teRecalculate();
+}
+
+function teOnRentalProperty(i, field, val) {
+  if (!teCurrentReturn || !teCurrentReturn.scheduleERental[i]) return;
+  teMarkDirty();
+  teCurrentReturn.scheduleERental[i][field] = val;
+  teRecalculate();
+  // Re-render: address/type/participation changes update header; numeric changes update net and §469(i) bar
+  teRenderScheduleERentalList();
+}
+
+// ──────────────────────────────────────────────────────────────────────
+//  SCHEDULE E PART II — PASS-THROUGH & K-1 INCOME
+// ──────────────────────────────────────────────────────────────────────
+
 function teRenderScheduleEList() {
   let c = document.getElementById('te-sche-list');
   if (!c) return;
   let entities = teCurrentReturn.scheduleE || [];
   let calc     = teCurrentReturn._calc || {};
   if (entities.length === 0) {
-    c.innerHTML = '<div class="te-empty">No entities added. Click "+ Add Entity" to add K-1 income.</div>';
+    c.innerHTML = '<div class="te-empty">No entities added. Click &ldquo;+ Add Entity&rdquo; to add K-1 income.</div>';
     return;
   }
   let etLabels = { partnership: 'Partnership', scorp: 'S-Corporation', trust: 'Trust/Estate', ccorp: 'C-Corporation' };
@@ -3323,9 +3523,8 @@ function teRenderScheduleEList() {
       </div>
       ${entities.map((e, i) => {
         let isCCorp = (e.entityType || 'partnership') === 'ccorp';
-        let showRentalRow = e.isPassive && (parseFloat(e.incomeAmount) || 0) < 0;
         return `
-        <div style="${colStyle}padding:5px 4px;border-bottom:${showRentalRow ? 'none' : '1px solid rgba(30,45,69,0.4)'};">
+        <div style="${colStyle}padding:5px 4px;border-bottom:1px solid rgba(30,45,69,0.4);">
           <input type="text" class="te-input" value="${esc(e.name||'')}" placeholder="Entity name"
             oninput="teOnScheduleE(${i},'name',this.value)">
           <input type="text" class="te-input" value="${esc(e.ein||'')}" placeholder="XX-XXXXXXX"
@@ -3348,28 +3547,15 @@ function teRenderScheduleEList() {
             Passive <span class="te-cite" style="font-size:10px;">§469</span>
           </label>
           <button class="te-rm-btn" onclick="teRmScheduleE(${i})">✕</button>
-        </div>
-        ${showRentalRow ? `
-        <div style="padding:4px 4px 6px 12px;border-bottom:1px solid rgba(30,45,69,0.4);display:flex;gap:20px;align-items:center;">
-          <label style="display:flex;align-items:center;gap:5px;font-size:12px;" title="Check if this entity holds rental real estate — required for §469(i) exception.">
-            <input type="checkbox" ${e.isRentalRealEstate ? 'checked' : ''} onchange="teOnScheduleE(${i},'isRentalRealEstate',this.checked)">
-            Rental real estate <span class="te-cite" style="font-size:10px;">§469(i)</span>
-          </label>
-          ${e.isRentalRealEstate ? `
-          <label style="display:flex;align-items:center;gap:5px;font-size:12px;" title="Taxpayer actively participates in management decisions (approve tenants, set rents, approve repairs). Less than 10% ownership disqualifies. IRC §469(i)(6).">
-            <input type="checkbox" ${e.activelyParticipates ? 'checked' : ''} onchange="teOnScheduleE(${i},'activelyParticipates',this.checked)">
-            Actively participates <span class="te-cite" style="font-size:10px;">§469(i)(6)</span>
-          </label>` : ''}
-        </div>` : ''}`;
+        </div>`;
       }).join('')}
     </div>
-    ${calc.passiveLossSuspended > 0 || calc.passive469iAllowance > 0 ? `
+    ${calc.passiveLossSuspended > 0 ? `
     <div class="te-ded-note" style="margin-top:6px;color:#f5a623;">
-      ${calc.passive469iAllowance > 0 ? `✓ §469(i) rental real estate exception applied: <strong>${teFmt(calc.passive469iAllowance)}</strong> of passive rental loss is deductible against non-passive income. <span class="te-cite">IRC §469(i)</span>` : ''}
-      ${calc.passiveLossSuspended > 0 ? `${calc.passive469iAllowance > 0 ? '<br>' : ''}⚠ Remaining suspended passive loss: ${teFmt(calc.passiveLossSuspended)} — not currently deductible. <span class="te-cite">IRC §469(a)</span>` : ''}
+      ⚠ K-1 suspended passive loss: ${teFmt(calc.passiveLossSuspended)} — not currently deductible. Passive losses can only offset passive income. <span class="te-cite">IRC §469(a)</span>
     </div>` : ''}
     <div class="te-ded-note" style="margin-top:4px;">
-      Passive: ${teFmt(calc.scheduleEPassive)} &nbsp;|&nbsp; Non-passive: ${teFmt(calc.scheduleENonPassive)} &nbsp;|&nbsp; Net flowing to gross income: ${teFmt(calc.scheduleENet)}
+      K-1 passive: ${teFmt(calc.scheduleEPassive)} &nbsp;|&nbsp; Non-passive: ${teFmt(calc.scheduleENonPassive)} &nbsp;|&nbsp; Net flowing to gross income: ${teFmt(calc.scheduleENet)}
       &nbsp;|&nbsp; <strong>§199A QBI from entities: ${teFmt(calc.schedEQBI || 0)}</strong>
     </div>
     <div class="te-ded-note" style="margin-top:4px;">
@@ -5352,7 +5538,7 @@ function teAddScheduleE() {
   if (!teCurrentReturn) return;
   teMarkDirty();
   if (!teCurrentReturn.scheduleE) teCurrentReturn.scheduleE = [];
-  teCurrentReturn.scheduleE.push({ name: '', ein: '', entityType: 'partnership', incomeAmount: '', isPassive: true, qbiAmount: '', isRentalRealEstate: false, activelyParticipates: false });
+  teCurrentReturn.scheduleE.push({ name: '', ein: '', entityType: 'partnership', incomeAmount: '', isPassive: true, qbiAmount: '' });
   teRenderScheduleEList();
   teRecalculate();
 }
@@ -5375,10 +5561,8 @@ function teOnScheduleE(i, field, val) {
   }
   teRecalculate();
   let calc = teCurrentReturn._calc || {};
-  // Re-render on structural changes (entityType, isPassive, rental flags, any suspended/allowed loss)
-  if (field === 'entityType' || field === 'isPassive' || field === 'isRentalRealEstate' ||
-      field === 'activelyParticipates' || field === 'incomeAmount' ||
-      calc.passiveLossSuspended > 0 || calc.passive469iAllowance > 0) {
+  // Re-render on structural changes (entityType changes QBI visibility; passive/loss changes note)
+  if (field === 'entityType' || field === 'isPassive' || calc.passiveLossSuspended > 0) {
     teRenderScheduleEList();
   }
 }
