@@ -341,12 +341,14 @@ function initTaxEngine() {
 function teShowReturnCenter() {
   document.getElementById('te-return-center').style.display  = 'block';
   document.getElementById('te-engine-wrapper').style.display = 'none';
+  document.body.style.overflow = '';
   if (teNotesPanelOpen) teToggleNotesPanel();
 }
 
 function teShowEngine() {
   document.getElementById('te-return-center').style.display  = 'none';
   document.getElementById('te-engine-wrapper').style.display = 'block';
+  document.body.style.overflow = 'hidden';
 }
 function tePopulateYearSelect() {
   let sel = document.getElementById('te-year-select');
