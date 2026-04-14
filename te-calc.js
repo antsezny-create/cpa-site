@@ -1156,10 +1156,10 @@ function teRecalculate() {
   // QSS uses MFJ brackets per IRC §2(a)
   let bKey = (fs === 'qss') ? 'mfj' : fs;
 
-  // IRC §1(h) — Qualified Dividends and Capital Gain Tax Worksheet
-  // If the return has QDs or LTCG, the preferential portion is taxed at 0%/15%/20%
-  // rather than ordinary bracket rates. Mirrors the IRS Qualified Dividends and Capital
-  // Gain Tax Worksheet (Form 1040 instructions).
+  // IRC §1(h) — Qualified Dividends and Capital Gain Tax Worksheet / Schedule D Tax Worksheet
+  // If the return has QDs or LTCG, the preferential portion is taxed at reduced rates.
+  // When Schedule D Lines 18 (28% rate gain) or 19 (unrecaptured §1250) are present,
+  // the engine uses the Schedule D Tax Worksheet stacking model — IRC §1(h)(1)(C),(D),(E).
   // Preferential pool = qualified dividends + net LTCG after STCG netting and CF offset
   let netCapGainPreferential = teRound(Math.max(0,
     calc.netLTCG - calc.priorCapLossCF          // LTCG net of carryforward
@@ -1167,11 +1167,20 @@ function teRecalculate() {
   ));
   calc.qdltcg = teRound(calc.qualifiedDividends + netCapGainPreferential);
 
+  // Schedule D Lines 18 and 19 — special rate buckets within the preferential pool
+  // IRC §1(h)(1)(E): collectibles gain and §1202 exclusion gain taxed at max 28%
+  // IRC §1(h)(1)(D): unrecaptured §1250 gain (real property depreciation) taxed at max 25%
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section1
+  let sd_ = teCurrentReturn.scheduleD || {};
+  calc.rate28Gain     = teRound(Math.max(0, parseFloat(sd_.rate28Gain)      || 0));
+  calc.unrecaptured1250 = teRound(Math.max(0, parseFloat(sd_.unrecaptured1250) || 0));
+
   if (calc.qdltcg > 0 && calc.taxableIncome > 0) {
     let ordinaryPortion = teRound(Math.max(0, calc.taxableIncome - calc.qdltcg));
-    let ordinaryTax     = teBracketTax(ordinaryPortion, K.brackets[bKey] || K.brackets.single);
-    let qdltcgTax       = teCalcQDLTCGTax(calc.qdltcg, calc.taxableIncome, ordinaryPortion, K, fs);
-    calc.regularTax     = teRound(ordinaryTax + qdltcgTax);
+    let qdltcgResult     = teCalcQDLTCGTax(calc.qdltcg, calc.taxableIncome, ordinaryPortion, K, fs,
+                                            calc.rate28Gain, calc.unrecaptured1250);
+    calc.qdltcgWS        = qdltcgResult.ws;
+    calc.regularTax      = teRound(qdltcgResult.ws.ordinaryTax + qdltcgResult.tax);
   } else {
     calc.regularTax = teBracketTax(calc.taxableIncome, K.brackets[bKey] || K.brackets.single);
   }
@@ -1702,22 +1711,95 @@ function teBracketTax(income, brackets) {
   }
   return Math.round(tax * 100) / 100;
 }
-function teCalcQDLTCGTax(qdltcg, taxableIncome, ordinaryPortion, K, fs) {
+// IRC §1(h) — Qualified Dividends and Capital Gain Tax Worksheet / Schedule D Tax Worksheet
+// When rate28 or unrecap1250 are present, the IRS requires the Schedule D Tax Worksheet (more complex).
+// Both worksheets are unified here via the "stacking" model:
+//   - Ordinary income fills brackets from the bottom
+//   - 28% rate gains (collectibles/§1202) stack on top — taxed at min(28%, applicable bracket rate)
+//   - Unrecaptured §1250 gain (real property depreciation) stacks next — taxed at min(25%, applicable bracket rate)
+//   - True QDLTCG (0%/15%/20% preferential) stacks on top of everything
+// The max-rate caps (28%, 25%) mean taxpayers in lower brackets pay their bracket rate, not the cap.
+// Sources: IRC §1(h)(1)(C),(D),(E); uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section1
+//          IRS Schedule D Tax Worksheet (Form 1040 instructions)
+// Returns { tax, ws } — tax is the preferential income tax amount; ws is the full worksheet detail
+// object used by teRenderSDWorksheet in te-forms.js to display the step-by-step computation.
+function teCalcQDLTCGTax(qdltcg, taxableIncome, ordinaryPortion, K, fs, rate28, unrecap1250) {
   let cg       = K.capitalGains;
   let bKey     = (fs === 'qss') ? 'mfj' : fs;
+  let brackets = K.brackets[bKey] || K.brackets.single;
   let zeroCeil = cg.zeroRateCeiling[bKey]    || cg.zeroRateCeiling.single;
   let fifCeil  = cg.fifteenRateCeiling[bKey] || cg.fifteenRateCeiling.single;
 
-  // Amount of QDLTCG eligible for 0% rate (ordinary income + qdltcg ≤ zeroCeil)
-  let inZero    = teRound(Math.max(0, Math.min(qdltcg, Math.max(0, zeroCeil - ordinaryPortion))));
-  let remaining = teRound(qdltcg - inZero);
+  rate28      = teRound(Math.max(0, rate28      || 0));
+  unrecap1250 = teRound(Math.max(0, unrecap1250 || 0));
 
-  // Amount of remaining QDLTCG eligible for 15% rate
-  let startOf15 = Math.max(zeroCeil, ordinaryPortion);
+  // Ordinary income tax — computed here so it is available in the worksheet object
+  let ordinaryTax = teRound(teBracketTax(ordinaryPortion, brackets));
+
+  // 28% and 25% gains are subsets of total qdltcg — clamp if data entry exceeds pool
+  if (rate28 + unrecap1250 > qdltcg) {
+    let total   = rate28 + unrecap1250;
+    rate28      = teRound(rate28      * (qdltcg / total));
+    unrecap1250 = teRound(unrecap1250 * (qdltcg / total));
+  }
+  // True QDLTCG eligible for 0%/15%/20% = total preferential minus the special-rate buckets
+  let trueQDLTCG = teRound(Math.max(0, qdltcg - rate28 - unrecap1250));
+
+  // ── Simple path: no special-rate gains — use original QDLTCG worksheet ──
+  if (rate28 === 0 && unrecap1250 === 0) {
+    let inZero    = teRound(Math.max(0, Math.min(trueQDLTCG, Math.max(0, zeroCeil - ordinaryPortion))));
+    let remaining = teRound(trueQDLTCG - inZero);
+    let startOf15 = Math.max(zeroCeil, ordinaryPortion);
+    let inFifteen = teRound(Math.max(0, Math.min(remaining, Math.max(0, fifCeil - startOf15))));
+    let inTwenty  = teRound(remaining - inFifteen);
+    let taxQDLTCG = teRound(inFifteen * 0.15 + inTwenty * 0.20);
+    return { tax: taxQDLTCG, ws: {
+      isSimplePath: true, taxableIncome, ordinaryPortion, ordinaryTax,
+      qdltcg, rate28: 0, taxOn28Ordinary: 0, tax28: 0, rate28CapFired: false,
+      unrecap1250: 0, taxOnUnrecapOrd: 0, taxUnrecap: 0, unrecapCapFired: false,
+      trueQDLTCG, inZero, inFifteen, inTwenty, taxQDLTCG,
+      totalPreferentialTax: taxQDLTCG, totalTax: teRound(ordinaryTax + taxQDLTCG)
+    }};
+  }
+
+  // ── Schedule D Tax Worksheet path — stacking model ──────────────────────
+  // Stack 1: 28% rate gains sit directly on top of ordinary income.
+  // Tax at ordinary brackets on (ordinaryPortion + rate28) minus tax on ordinaryPortion alone.
+  // 28% is a ceiling rate — apply the lesser of the bracket rate and 28%.
+  // IRC §1(h)(1)(E): "shall not exceed 28 percent"
+  let taxOn28Ordinary = teRound(teBracketTax(ordinaryPortion + rate28, brackets) - teBracketTax(ordinaryPortion, brackets));
+  let tax28           = teRound(Math.min(taxOn28Ordinary, rate28 * 0.28));
+  let rate28CapFired  = rate28 > 0 && teRound(rate28 * 0.28) < taxOn28Ordinary;
+
+  // Stack 2: Unrecaptured §1250 sits on top of ordinary income + 28% rate gain block.
+  // 25% is a ceiling rate — apply the lesser of the bracket rate and 25%.
+  // IRC §1(h)(1)(D): "shall not exceed 25 percent"
+  let base2              = ordinaryPortion + rate28;
+  let taxOnUnrecapOrd    = teRound(teBracketTax(base2 + unrecap1250, brackets) - teBracketTax(base2, brackets));
+  let taxUnrecap         = teRound(Math.min(taxOnUnrecapOrd, unrecap1250 * 0.25));
+  let unrecapCapFired    = unrecap1250 > 0 && teRound(unrecap1250 * 0.25) < taxOnUnrecapOrd;
+
+  // Stack 3: True QDLTCG at 0%/15%/20% sits on top of everything.
+  // The "floor" for the 0% zone is base3 — the amount already in the ordinary + 28% + 25% stacks.
+  // 0% zone: trueQDLTCG that falls below the 0% ceiling (taxed at 0%)
+  // 15% zone: trueQDLTCG above 0% ceiling, below 15% ceiling
+  // 20% zone: remainder
+  let base3     = teRound(ordinaryPortion + rate28 + unrecap1250);
+  let inZero    = teRound(Math.max(0, Math.min(trueQDLTCG, Math.max(0, zeroCeil - base3))));
+  let remaining = teRound(trueQDLTCG - inZero);
+  let startOf15 = Math.max(zeroCeil, base3);
   let inFifteen = teRound(Math.max(0, Math.min(remaining, Math.max(0, fifCeil - startOf15))));
   let inTwenty  = teRound(remaining - inFifteen);
+  let taxQDLTCG = teRound(inFifteen * 0.15 + inTwenty * 0.20);
 
-  return teRound(inFifteen * 0.15 + inTwenty * 0.20);  // 0% contributes $0
+  let tax = teRound(tax28 + taxUnrecap + taxQDLTCG);
+  return { tax, ws: {
+    isSimplePath: false, taxableIncome, ordinaryPortion, ordinaryTax,
+    qdltcg, rate28, taxOn28Ordinary, tax28, rate28CapFired,
+    unrecap1250, taxOnUnrecapOrd, taxUnrecap, unrecapCapFired,
+    trueQDLTCG, inZero, inFifteen, inTwenty, taxQDLTCG,
+    totalPreferentialTax: tax, totalTax: teRound(ordinaryTax + tax)
+  }};
 }
 function teCalcCTC(r, agi, totalTax, earnedIncome, fs, K) {
   let deps = r.dependents || [];
@@ -2105,9 +2187,14 @@ function teCalcAMT(r, calc, K, fs) {
     let qdltcgInAMTI = Math.min(qdltcg, amtiAfterExemption);
     let ordinaryAMTI = teRound(amtiAfterExemption - qdltcgInAMTI);
     let ordinaryTMT  = teCalcAMTOrdinary(ordinaryAMTI, rateBreak, A);
-    // Preferential rate on QDLTCG: use the same QDLTCG worksheet as regular tax,
+    // Scale 28%/25% rate gains to fit within qdltcgInAMTI — stacking order preserved:
+    // 28% fills first, then unrecaptured §1250, then true QDLTCG — IRC §55(b)(3)
+    let rate28InAMTI    = teRound(Math.min(calc.rate28Gain      || 0, qdltcgInAMTI));
+    let unrecapInAMTI   = teRound(Math.min(calc.unrecaptured1250 || 0, Math.max(0, qdltcgInAMTI - rate28InAMTI)));
+    // Preferential rate on QDLTCG: use the same Schedule D Tax Worksheet as regular tax,
     // substituting amtiAfterExemption for taxableIncome and ordinaryAMTI for ordinaryPortion.
-    let qdltcgTMT    = teCalcQDLTCGTax(qdltcgInAMTI, amtiAfterExemption, ordinaryAMTI, K, fs);
+    let qdltcgTMT    = teCalcQDLTCGTax(qdltcgInAMTI, amtiAfterExemption, ordinaryAMTI, K, fs,
+                                        rate28InAMTI, unrecapInAMTI).tax;
     tmt = teRound(ordinaryTMT + qdltcgTMT);
   } else {
     tmt = teCalcAMTOrdinary(amtiAfterExemption, rateBreak, A);

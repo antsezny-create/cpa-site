@@ -3121,6 +3121,80 @@ function teSDLineRow(lineNum, label, field, val, helper, isCarryover) {
   </div>`;
 }
 
+// Renders the Schedule D Tax Worksheet (or QDLTCG Worksheet) detail panel.
+// Reads calc.qdltcgWS — populated by teCalcQDLTCGTax in te-calc.js.
+// Shows every line of the stacking computation so the tax professional can verify the result.
+function teRenderSDWorksheet(calc) {
+  let ws = calc && calc.qdltcgWS;
+  if (!ws || (calc.qdltcg || 0) <= 0) return '';
+
+  let title = ws.isSimplePath
+    ? 'Qualified Dividends &amp; Capital Gain Tax Worksheet &mdash; IRC &sect;1(h)'
+    : 'Schedule D Tax Worksheet &mdash; IRC &sect;1(h)';
+
+  function wsRow(lbl, amt, cls) {
+    let amtStr = (amt === null || amt === undefined)
+      ? '' : (amt < 0 ? `(${teFmt(Math.abs(amt))})` : teFmt(amt));
+    return `<div class="te-sd-ws-row${cls?' '+cls:''}">
+      <span class="te-sd-ws-lbl">${lbl}</span>
+      <span class="te-sd-ws-amt te-mono">${amtStr}</span></div>`;
+  }
+  function wsRowNote(lbl, amt, note, cls) {
+    let amtStr = (amt === null || amt === undefined)
+      ? '' : (amt < 0 ? `(${teFmt(Math.abs(amt))})` : teFmt(amt));
+    return `<div class="te-sd-ws-row${cls?' '+cls:''}">
+      <span class="te-sd-ws-lbl">${lbl}</span>
+      <span class="te-sd-ws-amt te-mono">${amtStr}<span class="te-sd-ws-cap-note">${note}</span></span></div>`;
+  }
+  function wsSect(lbl) {
+    return `<div class="te-sd-ws-row te-sd-ws-section"><span class="te-sd-ws-lbl">${lbl}</span><span class="te-sd-ws-amt"></span></div>`;
+  }
+
+  let h = `<div class="te-sd-ws-wrap">
+    <div class="te-sd-ws-title">${title}</div>
+    ${wsRow('Taxable income', ws.taxableIncome)}
+    ${wsRow('Less: total preferential income', -ws.qdltcg)}
+    ${wsRow('Ordinary income', ws.ordinaryPortion, 'te-sd-ws-bold')}
+    ${wsRow('Ordinary income tax', ws.ordinaryTax, 'te-sd-ws-bold')}`;
+
+  // ── 28% rate gains block ─────────────────────────────────────────────
+  if (ws.rate28 > 0) {
+    let effRate = ws.rate28 > 0 ? (ws.taxOn28Ordinary / ws.rate28 * 100).toFixed(1) : '0.0';
+    let capNote = ws.rate28CapFired ? '← cap fires' : '← bracket rate applies';
+    h += wsSect('28% Rate Gains (collectibles / &sect;1202) &mdash; IRC &sect;1(h)(1)(E)');
+    h += wsRow('28% rate gain amount (Line 18)', ws.rate28);
+    h += wsRow(`Bracket tax on this slice (${effRate}% effective)`, ws.taxOn28Ordinary);
+    h += wsRowNote('28% cap applied &rarr; lesser amount', ws.tax28, capNote, 'te-sd-ws-bold');
+  }
+
+  // ── Unrecaptured §1250 block ─────────────────────────────────────────
+  if (ws.unrecap1250 > 0) {
+    let effRate25 = ws.unrecap1250 > 0 ? (ws.taxOnUnrecapOrd / ws.unrecap1250 * 100).toFixed(1) : '0.0';
+    let capNote25 = ws.unrecapCapFired ? '← cap fires' : '← bracket rate applies';
+    h += wsSect('Unrecaptured &sect;1250 Gain (real property depreciation) &mdash; IRC &sect;1(h)(1)(D)');
+    h += wsRow('Unrecaptured §1250 gain amount (Line 19)', ws.unrecap1250);
+    h += wsRow(`Bracket tax on this slice (${effRate25}% effective)`, ws.taxOnUnrecapOrd);
+    h += wsRowNote('25% cap applied &rarr; lesser amount', ws.taxUnrecap, capNote25, 'te-sd-ws-bold');
+  }
+
+  // ── True QDLTCG block ────────────────────────────────────────────────
+  if (ws.trueQDLTCG > 0) {
+    h += wsSect('True QDLTCG (qualified dividends + net long-term gain) &mdash; IRC &sect;1(h)(1)(B),(C)');
+    h += wsRow('Total preferential income', ws.trueQDLTCG);
+    if (ws.inZero    > 0) h += wsRow('&nbsp;&nbsp;&nbsp;At 0%', ws.inZero);
+    if (ws.inFifteen > 0) h += wsRow('&nbsp;&nbsp;&nbsp;At 15%', ws.inFifteen);
+    if (ws.inTwenty  > 0) h += wsRow('&nbsp;&nbsp;&nbsp;At 20%', ws.inTwenty);
+    h += wsRow('Tax on preferential income', ws.taxQDLTCG, 'te-sd-ws-bold');
+  }
+
+  h += `<div class="te-sd-ws-divider"></div>
+    ${wsRow('Total preferential tax', ws.totalPreferentialTax)}
+    ${wsRow('Ordinary income tax', ws.ordinaryTax)}
+    ${wsRow('Total tax', ws.totalTax, 'te-sd-ws-total')}
+  </div>`;
+  return h;
+}
+
 // Full Schedule D — Capital Gains and Losses form (mini-screen).
 // Data flow: transactions -> lines 1a/8a -> lines 7/15 -> line 16 -> Form 1040 line 7a
 // IRC §1221 (capital asset definition), §1222 (holding period + netting), §1211(b) (loss cap)
@@ -3279,7 +3353,7 @@ function teRenderScheduleD() {
       <div class="te-sd-smry-row ${!l17yes?'te-sd-dimmed':''}" id="te-sd-l19-row">
         <span class="te-sd-smry-num">19</span>
         <span class="te-sd-smry-lbl">Unrecaptured Section 1250 Gain <span class="te-cite">IRC &sect;1(h)(1)(D)</span>
-          <span class="te-sd-smry-note">Straight-line depreciation recapture on real property &mdash; max 25% rate. Not yet in engine (future track).</span></span>
+          <span class="te-sd-smry-note">Straight-line depreciation recapture on real property — max 25% rate. Taxed at the lesser of 25% or the taxpayer&rsquo;s applicable bracket rate.</span></span>
         <input type="number" class="te-input te-mono te-sd-smry-inp" step="0.01" min="0" placeholder="0.00"
           value="${esc(String(sd.unrecaptured1250||''))}" ${!l17yes?'disabled':''} oninput="teOnSchedD('unrecaptured1250',this.value)">
       </div>
@@ -3310,11 +3384,13 @@ function teRenderScheduleD() {
 
     <div class="te-sd-rate-note">
       <strong>Preferential Rate Computation</strong> &mdash; <span class="te-cite">IRC &sect;1(h)</span><br>
-      Engine applies the QDLTCG Tax Worksheet automatically when LTCG or qualified dividends are present.
-      Preferential pool taxed at 0% / 15% / 20% using <em>zeroRateCeiling</em> / <em>fifteenRateCeiling</em> breakpoints
-      from TAX_CONSTANTS (verified via Rev. Proc. 2024-40 / Rev. Proc. 2025-32).
-      ${(r28>0||r19>0) ? `<div class="te-sd-rate-warn">&#9888; Lines 18 or 19 are present. The 28% and 25% rate buckets require the Schedule D Tax Worksheet, which is not yet in the engine. Do not file until those buckets are computed separately.</div>` : ''}
+      Engine applies the Schedule D Tax Worksheet when Lines 18 or 19 are present; otherwise uses
+      the simpler QDLTCG Tax Worksheet. All four rate buckets are computed using the stacking model:
+      ordinary income fills brackets first; 28% rate gains (collectibles/§1202) stack next at max 28%;
+      unrecaptured §1250 stacks next at max 25%; true QDLTCG fills at 0% / 15% / 20%.
+      <span class="te-cite">IRC §1(h)(1)(C),(D),(E)</span>
     </div>
+    ${teRenderSDWorksheet(calc)}
     </div><!-- /te-sd-p3-wrap -->
   </div>`;
 }

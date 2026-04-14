@@ -5613,6 +5613,67 @@ input[type="number"].te-input {
   font-size: 11px;
 }
 
+/* ── Schedule D Tax Worksheet panel ────────────────────────────────── */
+.te-sd-ws-wrap {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 12px;
+}
+.te-sd-ws-title {
+  padding: 7px 14px;
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+.te-sd-ws-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text-dim);
+}
+.te-sd-ws-row:last-child { border-bottom: none; }
+.te-sd-ws-lbl { flex: 1; }
+.te-sd-ws-amt { min-width: 110px; text-align: right; white-space: nowrap; }
+.te-sd-ws-bold { color: var(--text); font-weight: 600; }
+.te-sd-ws-section {
+  background: rgba(255,255,255,0.025);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+.te-sd-ws-total {
+  color: var(--text);
+  font-weight: 700;
+  font-size: 13px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  background: rgba(255,255,255,0.03);
+  border-top: 1px solid var(--border);
+}
+.te-sd-ws-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0;
+}
+.te-sd-ws-cap-note {
+  font-size: 10px;
+  font-weight: 600;
+  color: #f0a030;
+  margin-left: 8px;
+  font-style: italic;
+}
+
 /* ── Schedule 1 Part I ─────────────────────────────────────────────── */
 
 /* Form wrapper — constrain width, left-align */
