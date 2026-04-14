@@ -584,6 +584,16 @@ function teGetScheduleStatus(schedId) {
         || (sa.otherDeductions||[]).length > 0;
       return hasData ? 'entered' : 'empty';
     }
+    case 'sched-2': {
+      let _c2 = (teCurrentReturn._calc) || {};
+      return ((_c2.amt||0) + (_c2.seTax||0) + (_c2.addlMedicareTax||0) + (_c2.niit||0) + (_c2.earlyWithdrawalPenalty||0)) > 0
+        ? 'entered' : 'empty';
+    }
+    case 'sched-3': {
+      let _c3 = (teCurrentReturn._calc) || {};
+      return ((_c3.cdccCredit||0) + (_c3.totalEduNonRefundable||0) + (_c3.saversCredit||0) + (_c3.energyCredit||0)) > 0
+        ? 'entered' : 'empty';
+    }
     default:           return 'empty';
   }
 }

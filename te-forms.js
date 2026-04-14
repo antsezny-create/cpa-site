@@ -226,12 +226,20 @@ function teRenderCreditsMenu() {
                 (c.eicCredit||0)+(c.cdccCredit||0)+
                 (c.saversCredit||0)+(c.energyCredit||0)+
                 (c.aocRefundable||0);
+  let sched3Total = teRound((c.cdccCredit||0)+(c.totalEduNonRefundable||0)+(c.saversCredit||0)+(c.energyCredit||0));
   return `
     <div class="te-sec-hdr" style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div><h2>Tax Credits</h2>
       <p class="te-sec-sub">Select a credit to enter data &mdash; <span class="te-cite">IRC §24, §25A, §32</span></p></div>
       ${teMenuFilterBtn()}
     </div>
+    <div class="te-menu-section-lbl">Schedules <span class="te-cite">Form 1040</span></div>
+    <div class="te-menu-grid">
+      ${teMenuCard('sched-3', 'Schedule 3', 'Additional Credits and Payments',
+          'Summary of non-refundable credits → 1040 Line 20. CDCC, education, saver\'s, energy, and more.',
+          sched3Total > 0, teFmt(sched3Total), src)}
+    </div>
+    <div class="te-menu-section-lbl" style="margin-top:20px;">Credit Forms <span class="te-cite">IRC §24, §25A, §25B, §25C, §32</span></div>
     <div class="te-menu-grid">
       ${teMenuCard('ctc',    'Form 8812',   'Child Tax Credit',
           'CTC ($2,200 / child under 17) + ACTC refundable portion. Auto-calculated from dependents.',
@@ -273,9 +281,17 @@ function teRenderPaymentsMenu() {
   let w2Withholding = c.w2Withholding || 0;
   let estPmt        = c.estPayments   || 0;
   let src           = 'payments';
+  let sched2Total = teRound((c.amt||0)+(c.seTax||0)+(c.addlMedicareTax||0)+(c.niit||0)+(c.earlyWithdrawalPenalty||0));
   return `
     <div class="te-sec-hdr"><h2>Payments &amp; Withholding</h2>
     <p class="te-sec-sub">Federal tax payments &mdash; <span class="te-cite">IRC §3402, §6654</span></p></div>
+    <div class="te-menu-section-lbl">Schedules <span class="te-cite">Form 1040</span></div>
+    <div class="te-menu-grid">
+      ${teMenuCard('sched-2', 'Schedule 2', 'Additional Taxes',
+          'AMT (§55), SE tax (§1401), additional Medicare (§3101), NIIT (§1411), §72(t) early withdrawal penalty. Auto-calculated.',
+          sched2Total > 0, teFmt(sched2Total), src)}
+    </div>
+    <div class="te-menu-section-lbl" style="margin-top:20px;">Payments <span class="te-cite">IRC §3402, §6654</span></div>
     <div class="te-menu-grid">
       <div class="te-menu-card te-menu-card-readonly" onclick="teOpenSchedule('w2','income')">
         <div class="te-card-top">
@@ -539,6 +555,18 @@ function teRenderMiniScreen(schedId) {
         <p class="te-sec-sub"><span class="te-cite">IRC §6654 &mdash; 1040 Line 26</span></p></div>
         <div class="te-subsec">${teRenderEstimatedPayments()}</div>`;
 
+    case 'sched-2':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Schedule 2 — Additional Taxes</h2>
+        <p class="te-sec-sub"><span class="te-cite">Attach to Form 1040 &mdash; 1040 Lines 17 and 23</span></p></div>
+        <div class="te-subsec">${teRenderSchedule2()}</div>`;
+
+    case 'sched-3':
+      return nav + `
+        <div class="te-sec-hdr"><h2>Schedule 3 — Additional Credits and Payments</h2>
+        <p class="te-sec-sub"><span class="te-cite">Attach to Form 1040 &mdash; 1040 Lines 20 and 31</span></p></div>
+        <div class="te-subsec">${teRenderSchedule3()}</div>`;
+
     default:
       return nav + `<div class="te-empty">Unknown schedule: ${esc(schedId)}</div>`;
   }
@@ -572,6 +600,8 @@ function teMiniPostRender(schedId) {
     case 'cdcc':       teRenderCDCCSection();          break;
     case 'savers':     teRenderSaversSection();        break;
     case 'energy':     teRenderEnergySection();        break;
+    case 'sched-2':    /* teRenderAddlTaxes() is self-contained inline — no post-render needed */ break;
+    case 'sched-3':    /* all values computed inline — no post-render needed */                  break;
   }
 }
 
@@ -949,14 +979,14 @@ function teRenderDashboard1040() {
       ${tot('15', 'Taxable income &nbsp;<span class="te-cite">line 11b − line 14</span>', fv(c.taxableIncome), { hl: true })}
 
       ${line('16',  'Tax &nbsp;<span class="te-cite">IRC §1 brackets</span>',                  fv(c.regularTax),   {})}
-      ${line('17',  'Schedule 2, line 3 &nbsp;<span class="te-cite">AMT / Form 6251</span>',   sched2line3 > 0 ? fv(sched2line3) : '—', {})}
+      ${line('17',  'Schedule 2, line 3 &nbsp;<span class="te-cite">AMT / Form 6251</span>',   sched2line3 > 0 ? fv(sched2line3) : '—', { badges: badge('sched-2', 'Sch. 2') })}
       ${tot('18',   'Add lines 16 and 17',                                                     fv(c.taxBeforeCredits))}
 
       ${line('19',  'Child tax credit / credit for other dependents &nbsp;<span class="te-cite">Sch. 8812</span>',
           (c.ctcNonRefundable || 0) > 0 ? fvNeg(c.ctcNonRefundable) : '—',
           { badges: badge('credits', 'Credits') })}
       ${line('20',  'Schedule 3, line 8 &nbsp;<span class="te-cite">other non-refundable credits</span>',
-          sched3line8 > 0 ? fvNeg(sched3line8) : '—', {})}
+          sched3line8 > 0 ? fvNeg(sched3line8) : '—', { badges: badge('sched-3', 'Sch. 3') })}
       ${sched3line8 > 0 ? `
         ${(c.cdccCredit   || 0) > 0 ? line('',   '— Child &amp; Dependent Care §21',         fvNeg(c.cdccCredit),   { indent: true, sub: true }) : ''}
         ${(c.saversCredit || 0) > 0 ? line('',   "— Saver's Credit §25B",                    fvNeg(c.saversCredit), { indent: true, sub: true }) : ''}
@@ -965,7 +995,7 @@ function teRenderDashboard1040() {
       ${tot('21',  'Add lines 19 and 20 (total non-refundable credits)',                       line21 > 0 ? fvNeg(line21) : '—')}
       ${tot('22',  'Subtract line 21 from line 18',                                            fv(line22))}
 
-      ${line('23',  'Other taxes &nbsp;<span class="te-cite">Sch. 2, line 21</span>',          sched2line21 > 0 ? fv(sched2line21) : '—', {})}
+      ${line('23',  'Other taxes &nbsp;<span class="te-cite">Sch. 2, line 21</span>',          sched2line21 > 0 ? fv(sched2line21) : '—', { badges: badge('sched-2', 'Sch. 2') })}
       ${sched2line21 > 0 ? `
         ${(c.seTax                || 0) > 0 ? line('', '— Self-employment tax §1401',             fv(c.seTax),                  { indent: true, sub: true }) : ''}
         ${(c.addlMedicareTax      || 0) > 0 ? line('', '— Additional Medicare Tax §3101(b)(2)',   fv(c.addlMedicareTax),        { indent: true, sub: true }) : ''}
@@ -6266,6 +6296,255 @@ function teRenderPenaltyAccordion(calc) {
     </div>`;
 }
 
+// ── SCHEDULE 2 — Additional Taxes (IRS Form 1040 Schedule 2, 2025) ───────────
+// Part I — Tax: AMT (Line 2) and stub lines (1a-1y)
+// Part II — Other Taxes: SE tax (Line 4), §72(t) penalty (Line 8),
+//           Addl Medicare (Line 11), NIIT (Line 12); remaining lines are stubs
+// Line 3 → 1040 Line 17 | Line 21 → 1040 Line 23
+function teRenderSchedule2() {
+  let r    = teCurrentReturn;
+  let calc = (r && r._calc) || {};
+  let yr   = r ? (r.taxYear || teActiveYear) : teActiveYear;
+
+  let cRow = (num, label, val, cls) =>
+    `<div class="te-se-row${cls ? ' ' + cls : ''}">
+       <span class="te-se-num">${num}</span>
+       <span class="te-se-lbl">${label}</span>
+       <span class="te-se-val">${val}</span>
+     </div>`;
+
+  let stubRow = (num, label) =>
+    `<div class="te-se-row te-se-zero">
+       <span class="te-se-num">${num}</span>
+       <span class="te-se-lbl">${label} <span class="te-cite" style="opacity:0.5;">— not applicable or not yet implemented</span></span>
+       <span class="te-se-val">—</span>
+     </div>`;
+
+  let amt          = calc.amt || 0;
+  let seTax        = calc.seTax || 0;
+  let earlyPenalty = calc.earlyWithdrawalPenalty || 0;
+  let addlMedicare = calc.addlMedicareTax || 0;
+  let niit         = calc.niit || 0;
+
+  // Part I — Line 1z is $0 (stubs 1a–1y); Line 3 = Line 1z + Line 2 (AMT)
+  let line1z = 0;
+  let line3  = teRound(line1z + amt);
+
+  // Part II — Line 21 = Lines 4 + 8 + 11 + 12 (remaining lines are stubs)
+  let line21 = teRound(seTax + earlyPenalty + addlMedicare + niit);
+
+  return `
+    <div class="te-sch-se">
+
+      <div class="te-se-header-bar">
+        <div class="te-se-title">Schedule 2 (Form 1040) — Additional Taxes</div>
+        <div class="te-se-subtitle">Attach to Form 1040 &nbsp;·&nbsp; Tax Year ${yr}</div>
+      </div>
+
+      <div class="te-se-section-label">Part I — Tax</div>
+
+      ${stubRow('1a', 'Excess advance premium tax credit repayment <span class="te-cite">Form 8962</span>')}
+      ${stubRow('1b', 'Repayment of new clean vehicle credit(s) <span class="te-cite">Form 8936</span>')}
+      ${stubRow('1c', 'Repayment of previously owned clean vehicle credit(s) <span class="te-cite">Form 8936</span>')}
+      ${stubRow('1d', 'Recapture of net EPE <span class="te-cite">Form 4255</span>')}
+      ${stubRow('1e', 'Excessive payments on gross EPE <span class="te-cite">Form 4255</span>')}
+      ${stubRow('1f', '20% EP <span class="te-cite">Form 4255</span>')}
+      ${stubRow('1y', 'Other additions to tax')}
+
+      ${cRow('1z', 'Add lines 1a through 1y',
+          line1z > 0 ? teFmt(line1z) : '—', 'te-se-sub')}
+
+      ${cRow('2', 'Alternative minimum tax <span class="te-cite">Form 6251 &mdash; IRC §55</span>',
+          amt > 0 ? teFmt(amt) : '—',
+          amt > 0 ? '' : 'te-se-zero')}
+
+      <div class="te-se-total-bar">
+        <span>Line 3 — Add lines 1z and 2 &nbsp;<span class="te-cite" style="font-weight:400;">&rarr; Form 1040, Line 17</span></span>
+        <span class="te-total-val">${line3 > 0 ? teFmt(line3) : '—'}</span>
+      </div>
+
+      <div class="te-se-section-label" style="margin-top:16px;">Part II — Other Taxes</div>
+
+      ${cRow('4', 'Self-employment tax <span class="te-cite">Schedule SE &mdash; IRC §1401</span>',
+          seTax > 0 ? teFmt(seTax) : '—',
+          seTax > 0 ? '' : 'te-se-zero')}
+
+      ${stubRow('5', 'Social security and Medicare tax on unreported tip income <span class="te-cite">Form 4137</span>')}
+      ${stubRow('6', 'Uncollected social security and Medicare tax on wages <span class="te-cite">Form 8919</span>')}
+
+      ${cRow('7', 'Total additional social security and Medicare tax — add lines 5 and 6',
+          '—', 'te-se-sub te-se-zero')}
+
+      ${cRow('8', 'Additional tax on IRAs or other tax-favored accounts <span class="te-cite">Form 5329 &mdash; IRC §72(t)</span>',
+          earlyPenalty > 0 ? teFmt(earlyPenalty) : '—',
+          earlyPenalty > 0 ? '' : 'te-se-zero')}
+
+      ${stubRow('9', 'Household employment taxes <span class="te-cite">Schedule H</span>')}
+      ${stubRow('10', 'Reserved for future use')}
+
+      ${cRow('11', 'Additional Medicare Tax <span class="te-cite">Form 8959 &mdash; IRC §3101(b)(2)</span>',
+          addlMedicare > 0 ? teFmt(addlMedicare) : '—',
+          addlMedicare > 0 ? '' : 'te-se-zero')}
+
+      ${cRow('12', 'Net investment income tax <span class="te-cite">Form 8960 &mdash; IRC §1411</span>',
+          niit > 0 ? teFmt(niit) : '—',
+          niit > 0 ? '' : 'te-se-zero')}
+
+      ${stubRow('13', 'Uncollected SS/Medicare or RRTA tax on tips or group-term life insurance <span class="te-cite">Form W-2, Box 12</span>')}
+      ${stubRow('14', 'Interest on tax due on installment income from sale of residential lots/timeshares')}
+      ${stubRow('15', 'Interest on deferred tax on gain from installment sales over $150,000')}
+      ${stubRow('16', 'Recapture of low-income housing credit <span class="te-cite">Form 8611</span>')}
+      ${stubRow('17a-z', 'Other additional taxes (recapture of credits, HSA distributions, Archer MSA, etc.)')}
+      ${stubRow('18', 'Total additional taxes — add lines 17a through 17z')}
+      ${stubRow('19', 'Recapture of net EPE <span class="te-cite">Form 4255</span>')}
+
+      <div class="te-se-total-bar" style="margin-top:8px;">
+        <span>Line 21 — Total Other Taxes &nbsp;<span class="te-cite" style="font-weight:400;">&rarr; Form 1040, Line 23</span></span>
+        <span class="te-total-val">${line21 > 0 ? teFmt(line21) : '—'}</span>
+      </div>
+
+      <div class="te-se-total-bar" style="margin-top:12px; opacity:0.8;">
+        <span>Total Schedule 2 &nbsp;<span class="te-cite" style="font-weight:400;">Part I (Line 3) + Part II (Line 21)</span></span>
+        <span class="te-total-val">${teRound(line3 + line21) > 0 ? teFmt(teRound(line3 + line21)) : '—'}</span>
+      </div>
+
+    </div>
+
+    <div style="margin-top:20px;">
+      <div class="te-subsec-lbl">Detailed Calculations</div>
+      <div class="te-subsec-desc">Expand each tax to see the full computation breakdown.</div>
+      <div style="margin-top:8px;">${teRenderAddlTaxes()}</div>
+    </div>`;
+}
+
+// ── SCHEDULE 3 — Additional Credits and Payments (IRS Form 1040 Schedule 3, 2025) ──
+// Part I — Nonrefundable Credits: CDCC §21 (Line 2), Education §25A (Line 3),
+//           Saver's §25B (Line 4), Energy §25C (Line 5b); remaining lines are stubs
+// Part II — Other Payments: all stubs (estimated payments go on 1040 Line 26 directly,
+//           NOT through Schedule 3 Line 10 which is extension payments only)
+// Line 8 → 1040 Line 20 | Line 15 → 1040 Line 31
+function teRenderSchedule3() {
+  let r    = teCurrentReturn;
+  let calc = (r && r._calc) || {};
+  let yr   = r ? (r.taxYear || teActiveYear) : teActiveYear;
+
+  let cRow = (num, label, val, cls) =>
+    `<div class="te-se-row${cls ? ' ' + cls : ''}">
+       <span class="te-se-num">${num}</span>
+       <span class="te-se-lbl">${label}</span>
+       <span class="te-se-val">${val}</span>
+     </div>`;
+
+  let cRowLink = (num, label, val, schedId, cls) =>
+    `<div class="te-se-row${cls ? ' ' + cls : ''}">
+       <span class="te-se-num">${num}</span>
+       <span class="te-se-lbl">${label}</span>
+       <span class="te-se-val te-s1-ro-link" onclick="teOpenSchedule('${schedId}','sched-3')">${val}</span>
+     </div>`;
+
+  let stubRow = (num, label) =>
+    `<div class="te-se-row te-se-zero">
+       <span class="te-se-num">${num}</span>
+       <span class="te-se-lbl">${label} <span class="te-cite" style="opacity:0.5;">— not applicable or not yet implemented</span></span>
+       <span class="te-se-val">—</span>
+     </div>`;
+
+  let cdcc   = calc.cdccCredit || 0;
+  let eduNR  = calc.totalEduNonRefundable || 0;
+  let savers = calc.saversCredit || 0;
+  let energy = calc.energyCredit || 0;
+
+  // Line 8: Add lines 1–4, 5a, 5b, and 7
+  // Foreign tax (Line 1) and Line 7 group are stubs; Line 5a (§25D solar) not implemented
+  let line8  = teRound(cdcc + eduNR + savers + energy);
+
+  // Part II: all stubs — estimated payments are on 1040 Line 26, NOT Schedule 3 Line 10
+  let line15 = 0;
+
+  return `
+    <div class="te-sch-se">
+
+      <div class="te-se-header-bar">
+        <div class="te-se-title">Schedule 3 (Form 1040) — Additional Credits and Payments</div>
+        <div class="te-se-subtitle">Attach to Form 1040 &nbsp;·&nbsp; Tax Year ${yr}</div>
+      </div>
+
+      <div class="te-se-section-label">Part I — Nonrefundable Credits</div>
+
+      ${stubRow('1', 'Foreign tax credit <span class="te-cite">Form 1116 &mdash; IRC §27</span>')}
+
+      ${cdcc > 0
+          ? cRowLink('2', 'Credit for child and dependent care expenses <span class="te-cite">Form 2441 &mdash; IRC §21</span>',
+              teFmt(cdcc), 'cdcc')
+          : cRow('2', 'Credit for child and dependent care expenses <span class="te-cite">Form 2441 &mdash; IRC §21</span>',
+              '—', 'te-se-zero')}
+
+      ${eduNR > 0
+          ? cRowLink('3', 'Education credits <span class="te-cite">Form 8863, line 19 &mdash; IRC §25A</span>',
+              teFmt(eduNR), 'edu')
+          : cRow('3', 'Education credits <span class="te-cite">Form 8863, line 19 &mdash; IRC §25A</span>',
+              '—', 'te-se-zero')}
+
+      ${savers > 0
+          ? cRowLink('4', 'Retirement savings contributions credit <span class="te-cite">Form 8880 &mdash; IRC §25B</span>',
+              teFmt(savers), 'savers')
+          : cRow('4', 'Retirement savings contributions credit <span class="te-cite">Form 8880 &mdash; IRC §25B</span>',
+              '—', 'te-se-zero')}
+
+      ${stubRow('5a', 'Residential clean energy credit <span class="te-cite">Form 5695, line 15 &mdash; IRC §25D</span>')}
+
+      ${energy > 0
+          ? cRowLink('5b', 'Energy efficient home improvement credit <span class="te-cite">Form 5695, line 32 &mdash; IRC §25C</span>',
+              teFmt(energy), 'energy')
+          : cRow('5b', 'Energy efficient home improvement credit <span class="te-cite">Form 5695, line 32 &mdash; IRC §25C</span>',
+              '—', 'te-se-zero')}
+
+      ${stubRow('6a', 'General business credit <span class="te-cite">Form 3800</span>')}
+      ${stubRow('6b', 'Credit for prior year minimum tax <span class="te-cite">Form 8801</span>')}
+      ${stubRow('6c', 'Adoption credit <span class="te-cite">Form 8839</span>')}
+      ${stubRow('6d', 'Credit for the elderly or disabled <span class="te-cite">Schedule R</span>')}
+      ${stubRow('6e', 'Reserved for future use')}
+      ${stubRow('6f', 'Clean vehicle credit <span class="te-cite">Form 8936</span>')}
+      ${stubRow('6g', 'Mortgage interest credit <span class="te-cite">Form 8396</span>')}
+      ${stubRow('6h', 'District of Columbia first-time homebuyer credit <span class="te-cite">Form 8859</span>')}
+      ${stubRow('6i', 'Qualified electric vehicle credit <span class="te-cite">Form 8834</span>')}
+      ${stubRow('6j', 'Alternative fuel vehicle refueling property credit <span class="te-cite">Form 8911</span>')}
+      ${stubRow('6k', 'Credit to holders of tax credit bonds <span class="te-cite">Form 8912</span>')}
+      ${stubRow('6l', 'Amount on Form 8978, line 14')}
+      ${stubRow('6m', 'Credit for previously owned clean vehicles <span class="te-cite">Form 8936</span>')}
+      ${stubRow('6z', 'Other nonrefundable credits')}
+
+      ${cRow('7', 'Total other nonrefundable credits — add lines 6a through 6z',
+          '—', 'te-se-sub te-se-zero')}
+
+      <div class="te-se-total-bar">
+        <span>Line 8 — Total Nonrefundable Credits &nbsp;<span class="te-cite" style="font-weight:400;">&rarr; Form 1040, Line 20</span></span>
+        <span class="te-total-val">${line8 > 0 ? teFmt(line8) : '—'}</span>
+      </div>
+
+      <div class="te-se-section-label" style="margin-top:16px;">Part II — Other Payments and Refundable Credits</div>
+
+      ${stubRow('9',   'Net premium tax credit <span class="te-cite">Form 8962 &mdash; IRC §36B</span>')}
+      ${stubRow('10',  'Amount paid with request for extension to file <span class="te-cite">Form 4868</span>')}
+      ${stubRow('11',  'Excess social security and tier 1 RRTA tax withheld <span class="te-cite">IRC §6413(c)</span>')}
+      ${stubRow('12',  'Credit for federal tax on fuels <span class="te-cite">Form 4136</span>')}
+      ${stubRow('13a', 'Form 2439')}
+      ${stubRow('13b', 'Section 1341 credit for repayment of amounts included in income from earlier years')}
+      ${stubRow('13c', 'Net elective payment election amount <span class="te-cite">Form 3800, Part III</span>')}
+      ${stubRow('13d', 'Deferred amount of net 965 tax liability')}
+      ${stubRow('13z', 'Other refundable credits')}
+
+      ${cRow('14', 'Total other payments or refundable credits — add lines 13a through 13z',
+          '—', 'te-se-sub te-se-zero')}
+
+      <div class="te-se-total-bar" style="margin-top:8px;">
+        <span>Line 15 — Total Other Payments and Refundable Credits &nbsp;<span class="te-cite" style="font-weight:400;">&rarr; Form 1040, Line 31</span></span>
+        <span class="te-total-val">${line15 > 0 ? teFmt(line15) : '—'}</span>
+      </div>
+
+    </div>`;
+}
+
 function teRenderPayments() {
   let w2s   = teCurrentReturn.w2 || [];
   let total = w2s.reduce((s, w) => s + (parseFloat(w.federalWithheld)||0), 0);
@@ -6293,9 +6572,22 @@ function teRenderPayments() {
     </div>
 
     <div class="te-subsec" style="margin-top:20px;">
-      <div class="te-subsec-lbl">Additional Taxes <span class="te-cite">IRC §55, §72(t), §1401, §3101(b)(2), §1411</span></div>
-      <div class="te-subsec-desc">Surtaxes computed automatically from income entries. Expand each to verify the calculation.</div>
-      <div id="te-addl-taxes-panel">${teRenderAddlTaxes()}</div>
+      <div class="te-subsec-lbl">Additional Taxes <span class="te-cite">Schedule 2</span></div>
+      ${(() => {
+        let c = (teCurrentReturn && teCurrentReturn._calc) || {};
+        let addlTaxTotal = teRound((c.seTax||0) + (c.addlMedicareTax||0) + (c.niit||0) + (c.amt||0) + (c.earlyWithdrawalPenalty||0));
+        let parts = [];
+        if ((c.seTax||0) > 0)                    parts.push('SE Tax: ' + teFmt(c.seTax));
+        if ((c.addlMedicareTax||0) > 0)          parts.push('Addl Medicare: ' + teFmt(c.addlMedicareTax));
+        if ((c.niit||0) > 0)                     parts.push('NIIT: ' + teFmt(c.niit));
+        if ((c.amt||0) > 0)                      parts.push('AMT: ' + teFmt(c.amt));
+        if ((c.earlyWithdrawalPenalty||0) > 0)   parts.push('§72(t): ' + teFmt(c.earlyWithdrawalPenalty));
+        let summary = addlTaxTotal > 0
+          ? parts.join(' &nbsp;·&nbsp; ') + ' &nbsp;·&nbsp; <strong>Total: ' + teFmt(addlTaxTotal) + '</strong>'
+          : 'No additional taxes.';
+        return `<div class="te-subsec-desc" style="margin-top:4px;">${summary}</div>
+      <button class="ghost-btn te-sm-btn" style="margin-top:6px;" onclick="teOpenSchedule('sched-2','payments')">View Schedule 2 &rarr;</button>`;
+      })()}
     </div>
 
     <div class="te-stub-sec" style="margin-top:16px;">

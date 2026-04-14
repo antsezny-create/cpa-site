@@ -441,62 +441,32 @@
       <!-- Engine View (interview + meter) -->
       <div id="te-engine-wrapper" style="display:none;">
         <div class="te-engine-topbar">
-          <button class="ghost-btn te-back-btn" onclick="teBackToCenter()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-            All Returns
-          </button>
-          <div class="te-return-title">
-            <span id="te-bc-client">—</span>
-            <span class="te-return-meta" id="te-bc-return">—</span>
+          <div class="te-topbar-main">
+            <button class="ghost-btn te-back-btn" onclick="teBackToCenter()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+              All Returns
+            </button>
+            <div class="te-return-title">
+              <span id="te-bc-client">—</span>
+              <span class="te-return-meta" id="te-bc-return">—</span>
+            </div>
+            <div style="display:flex;gap:8px;margin-left:auto;align-items:center;">
+              <span class="te-status-badge te-status-gray" id="te-status-badge">Not Started</span>
+              <button class="ghost-btn" onclick="teClearReturn()" style="color:var(--orange);border-color:var(--orange);">Clear All</button>
+              <button class="primary-btn" id="te-save-btn" onclick="teSaveReturn()">Save</button>
+            </div>
           </div>
-          <div style="display:flex;gap:8px;margin-left:auto;align-items:center;">
-            <span class="te-status-badge te-status-gray" id="te-status-badge">Not Started</span>
-            <button class="ghost-btn" onclick="teClearReturn()" style="color:var(--orange);border-color:var(--orange);">Clear All</button>
-            <button class="primary-btn" id="te-save-btn" onclick="teSaveReturn()">Save</button>
+          <div class="te-section-tabs">
+            <button class="te-sec-btn active" onclick="teSwitchSection('dashboard')" id="te-sec-btn-dashboard">Form 1040</button>
+            <button class="te-sec-btn" onclick="teSwitchSection('personal')" id="te-sec-btn-personal">Personal<span class="te-sec-ic" id="te-sec-ic-personal"></span></button>
+            <button class="te-sec-btn" onclick="teSwitchSection('income')" id="te-sec-btn-income">Income<span class="te-sec-ic" id="te-sec-ic-income"></span></button>
+            <button class="te-sec-btn" onclick="teSwitchSection('deductions')" id="te-sec-btn-deductions">Deductions<span class="te-sec-ic" id="te-sec-ic-deductions"></span></button>
+            <button class="te-sec-btn" onclick="teSwitchSection('credits')" id="te-sec-btn-credits">Credits<span class="te-sec-ic" id="te-sec-ic-credits"></span></button>
+            <button class="te-sec-btn" onclick="teSwitchSection('payments')" id="te-sec-btn-payments">Payments<span class="te-sec-ic" id="te-sec-ic-payments"></span></button>
           </div>
         </div>
 
         <div class="te-engine-layout">
-
-          <!-- Left: Section Nav -->
-          <nav class="te-section-nav">
-            <button class="te-sec-btn active" onclick="teSwitchSection('dashboard')" id="te-sec-btn-dashboard">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
-              <span class="te-sec-label">Form 1040</span>
-            </button>
-            <div class="te-nav-divider"></div>
-            <button class="te-sec-btn" onclick="teSwitchSection('personal')" id="te-sec-btn-personal">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-              <span class="te-sec-label">Personal</span>
-              <span class="te-sec-ic" id="te-sec-ic-personal"></span>
-            </button>
-            <button class="te-sec-btn" onclick="teSwitchSection('income')" id="te-sec-btn-income">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-              <span class="te-sec-label">Income</span>
-              <span class="te-sec-ic" id="te-sec-ic-income"></span>
-            </button>
-            <button class="te-sec-btn" onclick="teSwitchSection('deductions')" id="te-sec-btn-deductions">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              <span class="te-sec-label">Deductions</span>
-              <span class="te-sec-ic" id="te-sec-ic-deductions"></span>
-            </button>
-            <button class="te-sec-btn" onclick="teSwitchSection('credits')" id="te-sec-btn-credits">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-              <span class="te-sec-label">Credits</span>
-              <span class="te-sec-ic" id="te-sec-ic-credits"></span>
-            </button>
-            <button class="te-sec-btn" onclick="teSwitchSection('payments')" id="te-sec-btn-payments">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-              <span class="te-sec-label">Payments</span>
-              <span class="te-sec-ic" id="te-sec-ic-payments"></span>
-            </button>
-            <div class="te-nav-divider"></div>
-            <div class="te-nav-section-label">CPA Tools</div>
-            <button class="te-sec-btn" onclick="teToggleNotesPanel()" id="te-sec-btn-notes">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              <span class="te-sec-label">Annotations</span>
-            </button>
-          </nav>
 
           <!-- Center: Interview Panel -->
           <div class="te-interview-panel" id="te-interview-body">
@@ -550,17 +520,6 @@
           </div>
 
         </div><!-- /.te-engine-layout -->
-
-        <!-- CPA Annotations Panel -->
-        <div id="te-notes-panel" style="display:none;flex-direction:column;gap:10px;margin-top:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span class="te-flags-header">CPA Annotations</span>
-            <span id="te-notes-sec-lbl" style="font-size:11px;color:var(--accent);"></span>
-          </div>
-          <div id="te-notes-hist"></div>
-          <textarea id="te-notes-txt" class="te-note-textarea" placeholder="Add annotation for this section..."></textarea>
-          <button class="primary-btn" style="align-self:flex-end;" onclick="teSaveNote()">Save Note</button>
-        </div>
 
       </div><!-- /#te-engine-wrapper -->
 

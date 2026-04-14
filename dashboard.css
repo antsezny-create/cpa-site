@@ -32,8 +32,8 @@
   --shadow-sm:    0 1px 3px rgba(0,0,0,0.4);
   --shadow-md:    0 4px 16px rgba(0,0,0,0.4);
   --shadow-lg:    0 8px 32px rgba(0,0,0,0.5);
-  /* Tax engine topbar sticky offset — height of .te-engine-topbar (padding 10+14 + ~44px content + 1px border) */
-  --te-topbar-h:  69px;
+  /* Tax engine topbar sticky offset — two-row topbar: row1 ~44px + gap 10px + tabs ~32px + padding 12px = ~98px */
+  --te-topbar-h:  98px;
 }
 
 body {
@@ -3576,16 +3576,22 @@ select.cal-input { cursor: pointer; }
 /* ── Engine Top Bar ── */
 .te-engine-topbar {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 0 14px;
+  flex-direction: column;
+  gap: 0;
+  padding: 10px 0 0;
   border-bottom: 1px solid var(--border);
   margin-top: -32px;   /* offsets .dash-main's 32px top padding so natural position == sticky position — eliminates scroll "jump" */
   margin-bottom: 16px;
   position: sticky;
-  top: 58px; /* clears the 58px fixed .dash-nav — body is the scroll container */
+  top: 58px;
   z-index: 10;
   background: var(--bg);
+}
+.te-topbar-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 10px;
 }
 .te-back-btn {
   display: flex;
@@ -3623,10 +3629,49 @@ select.cal-input { cursor: pointer; }
   letter-spacing: 0.02em;
 }
 
-/* ── Engine 3-Column Layout ── */
+/* ── Section Tab Bar ── */
+.te-section-tabs {
+  display: flex;
+  gap: 5px;
+  padding: 0 0 12px;
+}
+.te-section-tabs .te-sec-btn {
+  width: auto;
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-input);
+  color: var(--text-dim);
+  white-space: nowrap;
+  line-height: 1;
+  gap: 5px;
+}
+.te-section-tabs .te-sec-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+  border-color: var(--border-light);
+  border-left-color: var(--border-light);
+}
+.te-section-tabs .te-sec-btn.active {
+  background: var(--accent-light);
+  color: var(--accent);
+  border-color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 700;
+}
+.te-section-tabs .te-sec-ic {
+  width: auto;
+}
+
+/* ── Engine 2-Column Layout ── */
 .te-engine-layout {
   display: grid;
-  grid-template-columns: 172px 1fr 255px;
+  grid-template-columns: 1fr 290px;
   gap: 14px;
   align-items: start;
 }
@@ -3707,6 +3752,9 @@ select.cal-input { cursor: pointer; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 24px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: calc(100vh - 58px - var(--te-topbar-h) - 48px);
 }
 
 /* Section Header */
