@@ -131,7 +131,12 @@ const TAX_CONSTANTS = {
       // Earned income threshold: made permanent by OBBBA at $2,500 (pre-TCJA was $3,000)
       earnedIncomeMin:   2500,
       // IRC §24(d)(1)(B): 15% of earned income over threshold
-      earnedIncomeRate:  0.15
+      earnedIncomeRate:  0.15,
+      // IRC §24(h)(4): Other Dependent Credit — $500 per non-CTC qualifying dependent — STATUTORY
+      // Includes: qualifying relatives; ITIN children (IRC §24(h)(7) — SSN required for CTC)
+      // Phase-out runs jointly on CTC gross + ODC gross via the same §24(b) threshold/reduction
+      // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section24
+      odcAmount: 500
     },
 
     // IRC §25A(b) — American Opportunity Tax Credit (AOC)
@@ -508,6 +513,18 @@ const TAX_CONSTANTS = {
         mfj:    394600,   // IRC §199A(e)(2)(B) — double the single threshold
         qss:    394600    // QSS uses MFJ threshold per IRC §2(a)
       }
+    },
+
+    // IRC §469(i) — Rental Real Estate Exception (active participation)
+    // Thresholds are STATUTORY — never inflation-adjusted since enactment.
+    // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section469
+    passive469i: {
+      cap:              25000,   // IRC §469(i)(1): max $25,000 deductible against non-passive income
+      phaseoutStart:   100000,   // IRC §469(i)(3)(A): phase-out begins at $100,000 AGI — STATUTORY
+      phaseoutRate:       0.50,  // IRC §469(i)(3)(B): $0.50 reduction per $1.00 excess AGI — STATUTORY
+      // IRC §469(i)(5): MFS special rules — STATUTORY
+      capMFSApart:      12500,   // MFS who did NOT live with spouse: $12,500 cap
+      phaseoutStartMFSApart: 50000  // MFS apart phase-out starts at $50,000 AGI
     }
   },
 
@@ -601,7 +618,10 @@ const TAX_CONSTANTS = {
       // Source: irs.gov CTC page (confirmed 2026-04-09); OBBBA §70101
       actcMax:           1700,
       earnedIncomeMin:   2500,
-      earnedIncomeRate:  0.15
+      earnedIncomeRate:  0.15,
+      // IRC §24(h)(4): Other Dependent Credit — $500 per non-CTC qualifying dependent — STATUTORY
+      // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section24
+      odcAmount: 500
     },
 
     // IRC §25A(d) — Education Credits (STATUTORY — not inflation-adjusted per §25A(d))
@@ -861,6 +881,18 @@ const TAX_CONSTANTS = {
         mfj:    398600,   // TODO:VERIFY — est. $394,600 × CPI adj.
         qss:    398600
       }
+    },
+
+    // IRC §469(i) — Rental Real Estate Exception (active participation)
+    // Thresholds are STATUTORY — never inflation-adjusted since enactment.
+    // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section469
+    passive469i: {
+      cap:              25000,   // IRC §469(i)(1): max $25,000 deductible against non-passive income
+      phaseoutStart:   100000,   // IRC §469(i)(3)(A): phase-out begins at $100,000 AGI — STATUTORY
+      phaseoutRate:       0.50,  // IRC §469(i)(3)(B): $0.50 reduction per $1.00 excess AGI — STATUTORY
+      // IRC §469(i)(5): MFS special rules — STATUTORY
+      capMFSApart:      12500,   // MFS who did NOT live with spouse: $12,500 cap
+      phaseoutStartMFSApart: 50000  // MFS apart phase-out starts at $50,000 AGI
     },
 
     // ── TRACK 6: Alternative Minimum Tax (AMT) Constants (2026) ──────────

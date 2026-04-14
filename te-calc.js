@@ -13,12 +13,16 @@ function teCalcSLI(adj, magi, K, fs) {
   let ratio = (magi - po.floor) / (po.ceiling - po.floor);
   return Math.max(0, Math.round(maxDed * (1 - ratio) * 100) / 100);
 }
-function teCalcHSA(adj, K) {
+function teCalcHSA(adj, K, w2Box12W) {
   let contributions = parseFloat(adj.hsaContributions) || 0;
   if (contributions <= 0) return 0;
   let limit = (adj.hsaCoverageType === 'family') ? K.hsa.limitFamily : K.hsa.limitSelf;
   // IRC §223(b)(3)(B): age 55+ catch-up — statutory $1,000
   if (adj.hsaTaxpayerAge55) limit += K.hsa.catchUp;
+  // IRC §223(b)(1), §223(d)(2): employer contributions (W-2 Box 12W) reduce the deductible limit
+  // — employee may only deduct contributions up to limit minus what employer already contributed
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section223
+  limit = Math.max(0, limit - (w2Box12W || 0));
   return Math.min(contributions, limit);
 }
 function teCalcIRA(adj, magi, K, fs) {
@@ -411,6 +415,15 @@ function teRecalculate() {
   calc.w2Box3     = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.box3) || 0), 0));
   // IRC §219(g)(5): active participant flag — computed here (before teCalcIRA) because IRA phase-out depends on it.
   calc.w2Box13Ret = (teCurrentReturn.w2 || []).some(w => w.box13Retirement);
+  // IRC §223(d)(2), §223(b)(1): W-2 Box 12W = employer HSA contributions — reduces employee's deductible limit.
+  // Computed here (before teCalcHSA in Step 2b) so employer contributions correctly reduce the limit.
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section223
+  calc.w2Box12W = teRound((teCurrentReturn.w2 || []).reduce((s, w) =>
+    s + ((w.box12 || []).reduce((a, r) => a + (r.code === 'W' ? (parseFloat(r.amount) || 0) : 0), 0)), 0));
+  // IRC §129: W-2 Box 10 = employer-provided dependent care benefits — reduces CDCC qualifying expenses.
+  // Computed here (before teCalcCDCC in Step 9a) so Box 10 benefits are included in the exclusion limit.
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section129
+  calc.w2Box10 = teRound((teCurrentReturn.w2 || []).reduce((s, w) => s + (parseFloat(w.box10) || 0), 0));
   // netSEIncome = Schedule C + Schedule F farm profit + CRP payments (all SE sources)
   // IRC §1402(a): net earnings from self-employment includes all trade/business net income
   calc.netSEIncome  = teRound(Math.max(0,
@@ -541,13 +554,22 @@ function teRecalculate() {
   };
 
   // Schedule E — pass-through income/loss — IRC §702 (partnerships), §1366 (S-corps)
-  // IRC §469(a): passive activity losses can only offset passive activity income — excess suspended
+  // IRC §469(a): passive activity losses can only offset passive activity income — excess suspended.
+  // IRC §469(i): rental real estate with active participation: up to $25K allowance against non-passive
+  // income, subject to AGI phase-out. Applied retroactively in Step 3a after AGI is known.
   let seEntities        = teCurrentReturn.scheduleE || [];
-  calc.scheduleEPassive    = teRound(seEntities.filter(e => e.isPassive).reduce((s, e) => s + (parseFloat(e.incomeAmount) || 0), 0));
+  // Split passive pool: §469(i)-eligible (rental + active participant) vs other passive — for Step 3a
+  let seRentalActive    = seEntities.filter(e => e.isPassive && e.isRentalRealEstate && e.activelyParticipates);
+  let seOtherPassive    = seEntities.filter(e => e.isPassive && !(e.isRentalRealEstate && e.activelyParticipates));
+  calc.rentalActiveNet     = teRound(seRentalActive.reduce((s, e) => s + (parseFloat(e.incomeAmount) || 0), 0));
+  let otherPassiveNet_     = teRound(seOtherPassive.reduce((s, e) => s + (parseFloat(e.incomeAmount) || 0), 0));
+  calc.scheduleEPassive    = teRound(calc.rentalActiveNet + otherPassiveNet_);
   calc.scheduleENonPassive = teRound(seEntities.filter(e => !e.isPassive).reduce((s, e) => s + (parseFloat(e.incomeAmount) || 0), 0));
-  // Only positive passive income flows through; passive losses are suspended (not deductible currently)
+  // Pass 1: all passive losses suspended — §469(i) allowance applied retroactively in Step 3a
   calc.scheduleEPassiveDeductible = teRound(Math.max(0, calc.scheduleEPassive));
   calc.passiveLossSuspended       = teRound(calc.scheduleEPassive < 0 ? Math.abs(calc.scheduleEPassive) : 0);
+  // Track rental-active loss separately so Step 3a knows how much §469(i) can unlock
+  calc.rentalActiveLoss = teRound(Math.max(0, -calc.rentalActiveNet));
   // Non-passive losses flow through without restriction (e.g., general partner, material participation)
   calc.scheduleENet = teRound(calc.scheduleEPassiveDeductible + calc.scheduleENonPassive);
 
@@ -778,7 +800,7 @@ function teRecalculate() {
   let adj = teCurrentReturn.agiAdjustments || {};
 
   // §223 HSA: no MAGI phase-out — compute first
-  calc.hsaDeduction = teCalcHSA(adj, K);
+  calc.hsaDeduction = teCalcHSA(adj, K, calc.w2Box12W);
 
   // §221 Student Loan Interest
   // MAGI = grossIncome − HSA − seTaxDeduction (§221 excluded from own MAGI)
@@ -917,6 +939,55 @@ function teRecalculate() {
   if (calc.ssBenefitsTaxable > 0) {
     calc.grossIncome = teRound(calc.grossIncome + calc.ssBenefitsTaxable);
     calc.agi         = teRound(calc.agi         + calc.ssBenefitsTaxable);
+  }
+
+  // ── Step 3a: §469(i) Rental Real Estate Exception ─────────────────────
+  // IRC §469(i)(1): taxpayers who actively participate in rental real estate may deduct up to
+  // $25,000 of net rental losses against non-passive income, subject to an AGI phase-out.
+  // This step runs AFTER AGI is set (above) because the phase-out depends on AGI.
+  // Pass 1 suspended all passive losses; if a §469(i) allowance exists, we retroactively
+  // release it by increasing calc.scheduleENet and reducing calc.grossIncome and calc.agi.
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section469
+  calc.passive469iAllowance = 0;
+  if (calc.rentalActiveLoss > 0) {
+    let p4 = K.passive469i;
+    let mfsLivedTogether = (fs === 'mfs') && !!(teCurrentReturn.socialSecurity || {}).mfsLivedWithSpouse;
+    // IRC §469(i)(5)(A): MFS who lived with spouse at any time during year — cap is $0
+    if (!mfsLivedTogether) {
+      // Select correct cap and phase-out start based on filing status — IRC §469(i)(5)
+      let cap469i       = (fs === 'mfs') ? p4.capMFSApart       : p4.cap;
+      let phaseStart469i= (fs === 'mfs') ? p4.phaseoutStartMFSApart : p4.phaseoutStart;
+      // IRC §469(i)(3)(B): reduce cap by 50% of AGI excess over threshold
+      let agiExcess     = teRound(Math.max(0, calc.agi - phaseStart469i));
+      let allowanceCap  = teRound(Math.max(0, cap469i - p4.phaseoutRate * agiExcess));
+      // Allowance = lesser of net rental loss and (remaining) cap
+      calc.passive469iAllowance = teRound(Math.min(calc.rentalActiveLoss, allowanceCap));
+      if (calc.passive469iAllowance > 0) {
+        // Release the allowance: reduce suspended loss, increase flowing income
+        calc.passiveLossSuspended = teRound(Math.max(0, calc.passiveLossSuspended - calc.passive469iAllowance));
+        calc.scheduleENet         = teRound(calc.scheduleENet - calc.passive469iAllowance);  // (rental net was negative)
+        calc.grossIncome          = teRound(calc.grossIncome  - calc.passive469iAllowance);
+        // Re-run SLI and IRA phase-outs with corrected MAGI — both key off grossIncome which just changed.
+        // IRC §221(b)(2)(C): SLI MAGI = grossIncome − HSA − seTaxDeduction (SLI excluded from its own MAGI)
+        let newMagiSLI = teRound(calc.grossIncome - calc.hsaDeduction - calc.seTaxDeduction);
+        let newSliDed  = teCalcSLI(adj, newMagiSLI, K, fs);
+        // IRC §219(b): IRA MAGI = grossIncome − HSA − SLI − seTaxDeduction
+        let newMagiIRA = teRound(calc.grossIncome - calc.hsaDeduction - newSliDed - calc.seTaxDeduction);
+        let newIraDed  = teCalcIRA(adj, newMagiIRA, K, fs);
+        // Apply deltas to adjustments and re-derive AGI
+        let adjDelta = teRound((newSliDed - calc.sliDeduction) + (newIraDed - calc.iraDeduction));
+        calc.sliDeduction = newSliDed;
+        calc.iraDeduction = newIraDed;
+        calc.adjustments  = teRound(calc.adjustments + adjDelta);
+        // Update Schedule 1 Part II display cache so renderer shows corrected values
+        if (calc.sched1PII_lines) {
+          calc.sched1PII_lines.l20 = calc.iraDeduction;
+          calc.sched1PII_lines.l21 = calc.sliDeduction;
+        }
+        // Re-derive final AGI with corrected grossIncome and adjustments
+        calc.agi = teRound(calc.grossIncome - calc.adjustments);
+      }
+    }
   }
 
   // ── Step 3b: Investment Interest Expense — IRC §163(d) ───────────────
@@ -1112,11 +1183,14 @@ function teRecalculate() {
   calc.ctcAfterPhaseout  = ctc.afterPhaseout;
   calc.ctcNonRefundable  = ctc.nonRefundable;
   calc.actcRefundable    = ctc.actcRefundable;
+  // IRC §24(h)(4): ODC $500 per non-CTC qualifying dependent — non-refundable only
+  // IRC §24(h)(7): ITIN children treated as non-CTC dependents → ODC instead of CTC
+  calc.odcCredit         = ctc.odcNonRefundable || 0;
 
   // ── Step 9a: Child & Dependent Care Credit — IRC §21 ────────────────
   // Per Schedule 3 Line 2: §21 is applied immediately after CTC (Line 19 of Form 1040)
   // and before education credits (Schedule 3 Line 3). Non-refundable only.
-  let taxAfterCTC   = teRound(Math.max(0, calc.taxBeforeCredits - calc.ctcNonRefundable));
+  let taxAfterCTC   = teRound(Math.max(0, calc.taxBeforeCredits - calc.ctcNonRefundable - calc.odcCredit));
   let cdccResult    = teCalcCDCC(teCurrentReturn, calc, K, fs);
   calc.cdccRate     = cdccResult.rate;
   calc.cdccQualExp  = cdccResult.qualifyingExpenses;
@@ -1150,7 +1224,7 @@ function teRecalculate() {
 
   // ── Step 10: Non-refundable credits applied — floor at $0 ───────────
   calc.totalNonRefundable = teRound(
-    calc.ctcNonRefundable + calc.cdccCredit
+    calc.ctcNonRefundable + calc.odcCredit + calc.cdccCredit
     + calc.totalEduNonRefundable + calc.saversCredit + calc.energyCredit
   );
   calc.taxAfterNRCredits  = teRound(Math.max(0, calc.taxBeforeCredits - calc.totalNonRefundable));
@@ -1196,10 +1270,13 @@ function teRecalculate() {
   calc.w2Box4  = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+(parseFloat(w.box4 )||0), 0));
   calc.w2Box5  = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+(parseFloat(w.box5 )||0), 0));
   calc.w2Box6  = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+(parseFloat(w.box6 )||0), 0));
-  // TODO: Wire w2Box10 to Form 2441 (Dependent Care Benefits) — IRC §129
-  calc.w2Box10 = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+(parseFloat(w.box10)||0), 0));
-  // TODO: Wire w2Box12W to Form 8889 (HSA employer contributions) — IRC §223(d)(2)
-  calc.w2Box12W   = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+((w.box12||[]).reduce((a,r) => a+(r.code==='W'?(parseFloat(r.amount)||0):0), 0)), 0));
+  // IRC §6413(c): if multiple employers caused aggregate Box 4 to exceed SS wage base × 6.2%,
+  // the excess is a refundable payment (Schedule 3 Line 11 → 1040 Line 31).
+  // Single-employer withholding errors are NOT refundable here — employer must file amended 941.
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section6413
+  calc.excessSSWithholding = teRound(Math.max(0, calc.w2Box4 - teRound(SE.ssTaxWageBase * 0.062)));
+  // calc.w2Box10 computed early (before teCalcCDCC) — IRC §129. See above near calc.w2Box13Ret.
+  // calc.w2Box12W computed early (before teCalcHSA) — IRC §223(d)(2). See above near calc.w2Box13Ret.
   // TODO: Wire w2Box12Ret to IRA deduction active participant phase-out — IRC §219(g)
   let _retCodes = new Set(['D','E','F','G','H','S','AA','BB','EE']);
   calc.w2Box12Ret = teRound((teCurrentReturn.w2||[]).reduce((s,w) => s+((w.box12||[]).reduce((a,r) => a+(_retCodes.has(r.code)?(parseFloat(r.amount)||0):0), 0)), 0));
@@ -1226,8 +1303,10 @@ function teRecalculate() {
     (calc.r1099Withholding || 0) +
     (calc.ssWithholding    || 0)
   );
-  // Total payments: withholding (Line 25a+25b) + estimated (Line 26) + refundable credits (Line 32) → 1040 Line 33
-  calc.totalPayments = teRound(calc.w2Withholding + calc.otherWithholding + calc.estPayments + calc.totalRefundableCredits);
+  // Total payments: W-2 withholding (Line 25a) + other withholding (Line 25b) + estimated (Line 26)
+  // + excess SS (Schedule 3 Line 11 → 1040 Line 31) + refundable credits (Line 32) → 1040 Line 33
+  // IRC §6413(c): excess SS withholding is a refundable payment, not a credit.
+  calc.totalPayments = teRound(calc.w2Withholding + calc.otherWithholding + calc.estPayments + calc.excessSSWithholding + calc.totalRefundableCredits);
   // Refund (1040 Line 34) and Balance Due (1040 Line 37) — named aliases
   calc.refund     = teRound(Math.max(0,  calc.totalPayments - calc.totalTax));
   calc.balanceDue = teRound(Math.max(0,  calc.totalTax      - calc.totalPayments));
@@ -1624,34 +1703,48 @@ function teCalcQDLTCGTax(qdltcg, taxableIncome, ordinaryPortion, K, fs) {
   return teRound(inFifteen * 0.15 + inTwenty * 0.20);  // 0% contributes $0
 }
 function teCalcCTC(r, agi, totalTax, earnedIncome, fs, K) {
+  let deps = r.dependents || [];
+  let yr   = r.taxYear;
+
+  // IRC §24(h)(7): SSN required for CTC — ITIN children treated as non-CTC dependents
   // IRC §24(c)(1): qualifying child must be under 17 as of December 31
-  let qc = (r.dependents || []).filter(d => d.isQualifyingChild && teIsUnder17(d.dob, r.taxYear));
-  if (qc.length === 0) return { gross: 0, afterPhaseout: 0, nonRefundable: 0, actcRefundable: 0 };
+  let ctcDeps = deps.filter(d => d.isQualifyingChild && teIsUnder17(d.dob, yr) && d.hasSSN !== false);
+  // ODC dependents: (a) ITIN qualifying children, (b) all non-QC dependents — IRC §24(h)(4)
+  let odcDeps = deps.filter(d => !(d.isQualifyingChild && teIsUnder17(d.dob, yr) && d.hasSSN !== false));
+  let odcCount = odcDeps.length;
 
-  // IRC §24(a): $2,200 per qualifying child — OBBBA P.L. 119-21
-  let gross = qc.length * K.ctc.amountPerChild;
+  let ctcGross = ctcDeps.length * K.ctc.amountPerChild;
+  let odcGross = odcCount * (K.ctc.odcAmount || 500);
+  let totalGross = ctcGross + odcGross;
+  if (totalGross === 0) return { gross: 0, afterPhaseout: 0, nonRefundable: 0, actcRefundable: 0, odcNonRefundable: 0 };
 
-  // IRC §24(b)(1): $50 reduction per $1,000 (or fraction) of AGI over threshold
+  // IRC §24(b)(1): phase-out runs on combined CTC + ODC gross — $50 per $1,000 AGI over threshold
+  // Source: uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title26-section24
   let thr       = K.ctc.phaseoutThreshold[fs] || K.ctc.phaseoutThreshold.single;
   let excess    = Math.max(0, agi - thr);
   let reduction = Math.ceil(excess / 1000) * 50;
-  let ap        = Math.max(0, gross - reduction);
+  let totalAP   = Math.max(0, totalGross - reduction);
 
-  // Non-refundable portion: limited to tax liability
-  let nr = Math.min(ap, totalTax);
+  // Prorate the phase-out reduction between CTC and ODC proportionally to gross amounts
+  let ctcAP = totalGross > 0 ? teRound(totalAP * (ctcGross / totalGross)) : 0;
+  let odcAP = teRound(totalAP - ctcAP);
 
-  // IRC §24(d): ACTC — refundable when CTC exceeds tax liability
-  // ACTC = min(unusedCTC, min($1,700 × numQC, 15% × max(0, earnedIncome − $2,500)))
-  // Source: Rev. Proc. 2024-40; irs.gov CTC page
-  let unused = ap - nr;
+  // CTC — non-refundable against tax; remainder eligible for ACTC — IRC §24(d)
+  let ctcNR = teRound(Math.min(ctcAP, totalTax));
+  let unused = teRound(ctcAP - ctcNR);
   let actc   = 0;
   if (unused > 0) {
+    // ACTC = min(unused, min($1,700 × numCTCChildren, 15% × max(0, earnedIncome − $2,500)))
     let byEarned = Math.max(0, earnedIncome - K.ctc.earnedIncomeMin) * K.ctc.earnedIncomeRate;
-    let maxACTC  = K.ctc.actcMax * qc.length;
-    actc = Math.round(Math.min(unused, Math.min(maxACTC, byEarned)) * 100) / 100;
+    let maxACTC  = K.ctc.actcMax * ctcDeps.length;
+    actc = teRound(Math.min(unused, Math.min(maxACTC, byEarned)));
   }
 
-  return { gross, afterPhaseout: ap, nonRefundable: nr, actcRefundable: actc };
+  // ODC — non-refundable only; applied after CTC against remaining liability — IRC §24(h)(4)
+  let taxAfterCTConly = teRound(Math.max(0, totalTax - ctcNR));
+  let odcNR = teRound(Math.min(odcAP, taxAfterCTConly));
+
+  return { gross: ctcGross, afterPhaseout: ctcAP, nonRefundable: ctcNR, actcRefundable: actc, odcNonRefundable: odcNR };
 }
 function teIsUnder17(dob, taxYear) {
   if (!dob) return false;
@@ -1815,9 +1908,11 @@ function teCalcCDCC(r, calc, K, fs) {
   let is2plus    = (persons === '2plus');
   let expenseCap = is2plus ? C.expenseCap2 : C.expenseCap1;
 
-  // Step 1: Reduce qualifying expenses by employer FSA benefits — IRC §21(c); Form 2441
+  // Step 1: Reduce qualifying expenses by employer-provided care benefits — IRC §21(c), §129; Form 2441
+  // Box 10 (employer-provided dependent care benefits) reduces qualifying expenses alongside any
+  // manually entered FSA benefits — IRC §129(a)(2) excludes from income, IRC §21(c) bars double-dipping.
   let careExp = teRound(Math.max(0, parseFloat(d.careExpenses) || 0));
-  let fsaBen  = teRound(Math.max(0, parseFloat(d.fsaBenefits) || 0));
+  let fsaBen  = teRound(Math.max(0, (parseFloat(d.fsaBenefits) || 0) + (calc.w2Box10 || 0)));
   let netExp  = teRound(Math.max(0, careExp - fsaBen));
 
   // Step 2: Apply dollar cap — IRC §21(c)

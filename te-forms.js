@@ -1271,20 +1271,27 @@ function teRenderDepsList() {
 
   let rows = deps.map((d, i) => {
     let isEICQC  = teIsEICQualifyingChild(d, yr);
-    let isCTC    = d.isQualifyingChild && teIsUnder17(d.dob, yr);
-    // Column (7): every listed dependent gets CTC or ODC — no "neither" case
-    // CTC: qualifying child under 17 (IRC §24(c)(1))
-    // ODC: all others — QC ≥17, or qualifying relative (IRC §24(h)(4)) — $500, not yet in engine
+    // IRC §24(h)(7): ITIN children (hasSSN === false) cannot qualify for CTC → ODC $500 instead
+    let isCTC    = d.isQualifyingChild && teIsUnder17(d.dob, yr) && d.hasSSN !== false;
+    let isITIN   = d.isQualifyingChild && teIsUnder17(d.dob, yr) && d.hasSSN === false;
+    // Column (7): every listed dependent qualifies for CTC or ODC — IRC §24(a), §24(h)(4)
     let creditBadge = isCTC
       ? `<span class="te-dep-credit te-dep-credit-ctc">CTC</span>`
-      : `<span class="te-dep-credit te-dep-credit-odc">ODC</span>`;
-    // Column 7 shows CTC if QC under 17; otherwise ODC ($500 — not yet in engine)
+      : isITIN
+        ? `<span class="te-dep-credit te-dep-credit-odc" title="ITIN child — SSN required for CTC; qualifies for ODC $500 instead. IRC §24(h)(7).">ODC<br><span style="font-size:8px;opacity:0.8;">ITIN</span></span>`
+        : `<span class="te-dep-credit te-dep-credit-odc">ODC</span>`;
 
     return `
       <div style="${colStyle}padding:5px 4px;border-bottom:1px solid rgba(30,45,69,0.4);">
         <input type="text" class="te-input te-dep-in" value="${esc(d.firstName||'')}" placeholder="First" oninput="teUpdDep(${i},'firstName',this.value)">
         <input type="text" class="te-input te-dep-in" value="${esc(d.lastName||'')}"  placeholder="Last"  oninput="teUpdDep(${i},'lastName',this.value)">
-        <input type="text" class="te-input te-dep-in" value="${esc(d.ssn||'')}" placeholder="XXX-XX-XXXX" maxlength="11" oninput="teUpdDep(${i},'ssn',this.value)">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <input type="text" class="te-input te-dep-in" value="${esc(d.ssn||'')}" placeholder="XXX-XX-XXXX" maxlength="11" oninput="teUpdDep(${i},'ssn',this.value)">
+          <label style="display:flex;align-items:center;gap:3px;font-size:10px;cursor:pointer;" title="Check if dependent has an ITIN (not an SSN). ITIN children cannot qualify for CTC — they receive ODC $500 instead. IRC §24(h)(7).">
+            <input type="checkbox" ${d.hasSSN === false ? 'checked' : ''} onchange="teUpdDep(${i},'hasSSN',!this.checked)">
+            ITIN
+          </label>
+        </div>
         <input type="date" lang="en-GB" class="te-input te-dep-in" value="${esc(d.dob||'')}" min="1900-01-01" max="${new Date().toISOString().slice(0,10)}" onchange="teUpdDep(${i},'dob',this.value)">
         <select class="te-select te-dep-in" onchange="teUpdDep(${i},'relationship',this.value)">
           <option value="child"     ${d.relationship==='child'    ?'selected':''}>Child</option>
@@ -1319,7 +1326,7 @@ function teAddDep() {
   teCurrentReturn.dependents.push({
     firstName: '', lastName: '', ssn: '', dob: '', relationship: 'child',
     isQualifyingChild: true, livedWithTaxpayer: true, inUS: true,
-    isFullTimeStudent: false, isPermanentlyDisabled: false
+    isFullTimeStudent: false, isPermanentlyDisabled: false, hasSSN: true
   });
   teRenderDepsList();
   teRecalculate();
@@ -1330,17 +1337,21 @@ function teUpdDep(i, field, val) {
   teMarkDirty();
   teCurrentReturn.dependents[i][field] = val;
 
-  // DOB / isQualifyingChild: update credit badge in place — do NOT re-render the whole list
+  // DOB / isQualifyingChild / hasSSN: update credit badge in place — do NOT re-render the whole list
   // (re-rendering destroys the date input mid-interaction on DOB changes)
-  if (field === 'dob' || field === 'isQualifyingChild') {
+  if (field === 'dob' || field === 'isQualifyingChild' || field === 'hasSSN') {
     let d   = teCurrentReturn.dependents[i];
     let yr  = teCurrentReturn.taxYear;
     let el  = document.getElementById('te-dep-credit-' + i);
     if (el) {
-      let isCTC = d.isQualifyingChild && teIsUnder17(d.dob, yr);
+      // IRC §24(h)(7): ITIN children cannot qualify for CTC — ODC $500 instead
+      let isCTC  = d.isQualifyingChild && teIsUnder17(d.dob, yr) && d.hasSSN !== false;
+      let isITIN = d.isQualifyingChild && teIsUnder17(d.dob, yr) && d.hasSSN === false;
       el.innerHTML = isCTC
         ? `<span class="te-dep-credit te-dep-credit-ctc">CTC</span>`
-        : `<span class="te-dep-credit te-dep-credit-odc">ODC</span>`;
+        : isITIN
+          ? `<span class="te-dep-credit te-dep-credit-odc" title="ITIN child — SSN required for CTC; qualifies for ODC $500 instead. IRC §24(h)(7).">ODC<br><span style="font-size:8px;opacity:0.8;">ITIN</span></span>`
+          : `<span class="te-dep-credit te-dep-credit-odc">ODC</span>`;
     }
   }
 
@@ -3312,8 +3323,9 @@ function teRenderScheduleEList() {
       </div>
       ${entities.map((e, i) => {
         let isCCorp = (e.entityType || 'partnership') === 'ccorp';
+        let showRentalRow = e.isPassive && (parseFloat(e.incomeAmount) || 0) < 0;
         return `
-        <div style="${colStyle}padding:5px 4px;border-bottom:1px solid rgba(30,45,69,0.4);">
+        <div style="${colStyle}padding:5px 4px;border-bottom:${showRentalRow ? 'none' : '1px solid rgba(30,45,69,0.4)'};">
           <input type="text" class="te-input" value="${esc(e.name||'')}" placeholder="Entity name"
             oninput="teOnScheduleE(${i},'name',this.value)">
           <input type="text" class="te-input" value="${esc(e.ein||'')}" placeholder="XX-XXXXXXX"
@@ -3336,12 +3348,25 @@ function teRenderScheduleEList() {
             Passive <span class="te-cite" style="font-size:10px;">§469</span>
           </label>
           <button class="te-rm-btn" onclick="teRmScheduleE(${i})">✕</button>
-        </div>`;
+        </div>
+        ${showRentalRow ? `
+        <div style="padding:4px 4px 6px 12px;border-bottom:1px solid rgba(30,45,69,0.4);display:flex;gap:20px;align-items:center;">
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;" title="Check if this entity holds rental real estate — required for §469(i) exception.">
+            <input type="checkbox" ${e.isRentalRealEstate ? 'checked' : ''} onchange="teOnScheduleE(${i},'isRentalRealEstate',this.checked)">
+            Rental real estate <span class="te-cite" style="font-size:10px;">§469(i)</span>
+          </label>
+          ${e.isRentalRealEstate ? `
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;" title="Taxpayer actively participates in management decisions (approve tenants, set rents, approve repairs). Less than 10% ownership disqualifies. IRC §469(i)(6).">
+            <input type="checkbox" ${e.activelyParticipates ? 'checked' : ''} onchange="teOnScheduleE(${i},'activelyParticipates',this.checked)">
+            Actively participates <span class="te-cite" style="font-size:10px;">§469(i)(6)</span>
+          </label>` : ''}
+        </div>` : ''}`;
       }).join('')}
     </div>
-    ${calc.passiveLossSuspended > 0 ? `
+    ${calc.passiveLossSuspended > 0 || calc.passive469iAllowance > 0 ? `
     <div class="te-ded-note" style="margin-top:6px;color:#f5a623;">
-      ⚠ Suspended passive loss: ${teFmt(calc.passiveLossSuspended)} — not currently deductible. Passive losses can only offset passive income. <span class="te-cite">IRC §469(a)</span>
+      ${calc.passive469iAllowance > 0 ? `✓ §469(i) rental real estate exception applied: <strong>${teFmt(calc.passive469iAllowance)}</strong> of passive rental loss is deductible against non-passive income. <span class="te-cite">IRC §469(i)</span>` : ''}
+      ${calc.passiveLossSuspended > 0 ? `${calc.passive469iAllowance > 0 ? '<br>' : ''}⚠ Remaining suspended passive loss: ${teFmt(calc.passiveLossSuspended)} — not currently deductible. <span class="te-cite">IRC §469(a)</span>` : ''}
     </div>` : ''}
     <div class="te-ded-note" style="margin-top:4px;">
       Passive: ${teFmt(calc.scheduleEPassive)} &nbsp;|&nbsp; Non-passive: ${teFmt(calc.scheduleENonPassive)} &nbsp;|&nbsp; Net flowing to gross income: ${teFmt(calc.scheduleENet)}
@@ -5327,7 +5352,7 @@ function teAddScheduleE() {
   if (!teCurrentReturn) return;
   teMarkDirty();
   if (!teCurrentReturn.scheduleE) teCurrentReturn.scheduleE = [];
-  teCurrentReturn.scheduleE.push({ name: '', ein: '', entityType: 'partnership', incomeAmount: '', isPassive: true, qbiAmount: '' });
+  teCurrentReturn.scheduleE.push({ name: '', ein: '', entityType: 'partnership', incomeAmount: '', isPassive: true, qbiAmount: '', isRentalRealEstate: false, activelyParticipates: false });
   teRenderScheduleEList();
   teRecalculate();
 }
@@ -5350,8 +5375,10 @@ function teOnScheduleE(i, field, val) {
   }
   teRecalculate();
   let calc = teCurrentReturn._calc || {};
-  // Re-render on structural changes (entityType changes QBI field visibility; passive changes loss note)
-  if (field === 'entityType' || field === 'isPassive' || calc.passiveLossSuspended > 0) {
+  // Re-render on structural changes (entityType, isPassive, rental flags, any suspended/allowed loss)
+  if (field === 'entityType' || field === 'isPassive' || field === 'isRentalRealEstate' ||
+      field === 'activelyParticipates' || field === 'incomeAmount' ||
+      calc.passiveLossSuspended > 0 || calc.passive469iAllowance > 0) {
     teRenderScheduleEList();
   }
 }
@@ -6453,8 +6480,10 @@ function teRenderSchedule3() {
   // Foreign tax (Line 1) and Line 7 group are stubs; Line 5a (§25D solar) not implemented
   let line8  = teRound(cdcc + eduNR + savers + energy);
 
-  // Part II: all stubs — estimated payments are on 1040 Line 26, NOT Schedule 3 Line 10
-  let line15 = 0;
+  // Part II: Line 11 = excess SS withholding — live; others remain stubs
+  // Estimated payments are on 1040 Line 26, NOT Schedule 3 Line 10 (which is extension payments only)
+  let excessSS = calc.excessSSWithholding || 0;
+  let line15   = teRound(excessSS);  // Line 15 = Line 11 + Line 14 (Line 14 = sum of 13a-13z = 0 currently)
 
   return `
     <div class="te-sch-se">
@@ -6521,7 +6550,9 @@ function teRenderSchedule3() {
 
       ${stubRow('9',   'Net premium tax credit <span class="te-cite">Form 8962 &mdash; IRC §36B</span>')}
       ${stubRow('10',  'Amount paid with request for extension to file <span class="te-cite">Form 4868</span>')}
-      ${stubRow('11',  'Excess social security and tier 1 RRTA tax withheld <span class="te-cite">IRC §6413(c)</span>')}
+      ${excessSS > 0
+          ? cRow('11', 'Excess social security and tier 1 RRTA tax withheld <span class="te-cite">IRC §6413(c)</span>', teFmt(excessSS))
+          : cRow('11', 'Excess social security and tier 1 RRTA tax withheld <span class="te-cite">IRC §6413(c)</span>', '—', 'te-se-zero')}
       ${stubRow('12',  'Credit for federal tax on fuels <span class="te-cite">Form 4136</span>')}
       ${stubRow('13a', 'Form 2439')}
       ${stubRow('13b', 'Section 1341 credit for repayment of amounts included in income from earlier years')}
@@ -6536,6 +6567,9 @@ function teRenderSchedule3() {
         <span>Line 15 — Total Other Payments and Refundable Credits &nbsp;<span class="te-cite" style="font-weight:400;">&rarr; Form 1040, Line 31</span></span>
         <span class="te-total-val">${line15 > 0 ? teFmt(line15) : '—'}</span>
       </div>
+      ${excessSS > 0 ? `<div class="te-ded-note" style="margin-top:6px;">
+        ✓ Excess SS withholding of ${teFmt(excessSS)} detected (aggregate Box 4 exceeds wage base × 6.2%). This flows to 1040 Line 31 as a refundable payment. Applies only when multiple employers collectively withheld beyond the limit — single-employer overwithholding is not refundable here; the employer must file an amended Form 941. <span class="te-cite">IRC §6413(c)</span>
+      </div>` : ''}
 
     </div>`;
 }

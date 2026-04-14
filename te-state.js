@@ -1017,6 +1017,11 @@ function teDeserialize(data) {
   if (r.spouse.ssn             === undefined) r.spouse.ssn   = r.spouse.ssnLast4   || '';
   // Backfill address block (not on older returns)
   if (!r.address) r.address = { street: '', apt: '', city: '', state: '', zip: '' };
+  // Backfill Schedule E new fields — §469(i) rental real estate exception
+  (r.scheduleE || []).forEach(e => {
+    if (e.isRentalRealEstate  === undefined) e.isRentalRealEstate  = false;
+    if (e.activelyParticipates=== undefined) e.activelyParticipates= false;
+  });
   // Backfill dependent fields (EIC + 1040 form fields)
   (r.dependents || []).forEach(d => {
     if (d.isFullTimeStudent    === undefined) d.isFullTimeStudent    = false;
@@ -1024,6 +1029,8 @@ function teDeserialize(data) {
     if (d.ssn                  === undefined) d.ssn                  = '';
     if (d.livedWithTaxpayer    === undefined) d.livedWithTaxpayer    = true;
     if (d.inUS                 === undefined) d.inUS                 = true;
+    // IRC §24(h)(7): SSN required for CTC; ITIN children → ODC $500 instead
+    if (d.hasSSN               === undefined) d.hasSSN               = true;
   });
   return r;
 }
