@@ -138,6 +138,7 @@ function checkUnreadInquiries() {
 }
 
 function switchDashTab(tabName) {
+  sessionStorage.setItem('dash-active-tab', tabName);
   document.querySelectorAll(".dash-tab").forEach(t => t.style.display = "none");
   document.getElementById("tab-" + tabName).style.display = "block";
   document.querySelectorAll(".dash-nav-btn").forEach(b => {
@@ -1135,6 +1136,10 @@ auth.onAuthStateChanged(user => {
     setInterval(checkPendingApprovals, 30000);
     checkPendingApprovals();
     checkUnreadInquiries();
+
+    // ── Restore active tab across page refreshes (tab only — sub-state always resets) ──
+    let savedTab = sessionStorage.getItem('dash-active-tab');
+    if (savedTab && savedTab !== 'overview') switchDashTab(savedTab);
 
   }).catch(err => {
     console.error("Admin check failed:", err);
