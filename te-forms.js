@@ -127,26 +127,8 @@ function teRenderIncomeMenu() {
     </div>
     <div class="te-menu-section-lbl" style="margin-top:20px;">Schedules <span class="te-cite">IRC §61</span></div>
     <div class="te-menu-grid">
-      ${teMenuCard('sched-b',    'Schedule B',   'Interest &amp; Dividend Summary',
-          'IRS Schedule B — required when interest or dividends exceed $1,500. Parts I, II, III.',
-          hasSB, hasSB ? teFmt((c.schedBL4||0)+(c.schedBL6||0)) : null, src)}
-      ${teMenuCard('sched-c',    'Schedule C',    'Self-Employment Income',
-          'Net profit from business. Drives SE tax and QBI deduction. IRC §162.',
-          parseFloat((r.scheduleC||{}).netProfit) > 0, teFmt(c.netSEIncome||0), src)}
-      ${teMenuCard('sched-se',   'Schedule SE',   'Self-Employment Tax',
-          'SS (12.4%) + Medicare (2.9%) on 92.35% of net SE earnings. IRC §1401.',
-          (c.seTax || 0) > 0, (c.seTax || 0) > 0 ? teFmt(c.seTax) : null, src)}
-      ${teMenuCard('sched-d',    'Schedule D',    'Capital Gains &amp; Losses',
-          'Net short-term and long-term gains. $3,000 annual loss cap. IRC §1221.',
-          hasSd, hasSd ? teFmt(Math.abs(sdNet)) : null, src)}
-      ${teMenuCard('sched-e',    'Schedule E',    'Pass-Through &amp; K-1 Income',
-          'Partnership, S-Corp, trust, estate K-1 income and losses. IRC §702, §1366.',
-          (r.scheduleE||[]).length > 0, teFmt(c.scheduleENet||0), src)}
       ${(() => {
         let s1 = r.schedule1 || {};
-        // hasS1: check raw state fields, computed sched1Extra, AND Schedule C/E calc values.
-        // sched1Extra covers lines 1, 2a, 4, 7, 8a–8z. Lines 3 (Sched C) and 5 (Sched E)
-        // flow through Schedule 1 Part I but live in calc — must be checked separately.
         let hasS1 = (c.sched1Extra || 0) !== 0
           || (c.netSEIncome || 0) !== 0
           || (c.scheduleENet || 0) !== 0
@@ -155,8 +137,6 @@ function teRenderIncomeMenu() {
           || ['l8a','l8b','l8c','l8d','l8e','l8f','l8g','l8h','l8i','l8j','l8k','l8l',
               'l8m','l8n','l8o','l8p','l8q','l8r','l8s','l8t','l8u','l8v'].some(k => (parseFloat(s1[k])||0) !== 0)
           || (s1.otherIncomeRows||[]).length > 0;
-        // Amount: use full Part I Line 10 total from calc (includes lines 3+5+extra).
-        // Fall back to summing known parts if sched1Lines not yet populated.
         let s1Total = (c.sched1Lines && c.sched1Lines.l10 !== undefined)
           ? c.sched1Lines.l10
           : teRound((c.sched1Extra||0) + (c.netSEIncome||0) + (c.scheduleENet||0));
@@ -164,6 +144,21 @@ function teRenderIncomeMenu() {
           'Taxable refunds, alimony, other gains, unemployment, other income. Sch. 1 Part I → 1040 Line 8.',
           hasS1, hasS1 ? teFmt(Math.abs(s1Total)) : null, src);
       })()}
+      ${teMenuCard('sched-b',    'Schedule B',   'Interest &amp; Dividend Summary',
+          'IRS Schedule B — required when interest or dividends exceed $1,500. Parts I, II, III.',
+          hasSB, hasSB ? teFmt((c.schedBL4||0)+(c.schedBL6||0)) : null, src)}
+      ${teMenuCard('sched-c',    'Schedule C',    'Self-Employment Income',
+          'Net profit from business. Drives SE tax and QBI deduction. IRC §162.',
+          parseFloat((r.scheduleC||{}).netProfit) > 0, teFmt(c.netSEIncome||0), src)}
+      ${teMenuCard('sched-d',    'Schedule D',    'Capital Gains &amp; Losses',
+          'Net short-term and long-term gains. $3,000 annual loss cap. IRC §1221.',
+          hasSd, hasSd ? teFmt(Math.abs(sdNet)) : null, src)}
+      ${teMenuCard('sched-e',    'Schedule E',    'Pass-Through &amp; K-1 Income',
+          'Partnership, S-Corp, trust, estate K-1 income and losses. IRC §702, §1366.',
+          (r.scheduleE||[]).length > 0, teFmt(c.scheduleENet||0), src)}
+      ${teMenuCard('sched-se',   'Schedule SE',   'Self-Employment Tax',
+          'SS (12.4%) + Medicare (2.9%) on 92.35% of net SE earnings. IRC §1401.',
+          (c.seTax || 0) > 0, (c.seTax || 0) > 0 ? teFmt(c.seTax) : null, src)}
     </div>
     <div class="te-menu-total">
       <span>Total Gross Income <span class="te-cite">§61 / 1040 Line 9</span></span>
