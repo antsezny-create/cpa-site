@@ -531,13 +531,15 @@
 
         <!-- Left panel: mini calendar + categories -->
         <div class="cal-left-panel" id="cal-left-panel">
-          <button class="cal-panel-collapse" onclick="toggleCalPanel()" title="Collapse panel">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
-          </button>
           <div class="cal-mini-nav">
-            <button class="cal-mini-nav-btn" onclick="calMiniPrev()">&#8249;</button>
             <span class="cal-mini-title" id="cal-mini-title">April 2026</span>
-            <button class="cal-mini-nav-btn" onclick="calMiniNext()">&#8250;</button>
+            <div class="cal-mini-nav-btns">
+              <button class="cal-mini-nav-btn" onclick="calMiniPrev()">&#8249;</button>
+              <button class="cal-mini-nav-btn" onclick="calMiniNext()">&#8250;</button>
+              <button class="cal-panel-collapse" onclick="toggleCalPanel()" title="Collapse panel">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+            </div>
           </div>
           <div class="cal-mini-grid" id="cal-mini-grid"></div>
           <div class="cal-categories">

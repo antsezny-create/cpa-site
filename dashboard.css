@@ -2532,16 +2532,18 @@ body {
 
 /* ── Left Panel ── */
 .cal-left-panel {
-  width: 196px;
-  min-width: 196px;
+  width: 224px;
+  min-width: 224px;
   background: var(--bg-card);
   border: 1px solid var(--border);
+  border-left: 3px solid #10B981;
   border-radius: var(--radius);
-  padding: 14px 12px 16px;
+  padding: 14px 14px 16px 20px;
   display: flex;
   flex-direction: column;
   gap: 0;
   flex-shrink: 0;
+  box-shadow: inset 6px 0 18px rgba(16, 185, 129, 0.07);
   transition: width 0.25s cubic-bezier(0.4,0,0.2,1),
               min-width 0.25s cubic-bezier(0.4,0,0.2,1),
               padding 0.25s,
@@ -2562,20 +2564,17 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px; height: 22px;
+  width: 20px; height: 20px;
   border-radius: 5px;
   border: none;
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
-  align-self: flex-end;
   flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s, background 0.15s;
-  margin-bottom: 6px;
+  opacity: 1;
+  transition: color 0.15s, background 0.15s;
 }
-.cal-left-panel:hover .cal-panel-collapse { opacity: 1; }
-.cal-panel-collapse:hover { color: var(--text); background: var(--bg-surface); }
+.cal-panel-collapse:hover { color: #10B981; background: rgba(16,185,129,0.1); }
 
 /* ── Mini Calendar ── */
 .cal-mini-nav {
@@ -2583,6 +2582,11 @@ body {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+}
+.cal-mini-nav-btns {
+  display: flex;
+  align-items: center;
+  gap: 1px;
 }
 .cal-mini-title {
   font-size: 11px;
@@ -2790,6 +2794,11 @@ body {
   padding: 16px 18px;
   overflow: hidden;
   min-width: 0;
+}
+/* When left panel is collapsed, the main panel becomes the leftmost edge — give it the green line */
+.cal-left-panel.cal-panel-collapsed + .cal-main-panel {
+  border-left: 3px solid #10B981;
+  box-shadow: inset 6px 0 18px rgba(16, 185, 129, 0.07);
 }
 
 /* ── Toolbar ── */
@@ -3250,7 +3259,6 @@ select.cal-input { cursor: pointer; }
   flex: 1;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  border-left: 1px solid var(--border);
 }
 .cal-week-allday-cell {
   padding: 3px 4px;

@@ -12,9 +12,9 @@ let editingEventId = null;
 let userCalendars  = [];   // user-created calendars from settings/userCalendars
 
 // Week view hour range
-const CAL_HOUR_START = 7;   // 7 AM
-const CAL_HOUR_END   = 21;  // 9 PM
-const CAL_SLOT_PX    = 56;  // px per hour
+const CAL_HOUR_START = 6;   // 6 AM
+const CAL_HOUR_END   = 22;  // 10 PM
+const CAL_SLOT_PX    = 44;  // px per hour
 
 // ── Client color map ───────────────────────────────────
 const CLIENT_COLOR_MAP = {
@@ -296,7 +296,7 @@ function renderWeekView() {
       <!-- Scrollable timed grid -->
       <div class="cal-week-scroll">
         <div class="cal-week-time-col">${hourLabels}</div>
-        <div class="cal-week-timed-grid">
+        <div class="cal-week-timed-grid" style="min-height:${(CAL_HOUR_END-CAL_HOUR_START)*CAL_SLOT_PX}px;">
           ${slotLines}
           <div class="cal-week-timed-cols">${timedCols}</div>
         </div>
